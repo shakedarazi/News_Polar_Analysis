@@ -47,6 +47,8 @@ pipeline_version identifies the version of the processing logic.
 - It must not depend on runtime state
 - It must be recorded on every output row
 
+> ⚠️ Adding dislike_count, engagement_weight, or controversy metrics is a breaking logic change and requires a new pipeline_version.
+
 **Recommended format:**
 
 - Git commit hash

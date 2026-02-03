@@ -83,11 +83,13 @@ A Comment represents a single audience reaction to an article.
 - Associated with exactly one Article
 - Identified by (article_id, comment_id)
 - Text-only analysis (no author metadata)
+- Includes like_count and dislike_count
 
 **Assumptions:**
 
 - Comment identity is stable within a snapshot
 - Likes represent agreement intensity
+- Dislikes represent disagreement intensity
 - Comment text is treated as an atomic unit
 
 **Comments are:**
@@ -107,13 +109,14 @@ A Comment Feature is the computed analytical representation of a Comment.
 
 - Comment length
 - Polarity ratio
-- Like-based weight
+- Engagement weight (derived from likes + dislikes)
+- Controversy (divisiveness based on like/dislike split)
 - Final comment score
 
 **Characteristics:**
 
 - Fully deterministic
-- Derived only from comment text and like count
+- Derived only from comment text, like count, and dislike count
 - Immutable once computed for a given run
 
 ---
@@ -126,12 +129,15 @@ An Article Comment Aggregate summarizes audience reaction at the article level.
 **Includes:**
 
 - Number of comments
-- Weighted mean of comment scores
-- Weighted p85 of comment scores
+- Weighted mean of comment scores (audience_mean)
+- Weighted p85 of comment scores (audience_p85)
+- Weighted mean of controversy (controversy_mean)
+- Weighted p85 of controversy (controversy_p85)
 
 **Purpose:**
 
 - Represent overall audience polarity
+- Represent overall audience divisiveness
 - Reduce comment-level noise
 - Enable article-level comparison
 

@@ -62,6 +62,9 @@ The snapshot contains a comments array.
 - comment_id
 - text
 - like_count
+- dislike_count (integer, default 0 if source does not expose it)
+
+> 📝 If dislike is not available from the source, store dislike_count = 0 to preserve backward compatibility.
 
 No author or timestamp fields are stored.
 

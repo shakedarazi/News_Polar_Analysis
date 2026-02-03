@@ -74,7 +74,9 @@ Each comment feature must satisfy:
 - polar_count must be between 0 and comment_len
 - polar_ratio must be between 0 and 1 inclusive
 - like_count must be greater than or equal to 0
-- like_weight must be greater than or equal to 1
+- dislike_count must be greater than or equal to 0
+- engagement_weight must be greater than or equal to 1
+- controversy must be between 0 and 1 inclusive
 - comment_score must equal polar_ratio exactly.
 
 ---
@@ -84,14 +86,18 @@ Each comment feature must satisfy:
 For each article aggregate:
 
 - num_comments must be greater than or equal to 0
-- sum_like_weight must be greater than or equal to num_comments
+- sum_engagement_weight must be greater than or equal to num_comments
 - audience_mean must be between 0 and 1 inclusive, or NULL if num_comments is 0
 - audience_p85 must be between 0 and 1 inclusive, or NULL if num_comments is 0
+- controversy_mean must be between 0 and 1 inclusive, or NULL if num_comments is 0
+- controversy_p85 must be between 0 and 1 inclusive, or NULL if num_comments is 0
 
 **If num_comments equals 0:**
 
 - audience_mean must be NULL
 - audience_p85 must be NULL
+- controversy_mean must be NULL
+- controversy_p85 must be NULL
 
 ---
 

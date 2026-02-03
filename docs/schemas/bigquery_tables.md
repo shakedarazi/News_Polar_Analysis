@@ -59,6 +59,12 @@ Derived from comments_features_staging.
 **Primary key:**
 (article_id, comment_id)
 
+**Key fields include:**
+
+- dislike_count
+- engagement_weight
+- controversy
+
 All staging fields are preserved.
 
 ---
@@ -69,6 +75,11 @@ Derived from article_comments_agg_staging.
 
 **Primary key:**
 (article_id)
+
+**Key fields include:**
+
+- controversy_mean
+- controversy_p85
 
 All staging fields are preserved.
 

@@ -62,10 +62,13 @@ For each eligible article:
 2. Fetch all available comments
 3. Normalize comment text
 4. Capture like counts
-5. Generate deterministic comment identifiers
-6. Sort comments by comment_id
+5. Capture dislike counts (if source provides it; otherwise set to 0)
+6. Generate deterministic comment identifiers
+7. Sort comments by comment_id
 
 The result is a complete, immutable snapshot.
+
+> 📝 If the source does not expose dislike_count, store dislike_count = 0 to preserve backward compatibility.
 
 ---
 
@@ -105,8 +108,9 @@ For each comment:
 1. Tokenize comment text
 2. Count polarity lexicon matches
 3. Compute polarity ratio
-4. Compute like-based weight
-5. Produce comment-level feature record
+4. Compute engagement weight (from likes + dislikes)
+5. Compute controversy (divisiveness from like/dislike split)
+6. Produce comment-level feature record
 
 Comments are treated as independent units.
 
@@ -116,11 +120,13 @@ Comments are treated as independent units.
 
 After processing all comments:
 
-- Compute weighted mean of comment scores
-- Compute weighted p85 of comment scores
+- Compute weighted mean of comment scores (audience_mean)
+- Compute weighted p85 of comment scores (audience_p85)
+- Compute weighted mean of controversy (controversy_mean)
+- Compute weighted p85 of controversy (controversy_p85)
 - Count total number of comments
 
-Aggregations depend only on comment-level features.
+Aggregations depend only on comment-level features and use engagement_weight.
 
 ---
 

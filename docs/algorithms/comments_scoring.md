@@ -13,10 +13,12 @@ This document defines the deterministic algorithm used to analyze audience comme
 - [5. Polarity Lexicon Matching](#5-polarity-lexicon-matching)
 - [6. Polarity Count](#6-polarity-count)
 - [7. Polarity Ratio](#7-polarity-ratio)
-- [8. Like-Based Weight](#8-like-based-weight)
-- [9. Comment Score](#9-comment-score)
-- [10. Determinism Guarantees](#10-determinism-guarantees)
-- [11. Output Fields](#11-output-fields)
+- [8. Engagement Weight](#8-engagement-weight)
+- [9. Controversy per Comment](#9-controversy-per-comment)
+- [10. Comment Score](#10-comment-score)
+- [11. Determinism Guarantees](#11-determinism-guarantees)
+- [12. Computational Complexity](#12-computational-complexity)
+- [13. Output Fields](#13-output-fields)
 
 ---
 
@@ -50,6 +52,7 @@ Each comment provides:
 
 - Normalized comment text
 - Like count (non-negative integer)
+- Dislike count (non-negative integer, default 0 if source does not expose it)
 
 No author metadata or timestamps are used.
 
@@ -107,14 +110,14 @@ polar_ratio = polar_count / max(1, comment_len)
 
 ---
 
-## 8. Like-Based Weight
+## 8. Engagement Weight
 
-Likes are treated as a signal of agreement.
+Total engagement (likes + dislikes) is used as a signal of audience attention.
 
 **Weight is computed as:**
 
 ```
-like_weight = 1 + ln(1 + like_count)
+engagement_weight = 1 + ln(1 + like_count + dislike_count)
 ```
 
 **Properties:**
@@ -122,10 +125,34 @@ like_weight = 1 + ln(1 + like_count)
 - Minimum weight is 1
 - Growth is sub-linear
 - Prevents extreme domination by viral comments
+- Captures total engagement regardless of sentiment
 
 ---
 
-## 9. Comment Score
+## 9. Controversy per Comment
+
+Controversy measures how divisive a comment is based on the like/dislike split.
+
+**Computation:**
+
+```
+total_votes = like_count + dislike_count
+p = like_count / max(1, total_votes)
+controversy = 4 * p * (1 - p)
+```
+
+**Properties:**
+
+- Range is [0, 1]
+- Maximum (1.0) when likes and dislikes are equal (p = 0.5)
+- Minimum (0.0) when all votes are one-sided
+- If total_votes = 0, controversy = 0
+
+This separates divisiveness (how split the crowd was) from intensity (what was said).
+
+---
+
+## 10. Comment Score
 
 The final comment score is defined as:
 
@@ -133,21 +160,36 @@ The final comment score is defined as:
 comment_score = polar_ratio
 ```
 
-Likes influence aggregation, not the score itself.
+Engagement weight influences aggregation, not the score itself.
 
 ---
 
-## 10. Determinism Guarantees
+## 11. Determinism Guarantees
 
 The algorithm guarantees:
 
-- Same comment text and likes produce identical scores
+- Same comment text, likes, and dislikes produce identical scores
 - Order of comment processing does not matter
 - No randomness or external dependencies
 
 ---
 
-## 11. Output Fields
+## 12. Computational Complexity
+
+For each comment:
+
+- Tokenization + lexicon lookup: O(tokens_in_comment)
+- Engagement weight computation: O(1)
+- Controversy computation: O(1)
+
+Per article comment processing remains:
+
+- Time: O(total_comment_tokens)
+- Space: O(1) extra per comment row
+
+---
+
+## 13. Output Fields
 
 Each comment produces one output record with:
 
@@ -157,8 +199,10 @@ Each comment produces one output record with:
 - polar_count
 - polar_ratio
 - like_count
-- like_weight
+- dislike_count
+- engagement_weight
 - comment_score
+- controversy
 - comment_lexicon_version
 - pipeline_version
 - run_id
