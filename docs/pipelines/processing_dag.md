@@ -1,165 +1,171 @@
-Processing DAG – Snapshot, Analysis, and Staging
+# 🚀 Processing DAG – Snapshot, Analysis, and Staging
 
 This document defines the second Airflow DAG responsible for snapshotting articles with comments, running deterministic analysis, and writing results to staging storage.
 
-1. Purpose of the Processing DAG
+---
+
+## Table of Contents
+
+- [1. Purpose of the Processing DAG](#1-purpose-of-the-processing-dag)
+- [2. Schedule](#2-schedule)
+- [3. Input Selection Criteria](#3-input-selection-criteria)
+- [4. Snapshot Creation](#4-snapshot-creation)
+- [5. Parallel Execution Model](#5-parallel-execution-model)
+- [6. Article Text Processing](#6-article-text-processing)
+- [7. Comment Processing](#7-comment-processing)
+- [8. Article-Level Aggregation](#8-article-level-aggregation)
+- [9. Staging Outputs](#9-staging-outputs)
+- [10. Versioning and Metadata](#10-versioning-and-metadata)
+- [11. Idempotency and Retries](#11-idempotency-and-retries)
+- [12. Explicit Non-Responsibilities](#12-explicit-non-responsibilities)
+
+---
+
+## 1. Purpose of the Processing DAG
 
 The processing DAG exists to:
 
-Create a stable snapshot of articles and their comments
-
-Perform deterministic text analysis
-
-Compute all window-level and comment-level features
-
-Write results to staging for downstream merging
+- Create a stable snapshot of articles and their comments
+- Perform deterministic text analysis
+- Compute all window-level and comment-level features
+- Write results to staging for downstream merging
 
 This DAG is the analytical core of the system.
 
-2. Schedule
+---
 
-Runs once per day
+## 2. Schedule
 
-Operates only on mature articles
+- Runs once per day
+- Operates only on mature articles
+- Independent of ingestion timing
 
-Independent of ingestion timing
+---
 
-3. Input Selection Criteria
+## 3. Input Selection Criteria
 
 An article is eligible for processing if:
 
-It exists in raw storage
-
-Current time minus first_seen_at is at least 24 hours
-
-It has not yet been processed for the current pipeline_version
+- It exists in raw storage
+- Current time minus first_seen_at is at least 24 hours
+- It has not yet been processed for the current pipeline_version
 
 This ensures stable and comparable results.
 
-4. Snapshot Creation
+---
+
+## 4. Snapshot Creation
 
 For each eligible article:
 
-Load raw article snapshot from GCS
-
-Fetch all available comments
-
-Normalize comment text
-
-Capture like counts
-
-Generate deterministic comment identifiers
-
-Sort comments by comment_id
+1. Load raw article snapshot from GCS
+2. Fetch all available comments
+3. Normalize comment text
+4. Capture like counts
+5. Generate deterministic comment identifiers
+6. Sort comments by comment_id
 
 The result is a complete, immutable snapshot.
 
-5. Parallel Execution Model
+---
+
+## 5. Parallel Execution Model
 
 Articles are processed in parallel.
 
-Rules:
+**Rules:**
 
-One worker processes one article
-
-No shared state between workers
-
-No concurrency inside an article
+- One worker processes one article
+- No shared state between workers
+- No concurrency inside an article
 
 This guarantees determinism and fault isolation.
 
-6. Article Text Processing
+---
+
+## 6. Article Text Processing
 
 For each article:
 
-Normalize article text
-
-Split text into sentence windows
-
-Chunk long sentences if needed
-
-Tokenize each window
-
-Match tokens against the article lexicon
-
-Compute window-level features
+1. Normalize article text
+2. Split text into sentence windows
+3. Chunk long sentences if needed
+4. Tokenize each window
+5. Match tokens against the article lexicon
+6. Compute window-level features
 
 All operations are deterministic and order-preserving.
 
-7. Comment Processing
+---
+
+## 7. Comment Processing
 
 For each comment:
 
-Tokenize comment text
-
-Count polarity lexicon matches
-
-Compute polarity ratio
-
-Compute like-based weight
-
-Produce comment-level feature record
+1. Tokenize comment text
+2. Count polarity lexicon matches
+3. Compute polarity ratio
+4. Compute like-based weight
+5. Produce comment-level feature record
 
 Comments are treated as independent units.
 
-8. Article-Level Aggregation
+---
+
+## 8. Article-Level Aggregation
 
 After processing all comments:
 
-Compute weighted mean of comment scores
-
-Compute weighted p85 of comment scores
-
-Count total number of comments
+- Compute weighted mean of comment scores
+- Compute weighted p85 of comment scores
+- Count total number of comments
 
 Aggregations depend only on comment-level features.
 
-9. Staging Outputs
+---
+
+## 9. Staging Outputs
 
 The processing DAG produces three staging outputs:
 
-Window-level features
-
-Comment-level features
-
-Article-level comment aggregates
+- Window-level features
+- Comment-level features
+- Article-level comment aggregates
 
 Each output is written as Parquet files to GCS staging.
 
-10. Versioning and Metadata
+---
+
+## 10. Versioning and Metadata
 
 Every staging record must include:
 
-article_id
-
-run_id
-
-pipeline_version
-
-lexicon_version or comment_lexicon_version
+- article_id
+- run_id
+- pipeline_version
+- lexicon_version or comment_lexicon_version
 
 This ensures full traceability.
 
-11. Idempotency and Retries
+---
+
+## 11. Idempotency and Retries
 
 The processing DAG guarantees:
 
-Safe retries on failure
-
-No duplicate outputs
-
-Deterministic recomputation
+- Safe retries on failure
+- No duplicate outputs
+- Deterministic recomputation
 
 Failures affect only the current article.
 
-12. Explicit Non-Responsibilities
+---
+
+## 12. Explicit Non-Responsibilities
 
 The processing DAG must never:
 
-Modify raw article data
-
-Perform BigQuery merges
-
-Apply ad-hoc analysis logic
-
-Depend on execution order
+- Modify raw article data
+- Perform BigQuery merges
+- Apply ad-hoc analysis logic
+- Depend on execution order

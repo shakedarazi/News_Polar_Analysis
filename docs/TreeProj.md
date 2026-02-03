@@ -1,3 +1,23 @@
+# 📁 Project Directory Structure
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Directory Tree](#directory-tree)
+
+---
+
+## Overview
+
+This document shows the complete folder and file structure of the news-pipeline project.
+
+---
+
+## Directory Tree
+
+```
 news-pipeline/
 ├── README.md
 ├── docs/
@@ -75,3 +95,4 @@ news-pipeline/
     └── staging/
         ├── create_staging_tables.sql
         └── truncate_staging.sql
+```

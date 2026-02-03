@@ -1,154 +1,160 @@
-Versioning and Provenance Rules
+# 📝 Versioning and Provenance Rules
 
 This document defines how versioning is handled across the system in order to guarantee reproducibility, traceability, and safe evolution of the pipeline.
 
-Purpose of Versioning
+---
+
+## Table of Contents
+
+- [Purpose of Versioning](#-purpose-of-versioning)
+- [Pipeline Version](#-pipeline-version)
+- [Lexicon Version](#-lexicon-version)
+- [Comment Lexicon Version](#-comment-lexicon-version)
+- [Run Identifier and Versioning](#-run-identifier-and-versioning)
+- [Versioning Scope](#-versioning-scope)
+- [Backward Compatibility](#-backward-compatibility)
+- [Prohibited Versioning Practices](#-prohibited-versioning-practices)
+- [Versioning as a Contract](#-versioning-as-a-contract)
+
+---
+
+## 📌 Purpose of Versioning
 
 Versioning exists to ensure that every computed value in the system can be traced back to:
 
-The exact code logic that produced it
-
-The exact lexicon used
-
-The exact execution context
+- The exact code logic that produced it
+- The exact lexicon used
+- The exact execution context
 
 Without strict versioning, results cannot be compared across time or trusted for research.
 
-Pipeline Version
+---
 
-Definition:
+## ⚙️ Pipeline Version
+
+**Definition:**
 pipeline_version identifies the version of the processing logic.
 
-Characteristics:
+**Characteristics:**
 
-Changes whenever algorithmic logic changes
+- Changes whenever algorithmic logic changes
+- Changes whenever feature definitions change
+- Changes whenever aggregation logic changes
 
-Changes whenever feature definitions change
+**Rules:**
 
-Changes whenever aggregation logic changes
+- pipeline_version must be explicitly set
+- It must not depend on runtime state
+- It must be recorded on every output row
 
-Rules:
+**Recommended format:**
 
-pipeline_version must be explicitly set
+- Git commit hash
+- Or semantic version tied to a commit
 
-It must not depend on runtime state
+---
 
-It must be recorded on every output row
+## 📝 Lexicon Version
 
-Recommended format:
-
-Git commit hash
-
-Or semantic version tied to a commit
-
-Lexicon Version
-
-Definition:
+**Definition:**
 lexicon_version identifies the exact article lexicon used for analysis.
 
-Computation:
+**Computation:**
 
-Derived from a hash of the expanded lexicon file
+- Derived from a hash of the expanded lexicon file
 
-Characteristics:
+**Characteristics:**
 
-Changes whenever the lexicon content changes
+- Changes whenever the lexicon content changes
+- Independent of pipeline_version
 
-Independent of pipeline_version
+**Purpose:**
 
-Purpose:
+- Allow comparison between different lexicon configurations
+- Enable historical re-analysis
 
-Allow comparison between different lexicon configurations
+---
 
-Enable historical re-analysis
+## 📝 Comment Lexicon Version
 
-Comment Lexicon Version
-
-Definition:
+**Definition:**
 comment_lexicon_version identifies the polarity lexicon used for comment analysis.
 
-Rules:
+**Rules:**
 
-Versioned independently from article lexicon
-
-Stored alongside every comment feature
+- Versioned independently from article lexicon
+- Stored alongside every comment feature
 
 This separation allows evolution of comment analysis without affecting article metrics.
 
-Run Identifier and Versioning
+---
+
+## 🔄 Run Identifier and Versioning
 
 Each pipeline execution generates a unique run_id.
 
-run_id ties together:
+**run_id ties together:**
 
-pipeline_version
+- pipeline_version
+- lexicon_version
+- comment_lexicon_version
+- All outputs produced during that execution
 
-lexicon_version
+**run_id is required for:**
 
-comment_lexicon_version
+- Auditing
+- Debugging
+- Rollbacks
+- Historical comparisons
 
-All outputs produced during that execution
+---
 
-run_id is required for:
+## 📌 Versioning Scope
 
-Auditing
+**Versioning applies to:**
 
-Debugging
+- Window-level features
+- Comment-level features
+- Article-level aggregates
+- Optional enrichment outputs
 
-Rollbacks
+**Versioning does NOT apply to:**
 
-Historical comparisons
-
-Versioning Scope
-
-Versioning applies to:
-
-Window-level features
-
-Comment-level features
-
-Article-level aggregates
-
-Optional enrichment outputs
-
-Versioning does NOT apply to:
-
-Raw article text
-
-Raw comments snapshot
+- Raw article text
+- Raw comments snapshot
 
 Raw data is immutable and version-independent.
 
-Backward Compatibility
+---
 
-When introducing changes:
+## 🔄 Backward Compatibility
 
-Old data must remain queryable
+**When introducing changes:**
 
-New versions must not overwrite old results
+- Old data must remain queryable
+- New versions must not overwrite old results
+- Schema evolution must be additive where possible
 
-Schema evolution must be additive where possible
+**Breaking changes require:**
 
-Breaking changes require:
+- New tables, or
+- Clear version separation
 
-New tables, or
+---
 
-Clear version separation
-
-Prohibited Versioning Practices
+## ⚠️ Prohibited Versioning Practices
 
 The following are not allowed:
 
-Implicit versioning
+- Implicit versioning
+- Time-based versioning without semantic meaning
+- Overwriting data from previous versions
+- Mixing outputs from different versions without explicit labeling
 
-Time-based versioning without semantic meaning
+---
 
-Overwriting data from previous versions
-
-Mixing outputs from different versions without explicit labeling
-
-Versioning as a Contract
+## 📝 Versioning as a Contract
 
 Versioning rules are a hard contract.
 
-Any code change that affects outputs without updating the relevant version identifier is considered a critical defect.  
+Any code change that affects outputs without updating the relevant version identifier is considered a critical defect.

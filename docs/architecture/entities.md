@@ -1,225 +1,213 @@
-Core Entities Definition
+# 🧩 Core Entities Definition
 
 This document defines the core entities used throughout the system, their meaning, and their boundaries.
 These entity definitions form a hard contract between ingestion, processing, storage, and analysis.
 
-Article Entity
+---
 
-Definition:
+## Table of Contents
+
+- [Article Entity](#-article-entity)
+- [Article Window Entity](#-article-window-entity)
+- [Comment Entity](#-comment-entity)
+- [Comment Feature Entity](#-comment-feature-entity)
+- [Article Comment Aggregate Entity](#-article-comment-aggregate-entity)
+- [Lexicon Entity](#-lexicon-entity)
+- [Run Entity](#-run-entity)
+- [Entity Relationships Summary](#-entity-relationships-summary)
+- [Entity Immutability Rules](#-entity-immutability-rules)
+
+---
+
+## 🧩 Article Entity
+
+**Definition:**
 An Article represents a single news item published by a news source.
 
-Characteristics:
+**Characteristics:**
 
-Identified uniquely by article_id
+- Identified uniquely by article_id
+- Immutable once stored in raw storage
+- Serves as the root entity for all downstream data
 
-Immutable once stored in raw storage
+**Primary responsibilities:**
 
-Serves as the root entity for all downstream data
+- Anchor for window-level analysis
+- Anchor for comment-level analysis
+- Anchor for all aggregations
 
-Primary responsibilities:
+**An Article exists even if it has:**
 
-Anchor for window-level analysis
+- No comments
+- No detected lexicon matches
 
-Anchor for comment-level analysis
+---
 
-Anchor for all aggregations
+## 🧩 Article Window Entity
 
-An Article exists even if it has:
-
-No comments
-
-No detected lexicon matches
-
-Article Window Entity
-
-Definition:
+**Definition:**
 An Article Window represents a contiguous segment of article text used for analysis.
 
-In this system:
+**In this system:**
 
-A window corresponds to a sentence
+- A window corresponds to a sentence
+- Long sentences may be split into fixed-size sub-windows
 
-Long sentences may be split into fixed-size sub-windows
+**Characteristics:**
 
-Characteristics:
+- Always associated with exactly one Article
+- Identified by (article_id, sentence_idx)
+- Ordered deterministically within an article
 
-Always associated with exactly one Article
+**Purpose:**
 
-Identified by (article_id, sentence_idx)
+- Capture localized semantic signals
+- Enable measurement of category distribution
+- Enable computation of dominance and category richness
 
-Ordered deterministically within an article
+**Windows do not:**
 
-Purpose:
+- Overlap
+- Cross article boundaries
+- Depend on other windows
 
-Capture localized semantic signals
+---
 
-Enable measurement of category distribution
+## 🧩 Comment Entity
 
-Enable computation of dominance and category richness
-
-Windows do not:
-
-Overlap
-
-Cross article boundaries
-
-Depend on other windows
-
-Comment Entity
-
-Definition:
+**Definition:**
 A Comment represents a single audience reaction to an article.
 
-Characteristics:
+**Characteristics:**
 
-Associated with exactly one Article
+- Associated with exactly one Article
+- Identified by (article_id, comment_id)
+- Text-only analysis (no author metadata)
 
-Identified by (article_id, comment_id)
+**Assumptions:**
 
-Text-only analysis (no author metadata)
+- Comment identity is stable within a snapshot
+- Likes represent agreement intensity
+- Comment text is treated as an atomic unit
 
-Assumptions:
+**Comments are:**
 
-Comment identity is stable within a snapshot
+- Independent of each other
+- Not temporally ordered for analysis
+- Not attributed to users
 
-Likes represent agreement intensity
+---
 
-Comment text is treated as an atomic unit
+## 📊 Comment Feature Entity
 
-Comments are:
-
-Independent of each other
-
-Not temporally ordered for analysis
-
-Not attributed to users
-
-Comment Feature Entity
-
-Definition:
+**Definition:**
 A Comment Feature is the computed analytical representation of a Comment.
 
-Includes:
+**Includes:**
 
-Comment length
+- Comment length
+- Polarity ratio
+- Like-based weight
+- Final comment score
 
-Polarity ratio
+**Characteristics:**
 
-Like-based weight
+- Fully deterministic
+- Derived only from comment text and like count
+- Immutable once computed for a given run
 
-Final comment score
+---
 
-Characteristics:
+## 📊 Article Comment Aggregate Entity
 
-Fully deterministic
-
-Derived only from comment text and like count
-
-Immutable once computed for a given run
-
-Article Comment Aggregate Entity
-
-Definition:
+**Definition:**
 An Article Comment Aggregate summarizes audience reaction at the article level.
 
-Includes:
+**Includes:**
 
-Number of comments
+- Number of comments
+- Weighted mean of comment scores
+- Weighted p85 of comment scores
 
-Weighted mean of comment scores
+**Purpose:**
 
-Weighted p85 of comment scores
+- Represent overall audience polarity
+- Reduce comment-level noise
+- Enable article-level comparison
 
-Purpose:
+**Aggregates:**
 
-Represent overall audience polarity
+- Are computed only from comment features
+- Do not include article text signals
+- Are recomputable from staging data
 
-Reduce comment-level noise
+---
 
-Enable article-level comparison
+## 🧩 Lexicon Entity
 
-Aggregates:
-
-Are computed only from comment features
-
-Do not include article text signals
-
-Are recomputable from staging data
-
-Lexicon Entity
-
-Definition:
+**Definition:**
 A Lexicon is a versioned collection of terms used for matching during analysis.
 
-Types:
+**Types:**
 
-Article lexicon (7 categories)
+- Article lexicon (7 categories)
+- Comment polarity lexicon (single category)
 
-Comment polarity lexicon (single category)
+**Characteristics:**
 
-Characteristics:
+- Expanded offline
+- Immutable per version
+- Referenced by lexicon_version identifiers
 
-Expanded offline
+**Lexicons are:**
 
-Immutable per version
+- Deterministic
+- Explicitly versioned
+- Independent of runtime text processing
 
-Referenced by lexicon_version identifiers
+---
 
-Lexicons are:
+## 🚀 Run Entity
 
-Deterministic
-
-Explicitly versioned
-
-Independent of runtime text processing
-
-Run Entity
-
-Definition:
+**Definition:**
 A Run represents a single execution of the processing pipeline.
 
-Characteristics:
+**Characteristics:**
 
-Identified by run_id
+- Identified by run_id
+- Tied to specific versions of code and lexicons
+- Groups all outputs generated during that execution
 
-Tied to specific versions of code and lexicons
+**Purpose:**
 
-Groups all outputs generated during that execution
+- Enable auditability
+- Enable rollback
+- Enable comparison between runs
 
-Purpose:
+---
 
-Enable auditability
+## 🔄 Entity Relationships Summary
 
-Enable rollback
+- One Article has many Article Windows
+- One Article has many Comments
+- One Comment produces one Comment Feature
+- One Article produces one Comment Aggregate
+- One Run produces many entities of all types
 
-Enable comparison between runs
+---
 
-Entity Relationships Summary
+## ⚠️ Entity Immutability Rules
 
-One Article has many Article Windows
+**Once written:**
 
-One Article has many Comments
-
-One Comment produces one Comment Feature
-
-One Article produces one Comment Aggregate
-
-One Run produces many entities of all types
-
-Entity Immutability Rules
-
-Once written:
-
-Raw Article entities must never change
-
-Snapshot Article entities must never change
-
-Window features must never change
-
-Comment features must never change
-
-Aggregates must never change
+- Raw Article entities must never change
+- Snapshot Article entities must never change
+- Window features must never change
+- Comment features must never change
+- Aggregates must never change
 
 Any change requires a new run with a new run_id.
+
+---
 
 End of document.

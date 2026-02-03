@@ -1,433 +1,450 @@
-📘 RFC – News Analysis Pipeline
+# 📘 RFC – News Analysis Pipeline
+
 דטרמיניסטי, מחקרי, Batch-Oriented (עד BigQuery)
-1️⃣ מטרת המערכת
+
+---
+
+## Table of Contents
+
+- [1️⃣ מטרת המערכת](#1️⃣-מטרת-המערכת)
+- [2️⃣ מקורות נתונים (Sources)](#2️⃣-מקורות-נתונים-sources)
+- [3️⃣ עקרונות על (Design Principles)](#3️⃣-עקרונות-על-design-principles)
+- [4️⃣ ארכיטקטורה כללית (High-Level)](#4️⃣-ארכיטקטורה-כללית-high-level)
+- [5️⃣ זיהוי וישויות (IDs & Keys)](#5️⃣-זיהוי-וישויות-ids--keys)
+- [6️⃣ נרמול וטקסט (Text Processing Spec)](#6️⃣-נרמול-וטקסט-text-processing-spec)
+- [7️⃣ חלוקה לחלונות (Article Windows)](#7️⃣-חלוקה-לחלונות-article-windows)
+- [8️⃣ אסטרטגיית Lexicon (נעול)](#8️⃣-אסטרטגיית-lexicon-נעול)
+- [9️⃣ אלגוריתם ניתוח כתבות (7 קטגוריות)](#9️⃣-אלגוריתם-ניתוח-כתבות-7-קטגוריות)
+- [🔟 ניתוח תגובות (Audience Signal)](#🔟-ניתוח-תגובות-audience-signal)
+- [1️⃣1️⃣ אחסון ב־GCS](#1️⃣1️⃣-אחסון-ב־gcs)
+- [1️⃣2️⃣ Staging Format](#1️⃣2️⃣-staging-format)
+- [1️⃣3️⃣ BigQuery – טבלאות יעד](#1️⃣3️⃣-bigquery--טבלאות-יעד)
+- [1️⃣4️⃣ Airflow DAGs](#1️⃣4️⃣-airflow-dags)
+- [1️⃣5️⃣ Data Quality (DQ)](#1️⃣5️⃣-data-quality-dq)
+- [1️⃣6️⃣ LLM – אופציונלי בלבד](#1️⃣6️⃣-llm--אופציונלי-בלבד)
+- [📕 Appendix A – Concurrency, Staging & Algorithmic Specification](#📕-appendix-a--concurrency-staging--algorithmic-specification)
+
+---
+
+## 1️⃣ מטרת המערכת
 
 לבנות מערכת דטרמיניסטית, יציבה ולא תלויה בהתנהגות אתרי חדשות, שמבצעת:
 
-איסוף כתבות חדשות ממרכזי החדשות בישראל
+- איסוף כתבות חדשות ממרכזי החדשות בישראל
+- איסוף תגובות קהל לכתבות
+- ניתוח טקסטואלי מבוסס מילונים (lexicon-based)
+- הפקת מדדים כמותיים לחלונות (משפטים) ולתגובות
+- טעינה נקייה ל־BigQuery לצורך ניתוחים עתידיים
 
-איסוף תגובות קהל לכתבות
+> ❗️המערכת אינה Streaming, ואינה נועדה לזמן־אמת.
+> המטרה היא דיוק, יציבות ומחקריות, לא latency.
 
-ניתוח טקסטואלי מבוסס מילונים (lexicon-based)
+---
 
-הפקת מדדים כמותיים לחלונות (משפטים) ולתגובות
-
-טעינה נקייה ל־BigQuery לצורך ניתוחים עתידיים
-
-❗️המערכת אינה Streaming, ואינה נועדה לזמן־אמת.
-המטרה היא דיוק, יציבות ומחקריות, לא latency.
-
-2️⃣ מקורות נתונים (Sources)
+## 2️⃣ מקורות נתונים (Sources)
 
 המערכת תומכת במרכזי החדשות המרכזיים בישראל, כולל:
 
-הארץ
+- הארץ
+- ynet
+- mako / קשת 12
+- חדשות 12
+- רשת 13 (ערוץ 10 לשעבר)
+- ערוץ 14
+- מקורות חדשות מרכזיים נוספים באותו מבנה
 
-ynet
+> ❗️הנחת יסוד:
+> אין דרך אמינה למשוך "כל כתבות היום" ישירות מהאתרים (feeds מוגבלים, דינמיקה משתנה).
 
-mako / קשת 12
+---
 
-חדשות 12
+## 3️⃣ עקרונות על (Design Principles)
 
-רשת 13 (ערוץ 10 לשעבר)
+### 3.1 דטרמיניזם
 
-ערוץ 14
+- אותו input ⇒ אותו output
+- אין אלגוריתמים לא דטרמיניסטיים ב־critical path
+- כל שינוי ב־lexicon / אלגוריתם ⇒ version חדש
 
-מקורות חדשות מרכזיים נוספים באותו מבנה
+### 3.2 Idempotency
 
-❗️הנחת יסוד:
-אין דרך אמינה למשוך “כל כתבות היום” ישירות מהאתרים (feeds מוגבלים, דינמיקה משתנה).
+- ריצות חוזרות לא מייצרות כפילויות
+- טעינה ל־BQ נעשית רק דרך staging → MERGE
+- כל ישות מזוהה ע"י מפתח חד־משמעי
 
-3️⃣ עקרונות על (Design Principles)
-3.1 דטרמיניזם
+### 3.3 Separation of Concerns
 
-אותו input ⇒ אותו output
+- איסוף (ingestion) מופרד מעיבוד
+- תגובות מופרדות מכתבות
+- LLM מופרד כ־enrichment אופציונלי
 
-אין אלגוריתמים לא דטרמיניסטיים ב־critical path
+### 3.4 Batch-Oriented
 
-כל שינוי ב־lexicon / אלגוריתם ⇒ version חדש
+- אין צורך ב־streaming
+- תגובות נמדדות לאחר הצטברות (24 שעות)
 
-3.2 Idempotency
+---
 
-ריצות חוזרות לא מייצרות כפילויות
-
-טעינה ל־BQ נעשית רק דרך staging → MERGE
-
-כל ישות מזוהה ע"י מפתח חד־משמעי
-
-3.3 Separation of Concerns
-
-איסוף (ingestion) מופרד מעיבוד
-
-תגובות מופרדות מכתבות
-
-LLM מופרד כ־enrichment אופציונלי
-
-3.4 Batch-Oriented
-
-אין צורך ב־streaming
-
-תגובות נמדדות לאחר הצטברות (24 שעות)
-
-4️⃣ ארכיטקטורה כללית (High-Level)
+## 4️⃣ ארכיטקטורה כללית (High-Level)
 
 המערכת בנויה משני DAGs ב־Airflow:
 
-DAG 1 – Ingestion (כל 6 שעות)
+### DAG 1 – Ingestion (כל 6 שעות)
 
 מטרתו:
 
-“להקפיא” כתבות לפני שהאתר משנה/מעלים אותן.
+- "להקפיא" כתבות לפני שהאתר משנה/מעלים אותן.
 
-DAG 2 – Daily Snapshot + Processing (יומי)
+### DAG 2 – Daily Snapshot + Processing (יומי)
 
 מטרתו:
 
-לאסוף תגובות לאחר הצטברות ולחשב מדדים יציבים.
+- לאסוף תגובות לאחר הצטברות ולחשב מדדים יציבים.
 
-5️⃣ זיהוי וישויות (IDs & Keys)
-5.1 canonical_url
+---
 
-ניקוי URL (tracking params, trailing slash, scheme)
+## 5️⃣ זיהוי וישויות (IDs & Keys)
 
-5.2 article_id
+### 5.1 canonical_url
+
+- ניקוי URL (tracking params, trailing slash, scheme)
+
+### 5.2 article_id
+
+```
 article_id = sha256(canonical_url)
+```
 
-5.3 חלונות כתבה
+### 5.3 חלונות כתבה
 
-חלון = משפט
+- חלון = משפט
+- sentence_idx = אינדקס לאחר sentence split דטרמיניסטי
+- מפתח: (article_id, sentence_idx)
 
-sentence_idx = אינדקס לאחר sentence split דטרמיניסטי
+### 5.4 תגובות
 
-מפתח: (article_id, sentence_idx)
+- אם יש comment_id מהמקור — משתמשים בו
+- אחרת:
 
-5.4 תגובות
-
-אם יש comment_id מהמקור — משתמשים בו
-
-אחרת:
-
+```
 comment_id = sha256(article_id + text + local_index)
+```
 
+- מפתח: (article_id, comment_id)
 
-מפתח: (article_id, comment_id)
+---
 
-6️⃣ נרמול וטקסט (Text Processing Spec)
-6.1 Normalization (כתבות + תגובות)
+## 6️⃣ נרמול וטקסט (Text Processing Spec)
 
-הסרת URLs
+### 6.1 Normalization (כתבות + תגובות)
 
-הסרת ניקוד
+- הסרת URLs
+- הסרת ניקוד
+- נרמול גרשיים / מקפים
+- lowercasing
+- ניקוי תווים לא־לשוניים
+- whitespace normalization
 
-נרמול גרשיים / מקפים
+> ❗️לא מבצעים שינוי סמנטי בטקסט.
 
-lowercasing
+---
 
-ניקוי תווים לא־לשוניים
+## 7️⃣ חלוקה לחלונות (Article Windows)
 
-whitespace normalization
+**החלטה נעולה:**
 
-❗️לא מבצעים שינוי סמנטי בטקסט.
+- חלון = משפט
+- sentence splitter rule-based דטרמיניסטי
+- פיצול לפי . ! ? … עם heuristics לקיצורים נפוצים
 
-7️⃣ חלוקה לחלונות (Article Windows)
-החלטה נעולה:
+**חריג:**
 
-חלון = משפט
+- אם משפט > 60 טוקנים
+- מפוצל לתת־חלונות של 60 טוקנים
+- האינדוקס (sentence_idx) ממשיך ברצף
 
-sentence splitter rule-based דטרמיניסטי
+**הנמקה מחקרית:**
 
-פיצול לפי . ! ? … עם heuristics לקיצורים נפוצים
+- משפט = יחידת טיעון טבעית
+- מאפשר מדידת "עושר קטגוריות" ו־dominance
+- chunking מונע outliers
 
-חריג:
+---
 
-אם משפט > 60 טוקנים
+## 8️⃣ אסטרטגיית Lexicon (נעול)
 
-מפוצל לתת־חלונות של 60 טוקנים
+### הבחירה הרשמית – גישה A: Expanded Lexicon
 
-האינדוקס (sentence_idx) ממשיך ברצף
+**עיקרון:**
 
-הנמקה מחקרית:
+- לא משנים טוקנים בזמן ריצה
+- ההתאמה מתבצעת ע"י מילון מורחב מראש
 
-משפט = יחידת טיעון טבעית
+**lexicon_expanded כולל:**
 
-מאפשר מדידת “עושר קטגוריות” ו־dominance
+- מילה בסיסית
+- וריאציות עם תחיליות עבריות נפוצות:
+  - ה, ו, ב, ל, מ, כ, ש
+- (שמרני) צירוף שכיח מאוד של שתי תחיליות בלבד (למשל וה)
+- לא מייצרים וריאציות אם אורך < 3
 
-chunking מונע outliers
+**Versioning:**
 
-8️⃣ אסטרטגיית Lexicon (נעול)
-הבחירה הרשמית – גישה A: Expanded Lexicon
-עיקרון
+- lexicon_base.json
+- lexicon_expanded.json
+- lexicon_version = sha256(lexicon_expanded.json)
 
-לא משנים טוקנים בזמן ריצה
+**אותו עיקרון ל־תגובות:**
 
-ההתאמה מתבצעת ע"י מילון מורחב מראש
+- comment_lexicon_expanded
+- comment_lexicon_version
 
-lexicon_expanded כולל:
+### אופציה עתידית בלבד (לא ב־baseline)
 
-מילה בסיסית
+- גישה B: Prefix stripping שמרני
+- מוזכרת כ־Future Work בלבד
+- אינה מופעלת בפועל
 
-וריאציות עם תחיליות עבריות נפוצות:
+---
 
-ה, ו, ב, ל, מ, כ, ש
+## 9️⃣ אלגוריתם ניתוח כתבות (7 קטגוריות)
 
-(שמרני) צירוף שכיח מאוד של שתי תחיליות בלבד (למשל וה)
+### Precompute
 
-לא מייצרים וריאציות אם אורך < 3
+- יצירת word2category (dict)
 
-Versioning
+### לכל חלון:
 
-lexicon_base.json
+- counts[7]
+- active = מספר קטגוריות שונות
+- window_len
+- cat_words = sum(counts)
 
-lexicon_expanded.json
+### Dominance
 
-lexicon_version = sha256(lexicon_expanded.json)
-
-אותו עיקרון ל־תגובות:
-
-comment_lexicon_expanded
-
-comment_lexicon_version
-
-אופציה עתידית בלבד (לא ב־baseline)
-
-גישה B: Prefix stripping שמרני
-
-מוזכרת כ־Future Work בלבד
-
-אינה מופעלת בפועל
-
-9️⃣ אלגוריתם ניתוח כתבות (7 קטגוריות)
-Precompute
-
-יצירת word2category (dict)
-
-לכל חלון:
-
-counts[7]
-
-active = מספר קטגוריות שונות
-
-window_len
-
-cat_words = sum(counts)
-
-Dominance
+```
 dominance = max(counts) / cat_words
+```
 
+- אם cat_words == 0 → NULL
 
-אם cat_words == 0 → NULL
+### סיבוכיות
 
-סיבוכיות
+- O(total_tokens_in_article)
 
-O(total_tokens_in_article)
+---
 
-🔟 ניתוח תגובות (Audience Signal)
-תגובה = חלון
-לכל תגובה:
+## 🔟 ניתוח תגובות (Audience Signal)
 
-polar_count
+### תגובה = חלון
 
-comment_len
+**לכל תגובה:**
 
-polar_ratio = polar_count / max(1, comment_len)
+- polar_count
+- comment_len
+- polar_ratio = polar_count / max(1, comment_len)
+- like_weight = 1 + ln(1 + like_count)
+- comment_score = polar_ratio
 
-like_weight = 1 + ln(1 + like_count)
+### צבירה ברמת כתבה:
 
-comment_score = polar_ratio
+- num_comments
+- audience_mean (ממוצע משוקלל)
+- audience_p85 (quantile משוקלל)
 
-צבירה ברמת כתבה:
+> ❗️אין זיהוי כותב, אין זמן פרסום — בכוונה (פשטות וניקיון).
 
-num_comments
+---
 
-audience_mean (ממוצע משוקלל)
+## 1️⃣1️⃣ אחסון ב־GCS
 
-audience_p85 (quantile משוקלל)
+### Raw Articles (DAG 1)
 
-❗️אין זיהוי כותב, אין זמן פרסום — בכוונה (פשטות וניקיון).
-
-1️⃣1️⃣ אחסון ב־GCS
-Raw Articles (DAG 1)
+```
 gs://bucket/raw/articles/source=.../dt=YYYY-MM-DD/article_id=.../article.json
+```
 
-Snapshot עם תגובות (DAG 2)
+### Snapshot עם תגובות (DAG 2)
+
+```
 gs://bucket/snapshot/articles_with_comments/source=.../dt=YYYY-MM-DD/article_id=.../article_with_comments.json
+```
 
+> 📝 תגובות ממיונות לפי comment_id → דטרמיניזם.
 
-תגובות ממיונות לפי comment_id → דטרמיניזם.
+---
 
-1️⃣2️⃣ Staging Format
-החלטה נעולה:
+## 1️⃣2️⃣ Staging Format
 
-Parquet
+**החלטה נעולה:**
 
-הנמקה:
+- Parquet
 
-schema חזק
+**הנמקה:**
 
-columnar
+- schema חזק
+- columnar
+- טעינה יעילה ל־BigQuery
+- פחות זיהום נתונים
 
-טעינה יעילה ל־BigQuery
+---
 
-פחות זיהום נתונים
+## 1️⃣3️⃣ BigQuery – טבלאות יעד
 
-1️⃣3️⃣ BigQuery – טבלאות יעד
+- articles
+- windows_features
+- comments_features
+- article_comments_agg
+- article_llm_enrichment (אופציונלי)
 
-articles
+**כל טעינה:**
 
-windows_features
+- staging → MERGE
+- לפי מפתחות ייחודיים
 
-comments_features
+---
 
-article_comments_agg
+## 1️⃣4️⃣ Airflow DAGs
 
-article_llm_enrichment (אופציונלי)
+### DAG 1 – crawl_latest_to_gcs
 
-כל טעינה:
+- תזמון: כל 6 שעות
+- תפקיד: איסוף והקפאת כתבות
 
-staging → MERGE
+### DAG 2 – daily_snapshot_process_to_bq
 
-לפי מפתחות ייחודיים
+- תזמון: פעם ביום
+- בוחר כתבות ש־now - first_seen_at >= 24h
+- אוסף תגובות
+- מחשב פיצ'רים
+- טוען ל־BQ
 
-1️⃣4️⃣ Airflow DAGs
-DAG 1 – crawl_latest_to_gcs
+### Concurrency:
 
-תזמון: כל 6 שעות
+- ברמת כתבה בלבד (worker pool)
 
-תפקיד: איסוף והקפאת כתבות
+---
 
-DAG 2 – daily_snapshot_process_to_bq
+## 1️⃣5️⃣ Data Quality (DQ)
 
-תזמון: פעם ביום
+- window_len > 0
+- sum(c1..c7) ≤ window_len
+- dominance ∈ [0,1] OR NULL
+- polar_ratio ∈ [0,1]
+- num_comments ≤ 200 (warn)
 
-בוחר כתבות ש־now - first_seen_at >= 24h
+---
 
-אוסף תגובות
+## 1️⃣6️⃣ LLM – אופציונלי בלבד
 
-מחשב פיצ’רים
+- לא ב־critical path
+- enrichment נפרד
+- versioning מלא
+- לא משפיע על 7 המדדים הדטרמיניסטיים
 
-טוען ל־BQ
+---
 
-Concurrency:
+---
 
-ברמת כתבה בלבד (worker pool)
-
-1️⃣5️⃣ Data Quality (DQ)
-
-window_len > 0
-
-sum(c1..c7) ≤ window_len
-
-dominance ∈ [0,1] OR NULL
-
-polar_ratio ∈ [0,1]
-
-num_comments ≤ 200 (warn)
-
-1️⃣6️⃣ LLM – אופציונלי בלבד
-
-לא ב־critical path
-
-enrichment נפרד
-
-versioning מלא
-
-לא משפיע על 7 המדדים הדטרמיניסטיים
-
-
-
-
-📕 Appendix A – Concurrency, Staging & Algorithmic Specification
+## 📕 Appendix A – Concurrency, Staging & Algorithmic Specification
 
 (השלמה מחייבת ל-RFC הראשי)
 
-A️⃣ מודל מקביליות (Concurrency Model)
-עקרון יסוד
+---
+
+### A️⃣ מודל מקביליות (Concurrency Model)
+
+**עקרון יסוד:**
 
 המקביליות במערכת מוגבלת אך ורק לרמת הכתבה (article-level parallelism).
 
 אין מקביליות בתוך כתבה, אין מקביליות בתוך חלון, ואין מקביליות בתוך תגובה.
 
-למה זה קריטי?
+**למה זה קריטי?**
 
-שומר על דטרמיניזם מוחלט
+- שומר על דטרמיניזם מוחלט
+- מונע race conditions
+- מונע שינוי סדר חישוב שמשפיע על פלט
+- מאפשר reasoning אלגוריתמי ברור
 
-מונע race conditions
+#### מודל הביצוע בפועל
 
-מונע שינוי סדר חישוב שמשפיע על פלט
+**יחידת עבודה (Atomic Unit):**
 
-מאפשר reasoning אלגוריתמי ברור
-
-מודל הביצוע בפועל
-יחידת עבודה (Atomic Unit)
+```
 ArticleJob(article_id)
+```
 
+**כל ArticleJob מבצע:**
 
-כל ArticleJob מבצע:
+- עיבוד כתבה → חלונות
+- עיבוד תגובות → ציוני תגובה
+- אגרגציה ברמת כתבה
+- כתיבה ל-staging (GCS)
 
-עיבוד כתבה → חלונות
+#### Worker Pool
 
-עיבוד תגובות → ציוני תגובה
+- Airflow מפעיל Worker Pool
+- כל Worker:
+  - מקבל article_id אחד
+  - עובד עליו מקצה לקצה
+  - לא משתף state עם Workers אחרים
 
-אגרגציה ברמת כתבה
+#### Big-O בהקשר מקביליות
 
-כתיבה ל-staging (GCS)
+**אלגוריתמית:**
 
-Worker Pool
-
-Airflow מפעיל Worker Pool
-
-כל Worker:
-
-מקבל article_id אחד
-
-עובד עליו מקצה לקצה
-
-לא משתף state עם Workers אחרים
-
-Big-O בהקשר מקביליות
-
-אלגוריתמית:
+```
 O(sum(tokens_articles) + sum(tokens_comments))
+```
 
-מקביליות:
+**מקביליות:**
 
-Speedup קבוע בלבד
+- Speedup קבוע בלבד
+- אין שינוי אסימפטוטי
 
-אין שינוי אסימפטוטי
+> 📝 זה חשוב לציון אקדמי:
+> "Parallelism improves wall-clock time but not asymptotic complexity"
 
-זה חשוב לציון אקדמי:
+---
 
-“Parallelism improves wall-clock time but not asymptotic complexity”
+### B️⃣ פיצול הפייפליין לשני מסלולים (Pipeline Split)
 
-B️⃣ פיצול הפייפליין לשני מסלולים (Pipeline Split)
-למה חייבים פיצול?
+**למה חייבים פיצול?**
 
 כי:
 
-כתבות הן טקסט מבני
-
-תגובות הן אותות קהל
-
-מחזור החיים שונה
-
-האלגוריתמים שונים
+- כתבות הן טקסט מבני
+- תגובות הן אותות קהל
+- מחזור החיים שונה
+- האלגוריתמים שונים
 
 לכן יש שני מסלולים לוגיים, שמתכנסים רק ברמת הכתבה.
 
-C️⃣ Staging – פירוט מלא לפי פייפליין
-C1️⃣ Staging של כתבות (Article → Windows)
-Input
+---
 
-article_with_comments.json
-(רק שדה text רלוונטי כאן)
+### C️⃣ Staging – פירוט מלא לפי פייפליין
 
-אלגוריתם חישוב (Article Windows)
-מבני נתונים
+#### C1️⃣ Staging של כתבות (Article → Windows)
+
+**Input:**
+
+- article_with_comments.json
+- (רק שדה text רלוונטי כאן)
+
+**אלגוריתם חישוב (Article Windows):**
+
+**מבני נתונים:**
+
+```
 counts: int[7]
 active_categories: int
 present_mask: int (bitmask)
+```
 
-פסאודו-קוד (פורמלי)
+**פסאודו-קוד (פורמלי):**
+
+```
 for sentence in split_to_sentences(article_text):
     tokens = tokenize(sentence)
 
@@ -457,41 +474,39 @@ for sentence in split_to_sentences(article_text):
             dominance = NULL
 
         emit window_row
+```
 
-Output ל-Staging (Parquet)
+**Output ל-Staging (Parquet):**
 
-טבלה לוגית: windows_features_staging
+- טבלה לוגית: windows_features_staging
 
-שדות:
+**שדות:**
 
-article_id
+- article_id
+- sentence_idx
+- window_len
+- c1 … c7
+- active
+- present_mask
+- dominance
+- lexicon_version
+- pipeline_version
+- run_id
 
-sentence_idx
+---
 
-window_len
+#### C2️⃣ Staging של תגובות (Comments → Scores)
 
-c1 … c7
+**Input:**
 
-active
+- article_with_comments.json
+- (רק מערך comments)
 
-present_mask
+**אלגוריתם חישוב (תגובות):**
 
-dominance
+**פסאודו-קוד:**
 
-lexicon_version
-
-pipeline_version
-
-run_id
-
-C2️⃣ Staging של תגובות (Comments → Scores)
-Input
-
-article_with_comments.json
-(רק מערך comments)
-
-אלגוריתם חישוב (תגובות)
-פסאודו-קוד
+```
 for comment in comments:
     tokens = tokenize(comment.text)
 
@@ -502,37 +517,33 @@ for comment in comments:
     like_weight = 1 + ln(1 + like_count)
 
     emit comment_row
+```
 
-Output ל-Staging (Parquet)
+**Output ל-Staging (Parquet):**
 
-טבלה לוגית: comments_features_staging
+- טבלה לוגית: comments_features_staging
 
-שדות:
+**שדות:**
 
-article_id
+- article_id
+- comment_id
+- comment_len
+- polar_count
+- polar_ratio
+- like_count
+- like_weight
+- comment_score
+- comment_lexicon_version
+- pipeline_version
+- run_id
 
-comment_id
+---
 
-comment_len
+#### C3️⃣ Staging של אגרגציית תגובות (Per Article)
 
-polar_count
+**פסאודו-קוד:**
 
-polar_ratio
-
-like_count
-
-like_weight
-
-comment_score
-
-comment_lexicon_version
-
-pipeline_version
-
-run_id
-
-C3️⃣ Staging של אגרגציית תגובות (Per Article)
-פסאודו-קוד
+```
 scores = []
 weights = []
 
@@ -542,63 +553,55 @@ for comment in article_comments:
 
 audience_mean = weighted_mean(scores, weights)
 audience_p85  = weighted_quantile(scores, weights, 0.85)
+```
 
-Output ל-Staging
+**Output ל-Staging:**
 
-טבלה: article_comments_agg_staging
+- טבלה: article_comments_agg_staging
 
-שדות:
+**שדות:**
 
-article_id
+- article_id
+- num_comments
+- audience_mean
+- audience_p85
+- sum_like_weight
+- pipeline_version
+- run_id
 
-num_comments
+---
 
-audience_mean
-
-audience_p85
-
-sum_like_weight
-
-pipeline_version
-
-run_id
-
-D️⃣ התכנסות (Merge Point)
+### D️⃣ התכנסות (Merge Point)
 
 שלושת ה-staging tables:
 
-windows_features_staging
-
-comments_features_staging
-
-article_comments_agg_staging
+- windows_features_staging
+- comments_features_staging
+- article_comments_agg_staging
 
 נטענים ל-BigQuery וממוזגים (MERGE) לטבלאות הסופיות.
 
-❗️אין Join בפייפליין עצמו.
-❗️הקישור מתבצע רק באמצעות article_id ב-BQ.
+> ❗️אין Join בפייפליין עצמו.
+> ❗️הקישור מתבצע רק באמצעות article_id ב-BQ.
 
-E️⃣ למה המבנה הזה נכון מחקרית
-1. הפרדת אותות
+---
 
-כתבה = אות טקסטואלי
+### E️⃣ למה המבנה הזה נכון מחקרית
 
-תגובות = אות קהל
+#### 1. הפרדת אותות
 
-חיבור רק בשאילתות
+- כתבה = אות טקסטואלי
+- תגובות = אות קהל
+- חיבור רק בשאילתות
 
-2. אלגוריתמים פשוטים → מדדים חזקים
+#### 2. אלגוריתמים פשוטים → מדדים חזקים
 
-אין מודלים כבדים
+- אין מודלים כבדים
+- אין state חבוי
+- כל מספר ניתן להסבר
 
-אין state חבוי
+#### 3. ניתן להרחבה
 
-כל מספר ניתן להסבר
-
-3. ניתן להרחבה
-
-אפשר להוסיף קטגוריות
-
-אפשר להוסיף LLM
-
-בלי לשבור חוזה
+- אפשר להוסיף קטגוריות
+- אפשר להוסיף LLM
+- בלי לשבור חוזה
