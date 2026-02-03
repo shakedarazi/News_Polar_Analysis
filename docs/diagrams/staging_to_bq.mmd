@@ -1,0 +1,32 @@
+flowchart TB
+subgraph GCS_STG["GCS Staging (Parquet)"]
+W1["windows_features.parquet"]
+C1["comments_features.parquet"]
+A1["article_comments_agg.parquet"]
+end
+
+subgraph BQ_STG["BigQuery Staging Tables"]
+W2["stg_windows_features"]
+C2["stg_comments_features"]
+A2["stg_article_comments_agg"]
+end
+
+subgraph BQ_FINAL["BigQuery Final Tables"]
+W3["windows_features (PK: article_id, sentence_idx)"]
+C3["comments_features (PK: article_id, comment_id)"]
+A3["article_comments_agg (PK: article_id)"]
+end
+
+W1 --> W2 --> W3
+C1 --> C2 --> C3
+A1 --> A2 --> A3
+
+subgraph MERGE_RULES["MERGE Rules"]
+R1["Idempotent merges only"]
+R2["No deletes"]
+R3["Upsert by primary key"]
+end
+
+W2 --> MERGE_RULES
+C2 --> MERGE_RULES
+A2 --> MERGE_RULES

@@ -1,0 +1,19 @@
+flowchart LR
+subgraph GCS["Google Cloud Storage"]
+RAW["raw/articles/source=.../dt=.../article_id=.../article.json"]
+SNAP["snapshot/articles_with_comments/source=.../dt=.../article_id=.../article_with_comments.json"]
+STG["processed/staging/run_id=.../ (Parquet datasets)"]
+end
+
+RAW --> SNAP
+SNAP --> STG
+
+subgraph STAGING_DATASETS["Staging Datasets (Parquet)"]
+W["windows_features.parquet"]
+C["comments_features.parquet"]
+A["article_comments_agg.parquet"]
+end
+
+STG --> W
+STG --> C
+STG --> A
