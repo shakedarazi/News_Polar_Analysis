@@ -21,6 +21,8 @@ Code, Airflow DAGs, and SQL must be derived from the documents in this folder �
 
 Any change that affects determinism, schemas, IDs, algorithms, or metrics must be documented here first.
 
+> **מימוש נוכחי בקוד:** ראו [`implementation.md`](implementation.md) — תיעוד של מה שנבנה בפועל (מילון סימחון, כתבות, תגובות, מבנה קבצים).
+
 ---
 
 ## 📁 Folder Structure

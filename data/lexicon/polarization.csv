@@ -1,0 +1,166 @@
+lemma,component,notes
+אויב,affective,enemy
+אונס,affective,rape
+אופוזיציה,issue,added for Israeli news context
+אזרחים,issue,citizens
+אחריות,affective,added from hebrew_lexicon_v2.py (reviewed)
+אידיוט,affective,idiot
+איום,affective,threat
+אימה,affective,horror
+איסלאם,affective,islam
+איסלאמי,affective,islamic
+אלימות,affective,violence
+אמת,affective,truth
+אנסים,issue,rapists
+אנשים,affective,people
+אסון,affective,added from hebrew_lexicon_v2.py (reviewed)
+אשם,affective,added from hebrew_lexicon_v2.py (reviewed)
+אשמה,affective,blame
+בהחלט,affective,added from hebrew_lexicon_v2.py (reviewed)
+בוגד,affective,added for Israeli news context
+בושה,affective,added from hebrew_lexicon_v2.py (reviewed)
+ביטול,issue,revocation
+בלתי יאומן,affective,unbelievable
+ג'יהאד,affective,jihad
+גורם,affective,makes
+גניבה,affective,theft
+גרוע,affective,worse
+גרם,affective,added from hebrew_lexicon_v2.py (reviewed)
+דו-מפלגתי,issue,bipartisan
+דמוקרט,issue,democrat
+דמוקרטי,issue,democratic
+דמוקרטיה,issue,democracy
+דרמה,affective,added from hebrew_lexicon_v2.py (reviewed)
+דרקוני,issue,draconian
+דתי,issue,religious
+האשמה,affective,charge
+הואשם,affective,accused
+הונאה,affective,fraud
+הלם,affective,added from hebrew_lexicon_v2.py (reviewed)
+הסתה,affective,added for Israeli news context
+התחממות,issue,warming
+התנגד,affective,added for Israeli news context
+זעזוע,affective,added from hebrew_lexicon_v2.py (reviewed)
+זעם,affective,added from hebrew_lexicon_v2.py (reviewed)
+חוסר חוק,issue,lawlessness
+חוץ,affective,except
+חוק,issue,laws
+חוקה,issue,constitution
+חוקתי,issue,constitutional
+חקיקה,issue,legislation
+חרא,affective,shit
+חריפות,affective,added from hebrew_lexicon_v2.py (reviewed)
+חשיפה,affective,expose
+טיפש,affective,dumb
+טמבל,affective,dumbass
+טמבלים,affective,dumbasses
+טענה,affective,claims
+טרגדיה,affective,added from hebrew_lexicon_v2.py (reviewed)
+טרור,affective,terror
+יהודים,affective,jews
+יומן,affective,diaries
+ימין,issue,added for Israeli news context
+ירי,affective,shooting
+כדורים,affective,bullets
+כולם,affective,added from hebrew_lexicon_v2.py (reviewed)
+כנסת,issue,added for Israeli news context
+כעס,affective,added from hebrew_lexicon_v2.py (reviewed)
+לא אמיתי,affective,unreal
+לא חוקתי,issue,unconstitutional
+לגמרי,affective,absolutely
+להרוג,affective,kill
+להרוס,affective,destroy
+לחלוטין,affective,completely
+ליברלי,issue,liberal
+לספר,affective,tell
+לעזאזל,affective,damn
+לתת,affective,let
+מאיים,affective,threatening
+מאשים,affective,added from hebrew_lexicon_v2.py (reviewed)
+מגוחך,affective,ridiculous
+מהגרים,issue,migrants
+מוות,affective,death
+מוחלט,affective,added from hebrew_lexicon_v2.py (reviewed)
+מוסלמי,affective,muslim
+מזעזע,affective,shocking
+מחבל,affective,terrorist
+מחולק,affective,added for Israeli news context
+מחלוקת,issue,added from hebrew_lexicon_v2.py (reviewed)
+מטומטמים,affective,assholes
+מטורף,affective,insane
+מכה,affective,strike
+ממש,affective,literally
+ממשלה,issue,added for Israeli news context
+מעצבן,affective,annoying
+מערכתי,issue,systemic
+מקורבים,issue,crony
+משבר,affective,added from hebrew_lexicon_v2.py (reviewed)
+משוגע,affective,crazy
+משחית,affective,added from hebrew_lexicon_v2.py (reviewed)
+מתח,affective,suspense
+מתנגד,affective,added from hebrew_lexicon_v2.py (reviewed)
+נהרג,affective,added from hebrew_lexicon_v2.py (reviewed)
+נוצרים,affective,christians
+נורא,affective,awful
+נחשף,affective,revealed
+נפגע,affective,added from hebrew_lexicon_v2.py (reviewed)
+נרצח,affective,added from hebrew_lexicon_v2.py (reviewed)
+נשק,affective,firearms
+נתפס,affective,caught
+סובל,affective,added from hebrew_lexicon_v2.py (reviewed)
+סוציאליזם,issue,socialism
+סוציאליסטי,issue,socialist
+סורי,issue,syrian
+סכנה,affective,added from hebrew_lexicon_v2.py (reviewed)
+סנאט,issue,senate
+סערה,affective,added from hebrew_lexicon_v2.py (reviewed)
+עבריינים,issue,offenders
+עימות,issue,added from hebrew_lexicon_v2.py (reviewed)
+פוליטי,issue,political
+פוליטיקאים,issue,politicians
+פוליטיקה,issue,added from hebrew_lexicon_v2.py (reviewed)
+פושע,affective,criminal
+פחד,affective,fear
+פיגוע,affective,bombing
+פילוג,issue,added from hebrew_lexicon_v2.py (reviewed)
+פליט,issue,refugee
+פלסטינים,issue,palestinians
+פרוגרסיבי,issue,progressives
+פשע,affective,crime
+צבועים,affective,hypocrites
+ציבור,issue,added from hebrew_lexicon_v2.py (reviewed)
+קואליציה,issue,added for Israeli news context
+קומוניזם,issue,communism
+קורבן,affective,added from hebrew_lexicon_v2.py (reviewed)
+קטסטרופה,affective,added from hebrew_lexicon_v2.py (reviewed)
+קיצוני,affective,extremist
+קיצוניות,affective,extremism
+קפיטליזם,issue,capitalism
+קפיטליסטי,issue,capitalist
+רדיקלי,issue,radical
+רובה,affective,rifle
+רמאים,affective,cheaters
+רפובליקני,issue,republican
+רפורמה,issue,added for Israeli news context
+רצח,affective,murder
+רצח עם,affective,genocide
+שגוי,affective,wrong
+שונא,affective,added from hebrew_lexicon_v2.py (reviewed)
+שוק,affective,added from hebrew_lexicon_v2.py (reviewed)
+שחית,affective,added from hebrew_lexicon_v2.py (reviewed)
+שחיתות,affective,corruption
+שטויות,affective,bs
+שטן,affective,devil
+שידור,affective,broadcast
+שמאל,issue,added for Israeli news context
+שמאלני,issue,leftist
+שמועה,affective,rumor
+שמרני,issue,conservative
+שקר,affective,lie
+שקרנים,affective,liars
+שריעה,affective,sharia
+תוקפני,affective,added from hebrew_lexicon_v2.py (reviewed)
+תיקון,issue,amend
+תמיד,affective,added from hebrew_lexicon_v2.py (reviewed)
+תקיפה,affective,attack
+תרסיס,affective,scheme
