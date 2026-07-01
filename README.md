@@ -10,6 +10,7 @@ Batch pipeline for collecting and analyzing Israeli news articles and audience r
 
 - Python 3.11+
 - PostgreSQL (local via Docker, or remote)
+- Node.js 18+ and npm (for the web UI in `frontend/`)
 - Internet access (for crawling news sites)
 
 ### Installation
@@ -182,24 +183,111 @@ Lexicon word lists live in `data/lexicon_base/category1.txt` … `category7.txt`
 
 Cron (`run_ingestion.sh`) runs analysis automatically after comment fetch (24h+ articles).
 
-### Browse API + Web UI (Next.js)
+### הפעלת האתר (Web UI)
 
-Professional RTL dashboard:
+האתר מורכב משני שירותים: **API (Python/FastAPI)** ו-**ממשק (Next.js)**.  
+נדרשים PostgreSQL פעיל ונתונים ב-DB (לפחות crawl אחד כדי לראות תוכן).
+
+#### דרישות נוספות
+
+- **Node.js 18+** ו-**npm**
+- **Python 3.11+** — ב-macOS השתמש ב-`python3`, או הפעל את ה-venv (ראה למטה)
+
+#### התקנה ראשונית (פעם אחת)
 
 ```bash
-# Terminal 1 — API
-python pipeline/serve_api.py
+cd News_Polar_Analysis-main
 
-# Terminal 2 — Frontend
-cd frontend && npm install && npm run dev
-# http://localhost:3000
+# Python
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# DB
+docker compose up -d
+cp .env.example .env
+python pipeline/init_db.py
+
+# (אופציונלי) נתונים לדוגמה
+python pipeline/crawl.py --source ynet --limit 10
+python pipeline/fetch_comments.py --min-age-hours 0 --limit 5
+python pipeline/analyze_articles.py --limit 10
+
+# Frontend
+cd frontend
+npm install
+cp .env.local.example .env.local
+cd ..
 ```
 
-Copy `frontend/.env.local.example` → `.env.local` on first run.
+#### הרצה — שני טרמינלים
 
-Pages: דשבורד · כתבות · עמוד כתבה · אודות
+**טרמינל 1 — API (פורט 8000):**
 
-API: `/api/stats`, `/api/articles`, `/api/articles/{id}`, `/api/sources`, `/api/categories`
+```bash
+cd News_Polar_Analysis-main
+source .venv/bin/activate
+python pipeline/serve_api.py
+```
+
+בדיקה: [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health) — אמור להחזיר `{"status":"ok"}`.
+
+**טרמינל 2 — אתר (פורט 3000):**
+
+```bash
+cd News_Polar_Analysis-main/frontend
+npm run dev
+```
+
+פתח בדפדפן: **[http://localhost:3000](http://localhost:3000)**
+
+> **macOS:** אם מופיעה `command not found: python`, הרץ קודם `source .venv/bin/activate`  
+> או השתמש ב: `.venv/bin/python pipeline/serve_api.py`
+
+#### עמודים באתר
+
+| כתובת | תוכן |
+|--------|------|
+| `/` | דשבורד — KPI, גרפים, כתבות חמות |
+| `/articles` | רשימת כתבות + פילטרים |
+| `/articles/{id}` | עמוד כתבה — מדדים, תגובות, גרף |
+| `/about` | הסבר מתודולוגיה |
+
+#### API (לפיתוח)
+
+| Endpoint | תיאור |
+|----------|--------|
+| `GET /api/health` | בדיקת חיים |
+| `GET /api/stats` | נתוני דשבורד |
+| `GET /api/articles` | רשימת כתבות (`?source=&category=&limit=&offset=`) |
+| `GET /api/articles/{id}` | פרטי כתבה |
+| `GET /api/sources` | מקורות |
+| `GET /api/categories` | קטגוריות AI |
+
+קובץ הגדרות ה-frontend: `frontend/.env.local` — ברירת מחדל `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`
+
+#### פתרון בעיות
+
+| בעיה | פתרון |
+|------|--------|
+| `command not found: python` | `source .venv/bin/activate` או `.venv/bin/python` |
+| "לא ניתן להתחבר ל-API" באתר | ודא ש-`serve_api.py` רץ; בדוק `frontend/.env.local` |
+| אין כתבות / טבלה ריקה | `python pipeline/crawl.py --source all` |
+| אין ציוני פולריות | `python pipeline/build_lexicon.py` ואז `python pipeline/analyze_articles.py` |
+| שגיאת DB | `docker compose up -d` ו-`python pipeline/init_db.py` |
+
+#### בנייה ל-production (אופציונלי)
+
+```bash
+# API
+source .venv/bin/activate
+python pipeline/serve_api.py --host 0.0.0.0 --port 8000
+
+# Frontend
+cd frontend
+npm run build
+npm run start
+```
 
 ### Comments (audience reactions)
 
