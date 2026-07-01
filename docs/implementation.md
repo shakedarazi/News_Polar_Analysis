@@ -41,8 +41,7 @@ src/
   lexicon/
     load_polarization_lexicon.py # טעינת polarization.csv
     expand_lexicon.py            # הרחבת תחיליות עבריות (offline/in-memory)
-    deterministic_matcher.py     # התאמת טוקנים למילון (ללא AI)
-    ai_matcher.py                # אופציונלי — OpenAI (לא בשימוש בברירת מחדל)
+    deterministic_matcher.py     # התאמת טוקנים למילון
   features/
     article_windows.py           # חלונות כתבה + ציון כתבה
     comments_scoring.py          # ציון תגובות + audience mean
@@ -136,7 +135,7 @@ python scripts/build_polarization_lexicon.py
 | נושא | החלטה |
 |------|--------|
 | מסגרת מחקרית | Simchon (issue/affective), לא 7 קטגוריות |
-| התאמת מילים | מילון מורחב + heuristics — **ללא OpenAI** |
+| התאמת מילים | מילון מורחב + heuristics דטרמיניסטיים |
 | כתבה vs תגובות | אותות נפרדים |
 | משקל לייקים | לא בבסיס (שמור לעתיד) |
 | אחסון | עדיין לא מומש (DuckDB/BQ בעתיד) |
@@ -157,7 +156,6 @@ python -m pytest tests/ -q
 | `test_expand_lexicon.py` | הרחבת מילון |
 | `test_load_lexicon.py` | טעינת CSV |
 | `test_build_lexicon.py` | סקריפט בנייה מ-OSF |
-| `test_ai_matcher.py` | מסלול OpenAI אופציונלי |
 
 ---
 
