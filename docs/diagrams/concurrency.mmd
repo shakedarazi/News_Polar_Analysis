@@ -1,0 +1,28 @@
+flowchart TB
+Q["Queue of eligible article_ids"] --> W1["Worker 1: ArticleJob(a1)"]
+Q --> W2["Worker 2: ArticleJob(a2)"]
+Q --> W3["Worker 3: ArticleJob(a3)"]
+
+subgraph JOB["ArticleJob(article_id) steps (sequential per article)"]
+J1["Read snapshot from GCS"]
+J2["Compute windows features"]
+J3["Compute comments features"]
+J4["Compute per-article aggregates"]
+J5["Write Parquet outputs to GCS staging"]
+J1 --> J2 --> J3 --> J4 --> J5
+end
+
+W1 --> J1
+W2 --> J1
+W3 --> J1
+
+J5 --> OUT["GCS staging/run_id=..."]
+
+subgraph RULES["Concurrency Constraints"]
+C0["Parallelism only across articles"]
+C1["No parallelism within an article"]
+C2["No shared mutable state"]
+C3["Deterministic ordering enforced (sentence_idx, sorted comment_id)"]
+end
+
+OUT --> RULES

@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Crawl articles from Israeli news sources into PostgreSQL."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from src.common.hashing import article_id_from_url
+from src.crawling.extract_article import build_article_record
+from src.crawling.registry import ALL_SOURCES, get_crawler
+from src.crawling.rss_utils import NO_LIMIT
+from src.db.articles import load_known_ids, save_article
+from src.db.classification import ensure_classification_schema, maybe_classify_after_save
+from src.db.config import get_database_url, require_database_url
+
+
+def crawl_source(
+    source: str,
+    *,
+    limit: int,
+    delay: float,
+    run_id: str,
+    known_ids: set[str],
+    classify: bool,
+) -> tuple[int, int, int]:
+    crawler = get_crawler(source)
+    print(f"=== {source} ===")
+    urls = crawler.discover_urls(limit)
+    print(f"Discovered {len(urls)} URLs from feed(s)\n")
+
+    saved = skipped = failed = 0
+
+    for index, url in enumerate(urls, start=1):
+        aid = article_id_from_url(url)
+        if aid in known_ids:
+            print(f"[{index}/{len(urls)}] SKIP (duplicate): {url}")
+            skipped += 1
+            continue
+
+        print(f"[{index}/{len(urls)}] Fetching: {url}")
+        try:
+            article = crawler.extract_article(url)
+            record = build_article_record(
+                source=crawler.source_name,
+                title=article["title"],
+                text=article["text"],
+                url=url,
+                run_id=run_id,
+            )
+            save_article(record)
+            print(f"  OK: {article['title'][:70]}")
+            print(f"      {len(article['text'])} chars -> db:{record['article_id'][:16]}…")
+            maybe_classify_after_save(record, enabled=classify)
+            print()
+            saved += 1
+            known_ids.add(aid)
+        except Exception as exc:
+            print(f"  FAILED: {exc}\n")
+            failed += 1
+
+        time.sleep(delay)
+
+    print(f"{source}: saved={saved} skipped={skipped} failed={failed}\n")
+    return saved, skipped, failed
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Crawl news articles to PostgreSQL")
+    parser.add_argument(
+        "--source",
+        default="all",
+        help=f"Source name or 'all'. Options: {', '.join(ALL_SOURCES)}, all",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=NO_LIMIT,
+        help="Max articles per source (0 = all entries from feeds, no cap)",
+    )
+    parser.add_argument("--delay", type=float, default=2.0)
+    parser.add_argument(
+        "--no-classify",
+        action="store_true",
+        help="Skip AI category labeling after saving each article",
+    )
+    args = parser.parse_args()
+
+    try:
+        require_database_url()
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+
+    classify = not args.no_classify
+    if classify:
+        ensure_classification_schema()
+
+    sources = ALL_SOURCES if args.source.lower() == "all" else [args.source.lower()]
+    for name in sources:
+        get_crawler(name)
+
+    run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
+    known_ids = load_known_ids()
+
+    limit_label = "unlimited (all feed entries)" if args.limit <= 0 else str(args.limit)
+
+    print(f"Ingestion run: {run_id}")
+    print(f"Database:     {get_database_url()}")
+    print(f"Classify:     {'on (OpenAI)' if classify else 'off'}")
+    print(f"Known articles (all sources, deduped): {len(known_ids)}")
+    print(f"Sources:      {', '.join(sources)}")
+    print(f"Limit/source: {limit_label}\n")
+
+    total_saved = total_skipped = total_failed = 0
+    for source in sources:
+        saved, skipped, failed = crawl_source(
+            source,
+            limit=args.limit,
+            delay=args.delay,
+            run_id=run_id,
+            known_ids=known_ids,
+            classify=classify,
+        )
+        total_saved += saved
+        total_skipped += skipped
+        total_failed += failed
+
+    print("Done (all sources).")
+    print(f"  Saved:   {total_saved}")
+    print(f"  Skipped: {total_skipped} (already stored)")
+    print(f"  Failed:  {total_failed}")
+    return 0 if total_failed == 0 or total_saved > 0 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

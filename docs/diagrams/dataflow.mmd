@@ -1,0 +1,25 @@
+flowchart TB
+subgraph DAG1["DAG 1: crawl_latest_to_gcs (every 6 hours)"]
+  A1["Fetch listing pages per source"] --> A2["Extract article URLs"]
+  A2 --> A3["Canonicalize URL"]
+  A3 --> A4["article_id = sha256(canonical_url)"]
+  A4 --> A5["Fetch article text + metadata"]
+  A5 --> A6["Write GCS RAW: raw/articles/.../article.json"]
+end
+
+RAW_DONE["RAW articles ready"]
+
+A6 --> RAW_DONE
+
+subgraph DAG2["DAG 2: daily_snapshot_process_to_bq (daily)"]
+  B1["Select mature articles: now - first_seen_at >= 24h"]
+  B1 --> B2["Fetch comments snapshot"]
+  B2 --> B3["Compute comment_id + sort comments"]
+  B3 --> B4["Write GCS SNAPSHOT"]
+  B4 --> B5["Worker Pool: parallel ArticleJob(article_id)"]
+  B5 --> B6["Write GCS STAGING Parquet outputs"]
+  B6 --> B7["Load Parquet -> BQ staging tables"]
+  B7 --> B8["MERGE staging -> final tables"]
+end
+
+RAW_DONE --> B1
