@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.lexicon.expand_lexicon import expand_lexicon  # used in main() stats only
+from src.lexicon.lexicon_provenance import provenance_source
 
 SOURCE_PATH = ROOT / "data" / "lexicon" / "source" / "dict_hclust.csv"
 LEXICON_PATH = ROOT / "data" / "lexicon" / "polarization.csv"
@@ -302,7 +303,12 @@ def write_outputs(rows: list[dict[str, str]]) -> int:
         {
             "lemma": row["lemma_he"],
             "component": row["component"],
-            "notes": row["notes"] or row["lemma_en"],
+            "notes": provenance_source(
+                row["lemma_he"],
+                stem_to_hebrew=STEM_TO_HEBREW,
+                hebrew_only=HEBREW_ONLY_ADDITIONS,
+                media_v2=HEBREW_MEDIA_V2_ADDITIONS,
+            ),
         }
         for row in sorted(approved, key=lambda item: item["lemma_he"])
     ]

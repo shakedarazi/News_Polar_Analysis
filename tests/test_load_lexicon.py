@@ -13,7 +13,7 @@ LEXICON_PATH = Path("data/lexicon/polarization.csv")
 def test_load_lexicon_from_csv() -> None:
     lexicon = load_lexicon(LEXICON_PATH)
 
-    assert len(lexicon) >= 160
+    assert len(lexicon) >= 185
     assert lexicon["ממשלה"] == "issue"
     assert lexicon["בושה"] == "affective"
     assert all(component in {"issue", "affective"} for component in lexicon.values())

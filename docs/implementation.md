@@ -78,7 +78,7 @@ tests/                           # 16 בדיקות pytest
 |--------|--------|
 | `lemma` | למה בעברית |
 | `component` | `issue` או `affective` |
-| `notes` | מקור / תרגום אנגלי |
+| `notes` | מקור המילה באנגלית: `simchon`, `israeli-supplement`, `media-v2`, `ai-review` |
 
 עריכה: הוסף שורה → שמור → הרץ מחדש.
 

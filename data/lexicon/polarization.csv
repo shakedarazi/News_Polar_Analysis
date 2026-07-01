@@ -1,166 +1,192 @@
 lemma,component,notes
-אויב,affective,enemy
-אונס,affective,rape
-אופוזיציה,issue,added for Israeli news context
-אזרחים,issue,citizens
-אחריות,affective,added from hebrew_lexicon_v2.py (reviewed)
-אידיוט,affective,idiot
-איום,affective,threat
-אימה,affective,horror
-איסלאם,affective,islam
-איסלאמי,affective,islamic
-אלימות,affective,violence
-אמת,affective,truth
-אנסים,issue,rapists
-אנשים,affective,people
-אסון,affective,added from hebrew_lexicon_v2.py (reviewed)
-אשם,affective,added from hebrew_lexicon_v2.py (reviewed)
-אשמה,affective,blame
-בהחלט,affective,added from hebrew_lexicon_v2.py (reviewed)
-בוגד,affective,added for Israeli news context
-בושה,affective,added from hebrew_lexicon_v2.py (reviewed)
-ביטול,issue,revocation
-בלתי יאומן,affective,unbelievable
-ג'יהאד,affective,jihad
-גורם,affective,makes
-גניבה,affective,theft
-גרוע,affective,worse
-גרם,affective,added from hebrew_lexicon_v2.py (reviewed)
-דו-מפלגתי,issue,bipartisan
-דמוקרט,issue,democrat
-דמוקרטי,issue,democratic
-דמוקרטיה,issue,democracy
-דרמה,affective,added from hebrew_lexicon_v2.py (reviewed)
-דרקוני,issue,draconian
-דתי,issue,religious
-האשמה,affective,charge
-הואשם,affective,accused
-הונאה,affective,fraud
-הלם,affective,added from hebrew_lexicon_v2.py (reviewed)
-הסתה,affective,added for Israeli news context
-התחממות,issue,warming
-התנגד,affective,added for Israeli news context
-זעזוע,affective,added from hebrew_lexicon_v2.py (reviewed)
-זעם,affective,added from hebrew_lexicon_v2.py (reviewed)
-חוסר חוק,issue,lawlessness
-חוץ,affective,except
-חוק,issue,laws
-חוקה,issue,constitution
-חוקתי,issue,constitutional
-חקיקה,issue,legislation
-חרא,affective,shit
-חריפות,affective,added from hebrew_lexicon_v2.py (reviewed)
-חשיפה,affective,expose
-טיפש,affective,dumb
-טמבל,affective,dumbass
-טמבלים,affective,dumbasses
-טענה,affective,claims
-טרגדיה,affective,added from hebrew_lexicon_v2.py (reviewed)
-טרור,affective,terror
-יהודים,affective,jews
-יומן,affective,diaries
-ימין,issue,added for Israeli news context
-ירי,affective,shooting
-כדורים,affective,bullets
-כולם,affective,added from hebrew_lexicon_v2.py (reviewed)
-כנסת,issue,added for Israeli news context
-כעס,affective,added from hebrew_lexicon_v2.py (reviewed)
-לא אמיתי,affective,unreal
-לא חוקתי,issue,unconstitutional
-לגמרי,affective,absolutely
-להרוג,affective,kill
-להרוס,affective,destroy
-לחלוטין,affective,completely
-ליברלי,issue,liberal
-לספר,affective,tell
-לעזאזל,affective,damn
-לתת,affective,let
-מאיים,affective,threatening
-מאשים,affective,added from hebrew_lexicon_v2.py (reviewed)
-מגוחך,affective,ridiculous
-מהגרים,issue,migrants
-מוות,affective,death
-מוחלט,affective,added from hebrew_lexicon_v2.py (reviewed)
-מוסלמי,affective,muslim
-מזעזע,affective,shocking
-מחבל,affective,terrorist
-מחולק,affective,added for Israeli news context
-מחלוקת,issue,added from hebrew_lexicon_v2.py (reviewed)
-מטומטמים,affective,assholes
-מטורף,affective,insane
-מכה,affective,strike
-ממש,affective,literally
-ממשלה,issue,added for Israeli news context
-מעצבן,affective,annoying
-מערכתי,issue,systemic
-מקורבים,issue,crony
-משבר,affective,added from hebrew_lexicon_v2.py (reviewed)
-משוגע,affective,crazy
-משחית,affective,added from hebrew_lexicon_v2.py (reviewed)
-מתח,affective,suspense
-מתנגד,affective,added from hebrew_lexicon_v2.py (reviewed)
-נהרג,affective,added from hebrew_lexicon_v2.py (reviewed)
-נוצרים,affective,christians
-נורא,affective,awful
-נחשף,affective,revealed
-נפגע,affective,added from hebrew_lexicon_v2.py (reviewed)
-נרצח,affective,added from hebrew_lexicon_v2.py (reviewed)
-נשק,affective,firearms
-נתפס,affective,caught
-סובל,affective,added from hebrew_lexicon_v2.py (reviewed)
-סוציאליזם,issue,socialism
-סוציאליסטי,issue,socialist
-סורי,issue,syrian
-סכנה,affective,added from hebrew_lexicon_v2.py (reviewed)
-סנאט,issue,senate
-סערה,affective,added from hebrew_lexicon_v2.py (reviewed)
-עבריינים,issue,offenders
-עימות,issue,added from hebrew_lexicon_v2.py (reviewed)
-פוליטי,issue,political
-פוליטיקאים,issue,politicians
-פוליטיקה,issue,added from hebrew_lexicon_v2.py (reviewed)
-פושע,affective,criminal
-פחד,affective,fear
-פיגוע,affective,bombing
-פילוג,issue,added from hebrew_lexicon_v2.py (reviewed)
-פליט,issue,refugee
-פלסטינים,issue,palestinians
-פרוגרסיבי,issue,progressives
-פשע,affective,crime
-צבועים,affective,hypocrites
-ציבור,issue,added from hebrew_lexicon_v2.py (reviewed)
-קואליציה,issue,added for Israeli news context
-קומוניזם,issue,communism
-קורבן,affective,added from hebrew_lexicon_v2.py (reviewed)
-קטסטרופה,affective,added from hebrew_lexicon_v2.py (reviewed)
-קיצוני,affective,extremist
-קיצוניות,affective,extremism
-קפיטליזם,issue,capitalism
-קפיטליסטי,issue,capitalist
-רדיקלי,issue,radical
-רובה,affective,rifle
-רמאים,affective,cheaters
-רפובליקני,issue,republican
-רפורמה,issue,added for Israeli news context
-רצח,affective,murder
-רצח עם,affective,genocide
-שגוי,affective,wrong
-שונא,affective,added from hebrew_lexicon_v2.py (reviewed)
-שוק,affective,added from hebrew_lexicon_v2.py (reviewed)
-שחית,affective,added from hebrew_lexicon_v2.py (reviewed)
-שחיתות,affective,corruption
-שטויות,affective,bs
-שטן,affective,devil
-שידור,affective,broadcast
-שמאל,issue,added for Israeli news context
-שמאלני,issue,leftist
-שמועה,affective,rumor
-שמרני,issue,conservative
-שקר,affective,lie
-שקרנים,affective,liars
-שריעה,affective,sharia
-תוקפני,affective,added from hebrew_lexicon_v2.py (reviewed)
-תיקון,issue,amend
-תמיד,affective,added from hebrew_lexicon_v2.py (reviewed)
-תקיפה,affective,attack
-תרסיס,affective,scheme
+אויב,affective,simchon
+אונס,affective,simchon
+אופוזיציה,issue,israeli-supplement
+אזרחים,issue,simchon
+אחריות,affective,media-v2
+אידיוט,affective,simchon
+איום,affective,simchon
+אימה,affective,simchon
+איסלאם,issue,simchon
+איסלאמי,issue,simchon
+איראן,issue,ai-review
+אלימות,affective,simchon
+אנסים,issue,simchon
+אסון,affective,media-v2
+אשם,affective,media-v2
+אשמה,affective,simchon
+בגץ,issue,ai-review
+בוגד,affective,israeli-supplement
+בושה,affective,media-v2
+בזוי,affective,ai-review
+ביזיון,affective,ai-review
+ביטול,issue,simchon
+בלתי יאומן,affective,simchon
+ג'יהאד,affective,simchon
+גדה,issue,ai-review
+גזען,affective,ai-review
+גזענות,affective,ai-review
+גניבה,affective,simchon
+גרוע,affective,simchon
+גרם,affective,media-v2
+דו-מפלגתי,issue,simchon
+דיקטטור,affective,ai-review
+דמוקרט,issue,simchon
+דמוקרטי,issue,simchon
+דמוקרטיה,issue,simchon
+דרמה,affective,media-v2
+דרקוני,issue,simchon
+דתי,issue,simchon
+האשמה,affective,simchon
+הואשם,affective,simchon
+הונאה,affective,simchon
+הזוי,affective,ai-review
+הלם,affective,media-v2
+הסתה,affective,israeli-supplement
+הפגנה,issue,ai-review
+הפקרה,affective,ai-review
+הרס,affective,ai-review
+התחממות,issue,simchon
+התנגד,affective,israeli-supplement
+התנחלות,issue,ai-review
+זעזוע,affective,media-v2
+זעם,affective,media-v2
+חוסר חוק,issue,simchon
+חוק,issue,simchon
+חוקה,issue,simchon
+חוקתי,issue,simchon
+חטופים,issue,ai-review
+חיזבאללה,issue,ai-review
+חמאס,issue,ai-review
+חקיקה,issue,simchon
+חרא,affective,simchon
+חריפות,affective,media-v2
+חרפה,affective,ai-review
+חשיפה,affective,simchon
+טיפש,affective,simchon
+טמבל,affective,simchon
+טמבלים,affective,simchon
+טענה,affective,simchon
+טרגדיה,affective,media-v2
+טרור,affective,simchon
+יהודים,issue,simchon
+יומן,affective,simchon
+ימין,issue,israeli-supplement
+ירי,affective,simchon
+כדורים,affective,simchon
+כיבוש,issue,ai-review
+כישלון,affective,ai-review
+כנסת,issue,israeli-supplement
+כעס,affective,media-v2
+לא אמיתי,affective,simchon
+לא חוקתי,issue,simchon
+לגמרי,affective,simchon
+להרוג,affective,simchon
+להרוס,affective,simchon
+לחלוטין,affective,simchon
+ליברלי,issue,simchon
+לעזאזל,affective,simchon
+מאיים,affective,simchon
+מאשים,affective,media-v2
+מגוחך,affective,simchon
+מהגרים,issue,simchon
+מוות,affective,simchon
+מוחלט,affective,media-v2
+מוסלמי,issue,simchon
+מושחת,affective,ai-review
+מזעזע,affective,simchon
+מחאה,issue,ai-review
+מחבל,affective,simchon
+מחדל,affective,ai-review
+מחולק,affective,israeli-supplement
+מחלוקת,issue,media-v2
+מטומטמים,affective,simchon
+מטורף,affective,simchon
+מכה,affective,simchon
+מלחמה,issue,ai-review
+ממשלה,issue,israeli-supplement
+מסית,affective,ai-review
+מעצבן,affective,simchon
+מערכתי,issue,simchon
+מקורבים,issue,simchon
+משבר,affective,media-v2
+משוגע,affective,simchon
+משחית,affective,media-v2
+מתח,affective,simchon
+מתנגד,affective,media-v2
+נהרג,affective,media-v2
+נוכל,affective,ai-review
+נוצרים,issue,simchon
+נורא,affective,simchon
+נחשף,affective,simchon
+נמאס,affective,ai-review
+נפגע,affective,media-v2
+נרצח,affective,media-v2
+נשק,affective,simchon
+נתפס,affective,simchon
+סובל,affective,media-v2
+סוציאליזם,issue,simchon
+סוציאליסטי,issue,simchon
+סורי,issue,simchon
+סיפוח,issue,ai-review
+סכנה,affective,media-v2
+סנאט,issue,simchon
+סערה,affective,media-v2
+עבריינים,issue,simchon
+עזה,issue,ai-review
+עימות,issue,media-v2
+פאשיסט,affective,ai-review
+פוליטי,issue,simchon
+פוליטיקאים,issue,simchon
+פוליטיקה,issue,media-v2
+פושע,affective,simchon
+פחד,affective,simchon
+פיגוע,affective,simchon
+פילוג,issue,media-v2
+פליט,issue,simchon
+פלסטינים,issue,simchon
+פרוגרסיבי,issue,simchon
+פשע,affective,simchon
+צבועים,affective,simchon
+צביעות,affective,ai-review
+ציבור,issue,media-v2
+קואליציה,issue,israeli-supplement
+קומוניזם,issue,simchon
+קורבן,affective,media-v2
+קטסטרופה,affective,media-v2
+קיצוני,affective,simchon
+קיצוניות,affective,simchon
+קפיטליזם,issue,simchon
+קפיטליסטי,issue,simchon
+רדיקלי,issue,simchon
+רובה,affective,simchon
+רמאי,affective,ai-review
+רמאים,affective,simchon
+רעל,affective,ai-review
+רפובליקני,issue,simchon
+רפורמה,issue,israeli-supplement
+רצח,affective,simchon
+רצח עם,affective,simchon
+שגוי,affective,simchon
+שונא,affective,media-v2
+שוק,affective,media-v2
+שחית,affective,media-v2
+שחיתות,affective,simchon
+שטויות,affective,simchon
+שטחים,issue,ai-review
+שטן,affective,simchon
+שידור,affective,simchon
+שיסוי,affective,ai-review
+שמאל,issue,israeli-supplement
+שמאלני,issue,simchon
+שמועה,affective,simchon
+שמרני,issue,simchon
+שנאה,affective,ai-review
+שקר,affective,simchon
+שקרן,affective,ai-review
+שקרנים,affective,simchon
+שריעה,affective,simchon
+תוקפני,affective,media-v2
+תיקון,issue,simchon
+תקיפה,affective,simchon
+תרסיס,affective,simchon
