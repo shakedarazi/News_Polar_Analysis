@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>News Polar Analysis</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>News Polar Analysis</h1>
+    <p>כתבות, קטגוריות AI וציוני פולריות מתגובות</p>
+  </header>
+
+  <section class="filters">
+    <label>
+      מקור
+      <select id="source"></select>
+    </label>
+    <label>
+      קטגוריה
+      <select id="category"></select>
+    </label>
+    <label>
+      audience_mean מינימום
+      <input id="minAudience" type="number" min="0" max="1" step="0.01" placeholder="0" />
+    </label>
+    <button id="reload">רענון</button>
+  </section>
+
+  <main>
+    <table id="articlesTable">
+      <thead>
+        <tr>
+          <th>מקור</th>
+          <th>כותרת</th>
+          <th>קטגוריה</th>
+          <th>תגובות</th>
+          <th>audience_mean</th>
+          <th>p85</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <article id="detail" hidden>
+      <button id="back">חזרה לרשימה</button>
+      <h2 id="detailTitle"></h2>
+      <p id="detailMeta"></p>
+      <div id="detailAgg"></div>
+      <h3>תגובות מובילות (פולריות)</h3>
+      <ul id="detailComments"></ul>
+    </article>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
