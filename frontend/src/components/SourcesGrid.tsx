@@ -1,0 +1,29 @@
+import { formatNumber, sourceLabel } from "@/lib/format";
+import { PolarScore } from "./PolarScore";
+import { EmptyState } from "./EmptyState";
+import { SourceLogo } from "./SourceLogo";
+
+type Row = { source: string; article_count: number; avg_audience_mean: number | null };
+
+export function SourcesGrid({ sources }: { sources: Row[] }) {
+  if (sources.length === 0) {
+    return <EmptyState message="לא נמצאו מקורות חדשות התואמים לסינון שנבחר." />;
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {sources.map((s) => (
+        <div key={s.source} className="card flex items-center justify-between gap-3 p-4">
+          <div className="flex items-center gap-2.5">
+            <SourceLogo source={s.source} size={32} />
+            <div>
+              <p className="font-bold text-slate-900">{sourceLabel(s.source)}</p>
+              <p className="text-xs text-slate-500">{formatNumber(s.article_count)} כתבות</p>
+            </div>
+          </div>
+          <PolarScore value={s.avg_audience_mean} label="קיטוב ממוצע" />
+        </div>
+      ))}
+    </div>
+  );
+}

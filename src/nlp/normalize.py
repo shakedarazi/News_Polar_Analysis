@@ -26,3 +26,7 @@ def normalize(text: str) -> str:
     normalized = NON_LINGUISTIC_PATTERN.sub(" ", normalized)
     normalized = WHITESPACE_PATTERN.sub(" ", normalized).strip()
     return normalized
+
+
+# Alias used by src/analysis/* (lexicon-based polarity pipeline).
+normalize_text = normalize
