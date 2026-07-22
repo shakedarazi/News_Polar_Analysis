@@ -1,3 +1,5 @@
+export type BiasLabel = "שמאל" | "מרכז" | "ימין";
+
 export type ArticleSummary = {
   article_id: string;
   source: string;
@@ -11,6 +13,9 @@ export type ArticleSummary = {
   audience_mean: number | null;
   audience_p85: number | null;
   controversy_mean: number | null;
+  bias_label: BiasLabel | null;
+  bias_score: number | null;
+  bias_confidence: number | null;
 };
 
 export type ArticlesResponse = {
@@ -82,6 +87,9 @@ export type LeadingArticle = {
   audience_mean: number | null;
   audience_p85: number | null;
   num_comments: number | null;
+  bias_label: BiasLabel | null;
+  bias_score: number | null;
+  bias_confidence: number | null;
 };
 
 export type DateRange = { min: string | null; max: string | null };
@@ -148,6 +156,19 @@ export type AiSummary = {
   topic?: string | null;
   entities?: string[];
   sentiment?: string | null;
+  model?: string | null;
+  generated_at?: string | null;
+};
+
+export type ArticleBiasStatus = "missing" | "ready" | "not_applicable";
+
+export type ArticleBias = {
+  status: ArticleBiasStatus;
+  applicable?: boolean;
+  label?: BiasLabel | null;
+  score?: number | null;
+  confidence?: number | null;
+  rationale?: string | null;
   model?: string | null;
   generated_at?: string | null;
 };

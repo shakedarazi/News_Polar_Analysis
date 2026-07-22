@@ -7,6 +7,7 @@ import { PolarScore } from "./PolarScore";
 import { SourceBadge } from "./SourceBadge";
 import { EmptyState } from "./EmptyState";
 import { ArticleDetailModal } from "./ArticleDetailModal";
+import { CompactBiasBadge } from "./PoliticalBiasMeter";
 
 export function ArticlesTable({ articles }: { articles: ArticleSummary[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export function ArticlesTable({ articles }: { articles: ArticleSummary[] }) {
                 <th className="px-4 py-3 text-right font-semibold">מקור</th>
                 <th className="px-4 py-3 text-right font-semibold">כותרת</th>
                 <th className="px-4 py-3 text-right font-semibold">קטגוריה</th>
+                <th className="px-4 py-3 text-right font-semibold">נטייה</th>
                 <th className="px-4 py-3 text-right font-semibold">תגובות</th>
                 <th className="px-4 py-3 text-right font-semibold">פולריות ממוצעת</th>
                 <th className="px-4 py-3 text-right font-semibold">פולריות גבוהה (85%)</th>
@@ -51,6 +53,17 @@ export function ArticlesTable({ articles }: { articles: ArticleSummary[] }) {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{a.primary_category || "—"}</td>
+                  <td className="px-4 py-3">
+                    {a.bias_label ? (
+                      <CompactBiasBadge
+                        label={a.bias_label}
+                        score={a.bias_score}
+                        confidence={a.bias_confidence}
+                      />
+                    ) : (
+                      <span className="text-slate-400 dark:text-slate-500">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">{formatNumber(a.num_comments ?? 0)}</td>
                   <td className="px-4 py-3">
                     <PolarScore value={a.audience_mean} />
@@ -85,6 +98,13 @@ export function ArticlesTable({ articles }: { articles: ArticleSummary[] }) {
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   {formatNumber(a.num_comments ?? 0)} תגובות
                 </span>
+                {a.bias_label && (
+                  <CompactBiasBadge
+                    label={a.bias_label}
+                    score={a.bias_score}
+                    confidence={a.bias_confidence}
+                  />
+                )}
               </div>
             </button>
           ))}

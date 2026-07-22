@@ -7,6 +7,7 @@ import { SourceBadge } from "./SourceBadge";
 import { ArticleThumbnail } from "./ArticleThumbnail";
 import { EmptyState } from "./EmptyState";
 import { ArticleDetailModal } from "./ArticleDetailModal";
+import { CompactBiasBadge } from "./PoliticalBiasMeter";
 
 const LEVEL_CLASS: Record<string, string> = {
   high: "score-high",
@@ -58,6 +59,13 @@ export function LeadingArticles({ articles }: { articles: LeadingArticle[] }) {
                   <span>{sourceLabel(article.source)}</span>
                   <span aria-hidden>·</span>
                   <span>{formatDate(article.first_seen_at)}</span>
+                  {article.bias_label && (
+                    <CompactBiasBadge
+                      label={article.bias_label}
+                      score={article.bias_score}
+                      confidence={article.bias_confidence}
+                    />
+                  )}
                 </p>
               </div>
             </button>

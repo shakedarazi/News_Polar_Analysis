@@ -1,5 +1,6 @@
 import type {
   AiSummary,
+  ArticleBias,
   ArticleDetail,
   ArticlesResponse,
   AskResponse,
@@ -122,4 +123,12 @@ export function getArticleSummaryClient(id: string) {
 
 export function generateArticleSummaryClient(id: string) {
   return postJson<AiSummary>(`/api/articles/${id}/summary/generate`, {});
+}
+
+export function getArticleBiasClient(id: string) {
+  return getJson<ArticleBias>(`/api/articles/${id}/bias`);
+}
+
+export function generateArticleBiasClient(id: string) {
+  return postJson<ArticleBias>(`/api/articles/${id}/bias/generate`, {});
 }

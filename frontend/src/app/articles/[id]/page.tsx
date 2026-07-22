@@ -8,6 +8,7 @@ import { PolarScore } from "@/components/PolarScore";
 import { DominanceChart } from "@/components/DominanceChart";
 import { CommentsList } from "@/components/CommentsList";
 import { AiSummaryCard } from "@/components/AiSummaryCard";
+import { PoliticalBiasMeter } from "@/components/PoliticalBiasMeter";
 
 export default async function ArticlePage({
   params,
@@ -67,6 +68,7 @@ export default async function ArticlePage({
       </header>
 
       <AiSummaryCard articleId={article.article_id} hasContent={article.text.trim().length > 0} />
+      <PoliticalBiasMeter articleId={article.article_id} hasContent={article.text.trim().length > 0} />
 
       {agg ? (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

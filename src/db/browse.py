@@ -56,6 +56,9 @@ def list_articles(
             a.category_confidence,
             a.first_seen_at,
             a.analyzed_at,
+            a.bias_label,
+            a.bias_score,
+            a.bias_confidence,
             agg.num_comments,
             agg.audience_mean,
             agg.audience_p85,
@@ -314,6 +317,7 @@ def get_dashboard_stats(
                 f"""
                 SELECT a.article_id, a.source, a.title, a.primary_category,
                        a.first_seen_at, a.canonical_url,
+                       a.bias_label, a.bias_score, a.bias_confidence,
                        LEFT(a.text, 180) AS snippet,
                        agg.audience_mean, agg.audience_p85, agg.num_comments
                 FROM articles a

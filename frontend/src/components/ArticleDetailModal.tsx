@@ -3,14 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, ExternalLink, Maximize2 } from "lucide-react";
-import { getArticleClient } from "@/lib/api";
+import { getArticleBiasClient, getArticleClient } from "@/lib/api";
 import { formatDate, formatNumber, sourceLabel } from "@/lib/format";
-import type { ArticleDetail } from "@/lib/types";
+import type { ArticleBias, ArticleDetail } from "@/lib/types";
 import { SourceBadge } from "./SourceBadge";
 import { PolarScore } from "./PolarScore";
 import { CommentsList } from "./CommentsList";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 import { ErrorState } from "./ErrorState";
+import { CompactBiasBadge } from "./PoliticalBiasMeter";
 
 export function ArticleDetailModal({
   articleId,
@@ -22,6 +23,7 @@ export function ArticleDetailModal({
   const [article, setArticle] = useState<ArticleDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [bias, setBias] = useState<ArticleBias | null>(null);
 
   useEffect(() => {
     if (!articleId) return;
@@ -29,6 +31,7 @@ export function ArticleDetailModal({
     setArticle(null);
     setError(false);
     setLoading(true);
+    setBias(null);
     getArticleClient(articleId)
       .then((data) => {
         if (!cancelled) setArticle(data);
@@ -38,6 +41,16 @@ export function ArticleDetailModal({
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+      });
+    // Read-only: shows the compact badge only if a bias estimate already
+    // exists (e.g. generated from a previous visit to the full article page)
+    // — the modal never triggers on-demand AI generation itself.
+    getArticleBiasClient(articleId)
+      .then((data) => {
+        if (!cancelled) setBias(data);
+      })
+      .catch(() => {
+        /* silently omit the badge on failure — non-critical, compact context */
       });
     return () => {
       cancelled = true;
@@ -111,6 +124,13 @@ export function ArticleDetailModal({
                   <span className="text-xs text-slate-400 dark:text-slate-500">
                     {formatDate(article.first_seen_at)}
                   </span>
+                  {bias?.status === "ready" && (
+                    <CompactBiasBadge
+                      label={bias.label}
+                      score={bias.score}
+                      confidence={bias.confidence}
+                    />
+                  )}
                 </div>
                 <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-slate-100">
                   {article.title || "ללא כותרת"}

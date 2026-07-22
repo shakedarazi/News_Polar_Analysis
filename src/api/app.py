@@ -21,6 +21,7 @@ from src.db.browse import (
     list_categories,
     list_sources,
 )
+from src.db.bias import generate_and_save_bias, get_article_for_bias, get_bias
 from src.db.config import require_database_url
 from src.db.migrations import apply_migrations
 from src.db.summary import generate_and_save_summary, get_article_for_summary, get_summary
@@ -190,6 +191,35 @@ def api_generate_article_summary(article_id: str) -> dict:
     except Exception as exc:  # OpenAI/network/parsing errors
         raise HTTPException(status_code=502, detail=f"AI summary failed: {exc}") from exc
     return {"status": "ready", **summary}
+
+
+def _bias_response(bias: dict) -> dict:
+    if bias["applicable"]:
+        return {"status": "ready", **bias}
+    return {"status": "not_applicable", **bias}
+
+
+@app.get("/api/articles/{article_id}/bias")
+def api_get_article_bias(article_id: str) -> dict:
+    if get_article_for_bias(article_id) is None:
+        raise HTTPException(status_code=404, detail="Article not found")
+    bias = get_bias(article_id)
+    if bias is None:
+        return {"status": "missing"}
+    return _bias_response(bias)
+
+
+@app.post("/api/articles/{article_id}/bias/generate")
+def api_generate_article_bias(article_id: str) -> dict:
+    try:
+        bias = generate_and_save_bias(article_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # OpenAI/network/parsing errors
+        raise HTTPException(status_code=502, detail=f"AI bias analysis failed: {exc}") from exc
+    return _bias_response(bias)
 
 
 @app.get("/", response_class=HTMLResponse)
