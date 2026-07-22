@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { FlashCard } from "./FlashCard";
 
 const ACCENTS: Record<string, string> = {
   purple: "bg-[var(--purple)]/10 text-[var(--purple)]",
@@ -21,7 +22,7 @@ export function StatsCard({
   accent?: keyof typeof ACCENTS;
 }) {
   return (
-    <div className="card card-hover flex items-start justify-between gap-4 p-5">
+    <FlashCard value={value}>
       <div>
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</p>
         <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{value}</p>
@@ -33,6 +34,6 @@ export function StatsCard({
       >
         <Icon className="h-5 w-5" />
       </div>
-    </div>
+    </FlashCard>
   );
 }

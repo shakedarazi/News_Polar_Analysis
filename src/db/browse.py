@@ -10,6 +10,23 @@ POLARITY_HIGH = 0.15
 POLARITY_MID = 0.05
 
 
+def _count_active_events() -> int:
+    """Events (src.analysis.event_grouping) still receiving new coverage —
+    same "still developing" window as the new_event smart alert."""
+    from datetime import datetime, timezone
+
+    from src.analysis.alerts import STILL_DEVELOPING_HOURS
+    from src.analysis.event_grouping import get_events
+
+    now = datetime.now(timezone.utc)
+    events = get_events(limit=100)
+    return sum(
+        1
+        for e in events
+        if (now - e["last_seen_at"]).total_seconds() / 3600.0 <= STILL_DEVELOPING_HOURS
+    )
+
+
 def _common_filters(
     *,
     alias: str = "a",
@@ -346,6 +363,7 @@ def get_dashboard_stats(
                 "top_source": top_source,
                 "by_source": by_source,
                 "by_category": by_category,
+                "active_events_count": _count_active_events(),
                 "hottest_articles": hottest,
                 "date_range": date_range,
             }

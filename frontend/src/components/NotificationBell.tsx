@@ -16,6 +16,7 @@ import {
   markAllAlertsReadClient,
   markAlertReadClient,
 } from "@/lib/api";
+import { LIVE_POLL_INTERVAL_MS } from "@/lib/liveConfig";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import type { AlertItem, AlertType } from "@/lib/types";
@@ -76,6 +77,14 @@ function useAlerts() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  useEffect(() => {
+    // Live updates: no WebSocket/SSE infra exists in this system, so new
+    // alerts (and their unread count) are picked up on a shared poll
+    // interval (see liveConfig.ts) rather than only on mount/manual action.
+    const id = window.setInterval(load, LIVE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
   }, [load]);
 
   const markRead = useCallback(

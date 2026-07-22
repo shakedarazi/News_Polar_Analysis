@@ -154,6 +154,23 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Live-update highlight for newly-appeared items (see LiveIndicator /
+   LeadingArticles) — neutralized by the prefers-reduced-motion block below. */
+@keyframes fadein-new {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+    background-color: var(--accent-soft);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fadein-new {
+  animation: fadein-new 1.2s ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileText, Flame, Globe, Tags, TrendingUp } from "lucide-react";
+import { Calendar, FileText, Flame, Globe, Tags, TrendingUp } from "lucide-react";
 import {
   getCategories,
   getPolarityBySource,
@@ -18,6 +18,7 @@ import { TopicsCloud } from "@/components/TopicsCloud";
 import { LeadingArticles } from "@/components/LeadingArticles";
 import { ErrorState } from "@/components/ErrorState";
 import { TrendingWidget } from "@/components/TrendingWidget";
+import { LiveIndicator } from "@/components/LiveIndicator";
 
 export default async function DashboardPage({
   searchParams,
@@ -68,8 +69,13 @@ export default async function DashboardPage({
           <FilterSidebar sources={sources} categories={categories} dateRange={stats.date_range} />
 
           <div className="min-w-0 flex-1 space-y-10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="sr-only">מדדי סיכום</h2>
+              <LiveIndicator />
+            </div>
+
             <section
-              className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
+              className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
               aria-label="מדדי סיכום"
             >
               <StatsCard
@@ -98,6 +104,13 @@ export default async function DashboardPage({
                 value={formatPercent(stats.avg_audience_mean)}
                 hint={polarLevelLabel(stats.avg_audience_mean)}
                 accent="positive"
+              />
+              <StatsCard
+                icon={Calendar}
+                label="אירועים פעילים"
+                value={formatNumber(stats.active_events_count)}
+                hint="אירועים שהסיקור עליהם עדיין נמשך"
+                accent="purple"
               />
             </section>
 

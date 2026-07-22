@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { getTrendingClient } from "@/lib/api";
+import { LIVE_POLL_INTERVAL_MS } from "@/lib/liveConfig";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import type { TrendingTopic } from "@/lib/types";
@@ -138,6 +139,14 @@ function useTrending() {
 
   useEffect(() => {
     load(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    // Live updates: no WebSocket/SSE infra exists in this system, so
+    // trending topics refresh on a shared poll interval (see liveConfig.ts).
+    const id = window.setInterval(() => load(true), LIVE_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

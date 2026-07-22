@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LeadingArticle } from "@/lib/types";
 import { formatDate, polarLevel, polarLevelLabel, sourceLabel } from "@/lib/format";
 import { SourceBadge } from "./SourceBadge";
@@ -18,6 +18,28 @@ const LEVEL_CLASS: Record<string, string> = {
 
 export function LeadingArticles({ articles }: { articles: LeadingArticle[] }) {
   const [openId, setOpenId] = useState<string | null>(null);
+  const seenIds = useRef<Set<string> | null>(null);
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Live updates (see LiveIndicator): highlight articles that appeared
+    // since the last server refresh. Nothing is "new" on first mount —
+    // only once we have a prior snapshot to compare against.
+    const currentIds = new Set(articles.map((a) => a.article_id));
+    if (seenIds.current === null) {
+      seenIds.current = currentIds;
+      return;
+    }
+    const fresh = new Set<string>();
+    for (const id of currentIds) {
+      if (!seenIds.current.has(id)) fresh.add(id);
+    }
+    seenIds.current = currentIds;
+    if (fresh.size === 0) return;
+    setNewIds(fresh);
+    const t = window.setTimeout(() => setNewIds(new Set()), 1500);
+    return () => window.clearTimeout(t);
+  }, [articles]);
 
   if (articles.length === 0) {
     return (
@@ -35,7 +57,9 @@ export function LeadingArticles({ articles }: { articles: LeadingArticle[] }) {
               key={article.article_id}
               type="button"
               onClick={() => setOpenId(article.article_id)}
-              className="card card-hover flex gap-4 p-4 text-right"
+              className={`card card-hover flex gap-4 p-4 text-right ${
+                newIds.has(article.article_id) ? "animate-fadein-new" : ""
+              }`}
             >
               <ArticleThumbnail seed={article.article_id} className="h-20 w-20" />
               <div className="min-w-0 flex-1">

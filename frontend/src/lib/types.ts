@@ -101,6 +101,7 @@ export type DashboardStats = {
   top_source: string | null;
   by_source: { source: string; article_count: number; avg_audience_mean: number | null }[];
   by_category: { category: string; article_count: number; avg_audience_mean: number | null }[];
+  active_events_count: number;
   hottest_articles: LeadingArticle[];
   date_range: DateRange;
 };
