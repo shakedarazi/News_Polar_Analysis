@@ -1,4 +1,5 @@
 import type {
+  AiSummary,
   ArticleDetail,
   ArticlesResponse,
   AskResponse,
@@ -113,4 +114,12 @@ export function askAssistant(question: string) {
   // Relative path -> same-origin Next.js route (frontend/src/app/api/ask/route.ts),
   // which proxies server-side to the Python API. Avoids CORS entirely.
   return postJson<AskResponse>("/api/ask", { question });
+}
+
+export function getArticleSummaryClient(id: string) {
+  return getJson<AiSummary>(`/api/articles/${id}/summary`);
+}
+
+export function generateArticleSummaryClient(id: string) {
+  return postJson<AiSummary>(`/api/articles/${id}/summary/generate`, {});
 }

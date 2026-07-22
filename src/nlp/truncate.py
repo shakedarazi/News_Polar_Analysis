@@ -8,6 +8,8 @@ MAX_TEXT_CHARS = 1200
 MIN_TEXT_CHARS = 400
 INITIAL_PARAGRAPHS = 2
 
+MAX_SUMMARY_CHARS = 4000
+
 
 def _split_paragraphs(text: str) -> list[str]:
     cleaned = text.strip()
@@ -45,3 +47,14 @@ def truncate_for_classification(text: str) -> str:
         return body[:MAX_TEXT_CHARS].rstrip()
 
     return body
+
+
+def truncate_for_summary(text: str) -> str:
+    """
+    Return an excerpt suitable for full-article summarization: the whole
+    article, capped at 4000 chars so long articles stay a bounded-cost prompt.
+    """
+    cleaned = text.strip()
+    if len(cleaned) > MAX_SUMMARY_CHARS:
+        return cleaned[:MAX_SUMMARY_CHARS].rstrip()
+    return cleaned

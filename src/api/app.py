@@ -23,6 +23,7 @@ from src.db.browse import (
 )
 from src.db.config import require_database_url
 from src.db.migrations import apply_migrations
+from src.db.summary import generate_and_save_summary, get_article_for_summary, get_summary
 from src.nlp.qa import answer_question
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -166,6 +167,29 @@ def api_article_detail(article_id: str) -> dict:
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
     return article
+
+
+@app.get("/api/articles/{article_id}/summary")
+def api_get_article_summary(article_id: str) -> dict:
+    if get_article_for_summary(article_id) is None:
+        raise HTTPException(status_code=404, detail="Article not found")
+    summary = get_summary(article_id)
+    if summary is None:
+        return {"status": "missing"}
+    return {"status": "ready", **summary}
+
+
+@app.post("/api/articles/{article_id}/summary/generate")
+def api_generate_article_summary(article_id: str) -> dict:
+    try:
+        summary = generate_and_save_summary(article_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # OpenAI/network/parsing errors
+        raise HTTPException(status_code=502, detail=f"AI summary failed: {exc}") from exc
+    return {"status": "ready", **summary}
 
 
 @app.get("/", response_class=HTMLResponse)

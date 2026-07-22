@@ -138,3 +138,16 @@ export type AskResponse = {
   answer: string;
   sources: QaSourceArticle[];
 };
+
+export type AiSummaryStatus = "missing" | "ready";
+
+export type AiSummary = {
+  status: AiSummaryStatus;
+  summary?: string;
+  key_points?: string[];
+  topic?: string | null;
+  entities?: string[];
+  sentiment?: string | null;
+  model?: string | null;
+  generated_at?: string | null;
+};
