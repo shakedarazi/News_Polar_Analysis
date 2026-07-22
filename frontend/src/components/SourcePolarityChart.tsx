@@ -33,7 +33,7 @@ function SourceAxisTick(props: AxisTickProps) {
       <text x={-118} y={0} dy={3} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">
         {logoText}
       </text>
-      <text x={-8} y={0} dy={4} textAnchor="end" fontSize={12} fill="#334155">
+      <text x={-8} y={0} dy={4} textAnchor="end" fontSize={12} fill="var(--text-secondary)">
         {sourceLabel(source)}
       </text>
     </g>
@@ -73,8 +73,13 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
             barCategoryGap="35%"
             margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-            <XAxis type="number" domain={[0, 100]} unit="%" tick={{ fontSize: 12 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+            <XAxis
+              type="number"
+              domain={[0, 100]}
+              unit="%"
+              tick={{ fontSize: 12, fill: "var(--text-secondary)" }}
+            />
             <YAxis
               type="category"
               dataKey="name"
@@ -84,6 +89,13 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
               tick={SourceAxisTick}
             />
             <Tooltip
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                color: "var(--text-primary)",
+              }}
+              labelStyle={{ color: "var(--text-primary)" }}
               labelFormatter={(value) => sourceLabel(String(value))}
               formatter={(value, name, item) => {
                 const countKey =
@@ -98,6 +110,7 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
               formatter={(value) =>
                 value === "low" ? "קיטוב נמוך" : value === "mid" ? "קיטוב בינוני" : "קיטוב גבוה"
               }
+              wrapperStyle={{ color: "var(--text-secondary)" }}
             />
             <Bar dataKey="low" stackId="polarity" fill="#2DBE7F" radius={[0, 0, 0, 0]} />
             <Bar dataKey="mid" stackId="polarity" fill="#A8B0BB" />
@@ -105,7 +118,7 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         לכל מקור, אחוז הכתבות שתגובותיהן סווגו לרמת קיטוב נמוכה (מתחת ל-5%), בינונית (5%–15%)
         או גבוהה (מעל 15%), על בסיס מדד הקיטוב הממוצע בתגובות.
       </p>

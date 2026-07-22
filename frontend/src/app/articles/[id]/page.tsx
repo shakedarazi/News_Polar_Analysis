@@ -39,13 +39,13 @@ export default async function ArticlePage({
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <SourceBadge source={article.source} />
           {article.primary_category && (
-            <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-800">
+            <span className="rounded-md bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 text-xs font-semibold text-indigo-800 dark:text-indigo-300">
               {article.primary_category}
             </span>
           )}
-          <span className="text-xs text-slate-400">{formatDate(article.first_seen_at)}</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">{formatDate(article.first_seen_at)}</span>
         </div>
-        <h1 className="text-2xl font-bold leading-snug text-slate-900 sm:text-3xl">
+        <h1 className="text-2xl font-bold leading-snug text-slate-900 dark:text-slate-100 sm:text-3xl">
           {article.title || "ללא כותרת"}
         </h1>
         <a
@@ -58,12 +58,12 @@ export default async function ArticlePage({
           <ExternalLink className="h-4 w-4" />
         </a>
         {article.category_rationale && (
-          <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-            <strong className="text-slate-800">נימוק קטגוריה (AI):</strong>{" "}
+          <p className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-sm text-slate-600 dark:text-slate-300">
+            <strong className="text-slate-800 dark:text-slate-200">נימוק קטגוריה (AI):</strong>{" "}
             {article.category_rationale}
           </p>
         )}
-        <p className="mt-4 text-sm leading-relaxed text-slate-600">{excerpt}</p>
+        <p className="mt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{excerpt}</p>
       </header>
 
       <AiSummaryCard articleId={article.article_id} hasContent={article.text.trim().length > 0} />
@@ -77,35 +77,35 @@ export default async function ArticlePage({
             <PolarScore value={agg.audience_p85} label="פולריות גבוהה (85%)" large />
           </div>
           <div className="card p-4">
-            <p className="text-xs font-medium text-slate-500">מחלוקת בקהל</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">מחלוקת בקהל</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
               {agg.controversy_mean !== null
                 ? (agg.controversy_mean * 100).toFixed(1) + "%"
                 : "—"}
             </p>
           </div>
           <div className="card p-4">
-            <p className="text-xs font-medium text-slate-500">תגובות שנותחו</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900">
+            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">תגובות שנותחו</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
               {formatNumber(agg.num_comments)}
             </p>
           </div>
         </section>
       ) : (
-        <div className="card p-6 text-center text-slate-500">
+        <div className="card p-6 text-center text-slate-500 dark:text-slate-400">
           טרם בוצע ניתוח פולריות לכתבה זו
         </div>
       )}
 
       {article.windows.length > 0 && (
         <section>
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">דומיננטיות לפי משפט בכתבה</h2>
+          <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">דומיננטיות לפי משפט בכתבה</h2>
           <DominanceChart windows={article.windows} />
         </section>
       )}
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-slate-900">תגובות מובילות בפולריות</h2>
+        <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">תגובות מובילות בפולריות</h2>
         <CommentsList comments={article.comments} />
       </section>
     </div>

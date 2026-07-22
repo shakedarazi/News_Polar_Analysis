@@ -47,7 +47,7 @@ async function ArticlesContent({
   return (
     <div className="space-y-6">
       <ArticleFilters sources={sources} categories={categories} />
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
         מציג {formatNumber(data.items.length)} מתוך {formatNumber(data.total)} כתבות
       </p>
       <ArticlesTable articles={data.items} />
@@ -58,7 +58,7 @@ async function ArticlesContent({
               הקודם
             </Link>
           )}
-          <span className="text-sm text-slate-600">
+          <span className="text-sm text-slate-600 dark:text-slate-300">
             עמוד {currentPage} מתוך {totalPages}
           </span>
           {currentPage < totalPages && (
@@ -80,10 +80,10 @@ export default function ArticlesPage({
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
       <section>
-        <h1 className="text-2xl font-bold text-slate-900">כתבות</h1>
-        <p className="mt-1 text-slate-600">חיפוש וסינון לפי מקור, קטגוריה ומדד פולריות</p>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">כתבות</h1>
+        <p className="mt-1 text-slate-600 dark:text-slate-300">חיפוש וסינון לפי מקור, קטגוריה ומדד פולריות</p>
       </section>
-      <Suspense fallback={<div className="card p-8 text-center text-slate-500">טוען...</div>}>
+      <Suspense fallback={<div className="card p-8 text-center text-slate-500 dark:text-slate-400">טוען...</div>}>
         <ArticlesContent searchParams={searchParams} />
       </Suspense>
     </div>

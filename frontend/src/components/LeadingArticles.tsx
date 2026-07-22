@@ -41,15 +41,15 @@ export function LeadingArticles({ articles }: { articles: LeadingArticle[] }) {
                 <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                   <SourceBadge source={article.source} />
                   {article.primary_category && (
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                    <span className="rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300">
                       {article.primary_category}
                     </span>
                   )}
                 </div>
-                <h3 className="line-clamp-2 text-sm font-bold text-slate-900">
+                <h3 className="line-clamp-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                   {article.title || "ללא כותרת"}
                 </h3>
-                <p className="mt-2 flex items-center gap-2 text-xs text-slate-400">
+                <p className="mt-2 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                   <span
                     className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${LEVEL_CLASS[level]}`}
                   >

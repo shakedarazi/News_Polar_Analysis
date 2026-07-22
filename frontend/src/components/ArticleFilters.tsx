@@ -38,9 +38,9 @@ export function ArticleFilters({
   return (
     <div className="card flex flex-wrap items-end gap-4 p-4">
       <label className="flex min-w-[130px] flex-col gap-1 text-sm">
-        <span className="font-medium text-slate-600">מקור</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">מקור</span>
         <select
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
           value={params.get("source") ?? ""}
           onChange={(e) => update("source", e.target.value)}
         >
@@ -53,9 +53,9 @@ export function ArticleFilters({
         </select>
       </label>
       <label className="flex min-w-[130px] flex-col gap-1 text-sm">
-        <span className="font-medium text-slate-600">קטגוריה</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">קטגוריה</span>
         <select
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
           value={params.get("category") ?? ""}
           onChange={(e) => update("category", e.target.value)}
         >
@@ -68,34 +68,34 @@ export function ArticleFilters({
         </select>
       </label>
       <label className="flex min-w-[130px] flex-col gap-1 text-sm">
-        <span className="font-medium text-slate-600">מתאריך</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">מתאריך</span>
         <input
           type="date"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
           defaultValue={params.get("start_date") ?? ""}
           onChange={(e) => update("start_date", e.target.value)}
           aria-label="מתאריך"
         />
       </label>
       <label className="flex min-w-[130px] flex-col gap-1 text-sm">
-        <span className="font-medium text-slate-600">עד תאריך</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">עד תאריך</span>
         <input
           type="date"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
           defaultValue={params.get("end_date") ?? ""}
           onChange={(e) => update("end_date", e.target.value)}
           aria-label="עד תאריך"
         />
       </label>
       <label className="flex min-w-[130px] flex-col gap-1 text-sm">
-        <span className="font-medium text-slate-600">קיטוב מינימלי</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">קיטוב מינימלי</span>
         <input
           type="number"
           min={0}
           max={1}
           step={0.01}
           placeholder="0.00"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+          className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2"
           defaultValue={params.get("min_polar") ?? ""}
           onBlur={(e) => update("min_polar", e.target.value)}
         />

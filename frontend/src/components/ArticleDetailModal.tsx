@@ -70,16 +70,16 @@ export function ArticleDetailModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
+        className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 p-4">
-          <span className="text-sm font-semibold text-slate-500">פרטי כתבה</span>
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 p-4">
+          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">פרטי כתבה</span>
           <button
             type="button"
             onClick={onClose}
             aria-label="סגור חלונית"
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-200"
           >
             <X className="h-5 w-5" aria-hidden />
           </button>
@@ -104,15 +104,15 @@ export function ArticleDetailModal({
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <SourceBadge source={article.source} />
                   {article.primary_category && (
-                    <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-800">
+                    <span className="rounded-md bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 text-xs font-semibold text-indigo-800 dark:text-indigo-300">
                       {article.primary_category}
                     </span>
                   )}
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-400 dark:text-slate-500">
                     {formatDate(article.first_seen_at)}
                   </span>
                 </div>
-                <h2 className="text-lg font-bold leading-snug text-slate-900">
+                <h2 className="text-lg font-bold leading-snug text-slate-900 dark:text-slate-100">
                   {article.title || "ללא כותרת"}
                 </h2>
                 <a
@@ -124,7 +124,7 @@ export function ArticleDetailModal({
                   לכתבה המקורית ב-{sourceLabel(article.source)}
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                 </a>
-                <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                   {article.text.slice(0, 400)}
                   {article.text.length > 400 ? "…" : ""}
                 </p>
@@ -132,36 +132,36 @@ export function ArticleDetailModal({
 
               {agg ? (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                     <PolarScore value={agg.audience_mean} label="קיטוב ממוצע" />
                   </div>
-                  <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                     <PolarScore value={agg.audience_p85} label="קיטוב גבוה (85%)" />
                   </div>
-                  <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-medium text-slate-500">מחלוקת בקהל</p>
-                    <p className="mt-1 text-lg font-bold text-slate-900">
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">מחלוקת בקהל</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
                       {agg.controversy_mean !== null
                         ? `${(agg.controversy_mean * 100).toFixed(1)}%`
                         : "—"}
                     </p>
                   </div>
-                  <div className="rounded-xl bg-slate-50 p-3">
-                    <p className="text-xs font-medium text-slate-500">תגובות שנותחו</p>
-                    <p className="mt-1 text-lg font-bold text-slate-900">
+                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">תגובות שנותחו</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
                       {formatNumber(agg.num_comments)}
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">
+                <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-4 text-center text-sm text-slate-500 dark:text-slate-400">
                   טרם בוצע ניתוח פולריות לכתבה זו
                 </div>
               )}
 
               {article.comments.length > 0 && (
                 <div>
-                  <h3 className="mb-2 text-sm font-semibold text-slate-800">
+                  <h3 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                     תגובות מובילות בפולריות
                   </h3>
                   <CommentsList comments={article.comments.slice(0, 5)} />
@@ -170,7 +170,7 @@ export function ArticleDetailModal({
 
               <Link
                 href={`/articles/${article.article_id}`}
-                className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-[var(--indigo)] hover:bg-slate-50"
+                className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 py-2.5 text-sm font-medium text-[var(--indigo)] hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 <Maximize2 className="h-4 w-4" aria-hidden />
                 לעמוד המלא (כולל גרף דומיננטיות)

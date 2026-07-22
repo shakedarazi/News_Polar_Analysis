@@ -42,7 +42,7 @@ export function TopicsCloud({
             href={buildHref(c.category)}
             style={{ fontSize: `${scale(c.article_count)}rem` }}
             className={`font-bold transition hover:text-[var(--purple)] ${
-              active ? "text-[var(--purple)] underline" : "text-[var(--navy-2)]"
+              active ? "text-[var(--purple)] underline" : "text-[var(--navy-2)] dark:text-slate-300"
             }`}
             title={`${c.article_count} כתבות`}
           >

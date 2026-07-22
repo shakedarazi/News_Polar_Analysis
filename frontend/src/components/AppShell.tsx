@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Menu, X } from "lucide-react";
+import { ThemeToggle } from "./ThemeToggle";
 
 const links = [
   { href: "/", label: "דף הבית" },
@@ -54,15 +55,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="rounded-lg p-2 text-white/80 hover:bg-white/10 md:hidden"
-            aria-label={open ? "סגור תפריט" : "פתח תפריט"}
-            aria-expanded={open}
-          >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          <div className="flex items-center gap-1">
+            <div className="hidden md:block">
+              <ThemeToggle />
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="rounded-lg p-2 text-white/80 hover:bg-white/10 md:hidden"
+              aria-label={open ? "סגור תפריט" : "פתח תפריט"}
+              aria-expanded={open}
+            >
+              {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
 
         {open && (
@@ -77,13 +83,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {label}
               </Link>
             ))}
+            <div className="mt-1 flex items-center justify-between border-t border-white/10 px-3 pt-2">
+              <span className="text-sm font-medium text-white/80">מצב תצוגה</span>
+              <ThemeToggle />
+            </div>
           </nav>
         )}
       </header>
 
       <main>{children}</main>
 
-      <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-500">
+      <footer className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
         Trust · ניתוח דטרמיניסטי של כתבות ותגובות קהל מהנתונים הקיימים במערכת
       </footer>
     </div>

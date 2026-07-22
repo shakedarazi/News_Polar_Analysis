@@ -17,8 +17,8 @@ export function SourcesGrid({ sources }: { sources: Row[] }) {
           <div className="flex items-center gap-2.5">
             <SourceLogo source={s.source} size={32} />
             <div>
-              <p className="font-bold text-slate-900">{sourceLabel(s.source)}</p>
-              <p className="text-xs text-slate-500">{formatNumber(s.article_count)} כתבות</p>
+              <p className="font-bold text-slate-900 dark:text-slate-100">{sourceLabel(s.source)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{formatNumber(s.article_count)} כתבות</p>
             </div>
           </div>
           <PolarScore value={s.avg_audience_mean} label="קיטוב ממוצע" />

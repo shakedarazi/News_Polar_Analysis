@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Class/attribute-based dark mode (instead of only prefers-color-scheme), so
+   the toggle in AppShell can override the system preference. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --background: #f4f6fa;
   --foreground: #0f172a;
@@ -24,6 +28,33 @@
   --accent: var(--purple);
   --accent-soft: #eef0ff;
   --success: var(--positive);
+
+  /* semantic theme tokens (light/dark) */
+  --surface: var(--card);
+  --surface-secondary: #f8fafc;
+  --text-primary: var(--foreground);
+  --text-secondary: var(--muted);
+  --warning: #f59e0b;
+  --shadow: rgba(7, 26, 45, 0.06);
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --background: #0b1220;
+  --foreground: #e2e8f0;
+  --card: #111a2c;
+  --muted: #94a3b8;
+  --border: #1e293b;
+  --accent-soft: #1b1d3d;
+
+  --surface: var(--card);
+  --surface-secondary: #182338;
+  --text-primary: var(--foreground);
+  --text-secondary: var(--muted);
+  --shadow: rgba(0, 0, 0, 0.45);
+
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -36,20 +67,25 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-heebo), system-ui, sans-serif;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: 0 1px 3px rgba(7, 26, 45, 0.06);
+  box-shadow: 0 1px 3px var(--shadow);
   transition:
     box-shadow 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .card-hover:hover {
-  box-shadow: 0 12px 24px rgba(7, 26, 45, 0.1);
+  box-shadow: 0 12px 24px var(--shadow);
   transform: translateY(-2px);
 }
 
@@ -69,6 +105,23 @@ body {
 .score-none {
   color: #64748b;
   background: #f1f5f9;
+}
+
+:root[data-theme="dark"] .score-high {
+  color: #ff8a80;
+  background: rgba(179, 38, 30, 0.25);
+}
+:root[data-theme="dark"] .score-mid {
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.15);
+}
+:root[data-theme="dark"] .score-low {
+  color: #6ee7b7;
+  background: rgba(45, 190, 127, 0.18);
+}
+:root[data-theme="dark"] .score-none {
+  color: #94a3b8;
+  background: rgba(100, 116, 139, 0.18);
 }
 
 .gradient-text {
@@ -99,4 +152,18 @@ body {
 
 html {
   scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
 }

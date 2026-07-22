@@ -61,14 +61,14 @@ export function AiAssistant() {
   };
 
   return (
-    <div className="flex h-[70vh] min-h-[480px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-[70vh] min-h-[480px] flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
       <div ref={listRef} className="flex-1 space-y-4 overflow-y-auto p-5">
         {turns.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--purple)]/10 text-[var(--purple)]">
               <Sparkles className="h-6 w-6" aria-hidden />
             </div>
-            <p className="max-w-sm text-sm text-slate-500">
+            <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">
               שאלו שאלה על הכתבות, המקורות והקיטוב שנאספו בפועל במערכת. העוזר עונה אך ורק על
               סמך הנתונים הקיימים במסד הנתונים — לא על ידע כללי.
             </p>
@@ -78,7 +78,7 @@ export function AiAssistant() {
                   key={q}
                   type="button"
                   onClick={() => send(q)}
-                  className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-[var(--purple)] hover:text-[var(--purple)]"
+                  className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-[var(--purple)] hover:text-[var(--purple)]"
                 >
                   {q}
                 </button>
@@ -97,8 +97,8 @@ export function AiAssistant() {
                 turn.role === "user"
                   ? "bg-[var(--navy)] text-white"
                   : turn.isError
-                    ? "border border-red-200 bg-red-50 text-red-800"
-                    : "border border-slate-200 bg-slate-50 text-slate-800"
+                    ? "border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-300"
+                    : "border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200"
               }`}
             >
               {turn.isError && (
@@ -109,13 +109,13 @@ export function AiAssistant() {
               )}
               <p className="whitespace-pre-wrap">{turn.content}</p>
               {turn.sources && turn.sources.length > 0 && (
-                <div className="mt-3 space-y-1.5 border-t border-slate-200 pt-2">
-                  <p className="text-xs font-semibold text-slate-500">מבוסס על:</p>
+                <div className="mt-3 space-y-1.5 border-t border-slate-200 dark:border-slate-700 pt-2">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">מבוסס על:</p>
                   {turn.sources.map((s) => (
                     <Link
                       key={s.article_id}
                       href={`/articles/${s.article_id}`}
-                      className="block rounded-lg px-2 py-1 text-xs text-[var(--indigo)] hover:bg-white hover:underline"
+                      className="block rounded-lg px-2 py-1 text-xs text-[var(--indigo)] hover:bg-white dark:hover:bg-slate-700 hover:underline"
                     >
                       {s.title || "ללא כותרת"} · {sourceLabel(s.source)} ·{" "}
                       {formatDate(s.first_seen_at)}
@@ -129,11 +129,11 @@ export function AiAssistant() {
 
         {loading && (
           <div className="flex justify-end">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-3">
               <span className="flex gap-1">
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
-                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 dark:bg-slate-600 [animation-delay:-0.3s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 dark:bg-slate-600 [animation-delay:-0.15s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 dark:bg-slate-600" />
               </span>
             </div>
           </div>
@@ -145,7 +145,7 @@ export function AiAssistant() {
           e.preventDefault();
           send(input);
         }}
-        className="flex items-center gap-2 border-t border-slate-200 p-3"
+        className="flex items-center gap-2 border-t border-slate-200 dark:border-slate-700 p-3"
       >
         <input
           type="text"
@@ -153,7 +153,7 @@ export function AiAssistant() {
           onChange={(e) => setInput(e.target.value)}
           placeholder="שאלו שאלה על הכתבות והנתונים..."
           aria-label="שאלה לעוזר ה-AI"
-          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm outline-none focus:border-[var(--purple)]"
+          className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-4 py-2.5 text-sm outline-none focus:border-[var(--purple)]"
         />
         <button
           type="submit"

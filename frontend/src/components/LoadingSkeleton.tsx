@@ -3,7 +3,7 @@ export function LoadingSkeleton({ className = "h-40" }: { className?: string }) 
     <div
       role="status"
       aria-label="טוען נתונים"
-      className={`card animate-pulse bg-slate-100 ${className}`}
+      className={`card animate-pulse bg-slate-100 dark:bg-slate-800 ${className}`}
     />
   );
 }

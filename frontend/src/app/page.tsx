@@ -101,27 +101,27 @@ export default async function DashboardPage({
             </section>
 
             <section id="trend" className="card scroll-mt-24 p-5">
-              <h2 className="mb-4 text-base font-semibold text-slate-800">
+              <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-200">
                 מגמת קיטוב לאורך זמן
               </h2>
               <PolarityTrendChart data={trend} />
             </section>
 
             <section id="compare" className="card scroll-mt-24 p-5">
-              <h2 className="mb-4 text-base font-semibold text-slate-800">
+              <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-200">
                 פילוח קיטוב לפי אתרי חדשות
               </h2>
               <SourcePolarityChart data={sourceBreakdown} />
             </section>
 
             <section id="sources" className="scroll-mt-24">
-              <h2 className="mb-4 text-base font-semibold text-slate-800">מקורות חדשות</h2>
+              <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-200">מקורות חדשות</h2>
               <SourcesGrid sources={stats.by_source} />
             </section>
 
             <section id="topics" className="card scroll-mt-24 p-5">
-              <h2 className="mb-1 text-base font-semibold text-slate-800">נושאים מרכזיים</h2>
-              <p className="mb-2 text-xs text-slate-400">
+              <h2 className="mb-1 text-base font-semibold text-slate-800 dark:text-slate-200">נושאים מרכזיים</h2>
+              <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
                 מבוסס על קטגוריות התוכן שסווגו אוטומטית לכל כתבה. לחיצה על נושא מסננת את
                 הדשבורד לפיו.
               </p>
@@ -132,7 +132,7 @@ export default async function DashboardPage({
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <Flame className="h-5 w-5 text-[var(--purple)]" aria-hidden />
-                  <h2 className="text-base font-semibold text-slate-800">כתבות בולטות</h2>
+                  <h2 className="text-base font-semibold text-slate-800 dark:text-slate-200">כתבות בולטות</h2>
                 </div>
                 <Link
                   href="/articles"
@@ -141,7 +141,7 @@ export default async function DashboardPage({
                   כל הכתבות ←
                 </Link>
               </div>
-              <p className="mb-4 -mt-2 text-xs text-slate-400">
+              <p className="mb-4 -mt-2 text-xs text-slate-400 dark:text-slate-500">
                 כתבות מדורגות לפי רמת הקיטוב הגבוהה ביותר בתגובות הקהל שלהן (אחוזון 85).
               </p>
               <LeadingArticles articles={stats.hottest_articles} />

@@ -45,20 +45,27 @@ export function PolarityTrendChart({ data }: { data: PolarityTrendPoint[] }) {
                 <stop offset="100%" stopColor="#6C63FF" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis
               dataKey="date"
               tickFormatter={(v) => formatShortDate(v)}
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 12, fill: "var(--text-secondary)" }}
             />
-            <YAxis tick={{ fontSize: 12 }} unit="%" width={44} />
+            <YAxis tick={{ fontSize: 12, fill: "var(--text-secondary)" }} unit="%" width={44} />
             <ReferenceLine
               y={Number((avgPolarity * 100).toFixed(2))}
-              stroke="#A8B0BB"
+              stroke="var(--neutral)"
               strokeDasharray="4 4"
-              label={{ value: "ממוצע התקופה", fontSize: 11, fill: "#64748b" }}
+              label={{ value: "ממוצע התקופה", fontSize: 11, fill: "var(--text-secondary)" }}
             />
             <Tooltip
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                color: "var(--text-primary)",
+              }}
+              labelStyle={{ color: "var(--text-primary)" }}
               labelFormatter={(v) => formatShortDate(String(v))}
               formatter={(value, name) => {
                 if (name === "avg_polarity") return [`${value}%`, "קיטוב ממוצע"];
@@ -79,7 +86,7 @@ export function PolarityTrendChart({ data }: { data: PolarityTrendPoint[] }) {
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         קיטוב = ממוצע משוקלל של עוצמת התגובות הפוליטיות/רגשיות לפי מילון, מקובץ לפי תאריך
         פרסום הכתבה. זהו מדד עוצמה (0 ומעלה), לא סיווג חיובי/שלילי.
       </p>
