@@ -23,6 +23,7 @@ from src.db.browse import (
 )
 from src.db.bias import generate_and_save_bias, get_article_for_bias, get_bias
 from src.db.config import require_database_url
+from src.db.events import get_event_detail, list_events
 from src.db.migrations import apply_migrations
 from src.db.summary import generate_and_save_summary, get_article_for_summary, get_summary
 from src.db.trending import DEFAULT_LIMIT as TRENDING_DEFAULT_LIMIT
@@ -198,6 +199,31 @@ def api_generate_article_summary(article_id: str) -> dict:
 @app.get("/api/trending")
 def api_trending(limit: int = Query(default=TRENDING_DEFAULT_LIMIT, ge=1, le=12)) -> list[dict]:
     return get_trending_topics(limit=limit)
+
+
+@app.get("/api/events")
+def api_events(
+    category: str | None = None,
+    source: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[dict]:
+    return list_events(
+        category=category,
+        source=source,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
+
+
+@app.get("/api/events/{event_id}/timeline")
+def api_event_timeline(event_id: str) -> dict:
+    event = get_event_detail(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
 
 
 def _bias_response(bias: dict) -> dict:

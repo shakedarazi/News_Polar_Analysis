@@ -9,6 +9,7 @@ import { ThemeToggle } from "./ThemeToggle";
 const links = [
   { href: "/", label: "דף הבית" },
   { href: "/articles", label: "כתבות" },
+  { href: "/events", label: "ציר זמן אירועים" },
   { href: "/#trend", label: "סקירת מגמות" },
   { href: "/#compare", label: "השוואת אתרים" },
   { href: "/#sources", label: "מקורות" },

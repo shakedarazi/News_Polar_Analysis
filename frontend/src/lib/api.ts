@@ -7,6 +7,8 @@ import type {
   CategoryStat,
   DashboardFilters,
   DashboardStats,
+  EventDetail,
+  EventSummary,
   PolarityTrendPoint,
   SourcePolarityBreakdown,
   SourceStat,
@@ -136,4 +138,24 @@ export function generateArticleBiasClient(id: string) {
 
 export function getTrendingClient() {
   return getJson<TrendingTopic[]>("/api/trending");
+}
+
+export function getEvents(params: {
+  category?: string;
+  source?: string;
+  start_date?: string;
+  end_date?: string;
+  limit?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (params.category) qs.set("category", params.category);
+  if (params.source) qs.set("source", params.source);
+  if (params.start_date) qs.set("start_date", params.start_date);
+  if (params.end_date) qs.set("end_date", params.end_date);
+  qs.set("limit", String(params.limit ?? 20));
+  return fetchApi<EventSummary[]>(`/api/events?${qs}`);
+}
+
+export function getEventDetail(eventId: string) {
+  return fetchApi<EventDetail>(`/api/events/${eventId}/timeline`);
 }

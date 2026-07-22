@@ -187,3 +187,44 @@ export type TrendingTopic = {
   direction: TrendDirection;
   sparkline: SparklinePoint[];
 };
+
+export type EventSummary = {
+  event_id: string;
+  title: string | null;
+  primary_category: string | null;
+  article_count: number;
+  source_count: number;
+  sources: string[];
+  first_seen_at: string;
+  last_seen_at: string;
+};
+
+export type EventTimelineItem = {
+  article_id: string;
+  source: string;
+  title: string | null;
+  canonical_url: string;
+  primary_category: string | null;
+  first_seen_at: string;
+  summary_sentiment: string | null;
+  bias_label: BiasLabel | null;
+  bias_score: number | null;
+  bias_confidence: number | null;
+  snippet: string | null;
+  audience_mean: number | null;
+  status_label: string;
+};
+
+export type EventDetail = {
+  event_id: string;
+  title: string | null;
+  primary_category: string | null;
+  article_count: number;
+  source_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  dominant_sentiment: string | null;
+  bias_distribution: Record<string, number> | null;
+  avg_audience_mean: number | null;
+  timeline: EventTimelineItem[];
+};
