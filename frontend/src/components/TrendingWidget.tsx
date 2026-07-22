@@ -3,8 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  AtSign,
-  CalendarClock,
   ChevronDown,
   ChevronUp,
   Flame,
@@ -20,32 +18,6 @@ import { LIVE_POLL_INTERVAL_MS } from "@/lib/liveConfig";
 import { EmptyState } from "./EmptyState";
 import { ErrorState } from "./ErrorState";
 import type { TrendingTopic } from "@/lib/types";
-
-function Sparkline({ points }: { points: { date: string; count: number }[] }) {
-  if (points.length < 2) return null;
-  const values = points.map((p) => p.count);
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min || 1;
-  const w = 56;
-  const h = 18;
-  const step = w / (points.length - 1);
-  const coords = values
-    .map((v, i) => `${(i * step).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`)
-    .join(" ");
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="shrink-0" aria-hidden>
-      <polyline
-        points={coords}
-        fill="none"
-        stroke="var(--purple)"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function TrendBadge({ topic }: { topic: TrendingTopic }) {
   if (topic.direction === "new") {
@@ -80,20 +52,6 @@ function TrendBadge({ topic }: { topic: TrendingTopic }) {
   );
 }
 
-function ItemTypeIcon({ itemType }: { itemType: TrendingTopic["item_type"] }) {
-  const Icon = itemType === "event" ? CalendarClock : AtSign;
-  const label = itemType === "event" ? "אירוע" : "נושא/ישות";
-  return (
-    <span
-      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
-      title={label}
-      aria-label={label}
-    >
-      <Icon className="h-3 w-3" aria-hidden />
-    </span>
-  );
-}
-
 function TrendingList({ topics }: { topics: TrendingTopic[] }) {
   if (topics.length === 0) {
     return <EmptyState message="אין עדיין מספיק נתונים כדי להציג נושאים חמים." />;
@@ -104,23 +62,19 @@ function TrendingList({ topics }: { topics: TrendingTopic[] }) {
         <li key={`${t.item_type}:${t.name}`}>
           <Link
             href={t.href}
-            className="flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"
+            className="flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               {t.rank}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-1.5">
-                <ItemTypeIcon itemType={t.item_type} />
-                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {t.name}
-                </span>
+              <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {t.name}
               </span>
-              <span className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+              <span className="block text-xs text-slate-400 dark:text-slate-500">
                 {t.current_count} כתבות · {t.unique_sources} מקורות
               </span>
             </span>
-            <Sparkline points={t.sparkline} />
             <TrendBadge topic={t} />
           </Link>
         </li>
