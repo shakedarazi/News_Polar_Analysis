@@ -17,6 +17,7 @@ import { SourcesGrid } from "@/components/SourcesGrid";
 import { TopicsCloud } from "@/components/TopicsCloud";
 import { LeadingArticles } from "@/components/LeadingArticles";
 import { ErrorState } from "@/components/ErrorState";
+import { TrendingWidget } from "@/components/TrendingWidget";
 
 export default async function DashboardPage({
   searchParams,
@@ -147,6 +148,8 @@ export default async function DashboardPage({
               <LeadingArticles articles={stats.hottest_articles} />
             </section>
           </div>
+
+          <TrendingWidget />
         </div>
       </div>
     </div>

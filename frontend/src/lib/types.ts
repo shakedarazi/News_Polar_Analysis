@@ -172,3 +172,18 @@ export type ArticleBias = {
   model?: string | null;
   generated_at?: string | null;
 };
+
+export type TrendDirection = "up" | "down" | "flat" | "new";
+
+export type SparklinePoint = { date: string; count: number };
+
+export type TrendingTopic = {
+  rank: number;
+  topic: string;
+  current_count: number;
+  previous_count: number;
+  unique_sources: number;
+  growth_pct: number | null;
+  direction: TrendDirection;
+  sparkline: SparklinePoint[];
+};

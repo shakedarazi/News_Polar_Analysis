@@ -25,6 +25,8 @@ from src.db.bias import generate_and_save_bias, get_article_for_bias, get_bias
 from src.db.config import require_database_url
 from src.db.migrations import apply_migrations
 from src.db.summary import generate_and_save_summary, get_article_for_summary, get_summary
+from src.db.trending import DEFAULT_LIMIT as TRENDING_DEFAULT_LIMIT
+from src.db.trending import get_trending_topics
 from src.nlp.qa import answer_question
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -191,6 +193,11 @@ def api_generate_article_summary(article_id: str) -> dict:
     except Exception as exc:  # OpenAI/network/parsing errors
         raise HTTPException(status_code=502, detail=f"AI summary failed: {exc}") from exc
     return {"status": "ready", **summary}
+
+
+@app.get("/api/trending")
+def api_trending(limit: int = Query(default=TRENDING_DEFAULT_LIMIT, ge=1, le=12)) -> list[dict]:
+    return get_trending_topics(limit=limit)
 
 
 def _bias_response(bias: dict) -> dict:

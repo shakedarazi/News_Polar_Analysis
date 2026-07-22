@@ -10,6 +10,7 @@ import type {
   PolarityTrendPoint,
   SourcePolarityBreakdown,
   SourceStat,
+  TrendingTopic,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
@@ -131,4 +132,8 @@ export function getArticleBiasClient(id: string) {
 
 export function generateArticleBiasClient(id: string) {
   return postJson<ArticleBias>(`/api/articles/${id}/bias/generate`, {});
+}
+
+export function getTrendingClient() {
+  return getJson<TrendingTopic[]>("/api/trending");
 }
