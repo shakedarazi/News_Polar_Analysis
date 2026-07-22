@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BarChart3, Menu, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
 
 const links = [
   { href: "/", label: "דף הבית" },
@@ -57,6 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-1">
+            <NotificationBell />
             <div className="hidden md:block">
               <ThemeToggle />
             </div>

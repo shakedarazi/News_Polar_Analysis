@@ -215,6 +215,35 @@ export type EventTimelineItem = {
   status_label: string;
 };
 
+export type AlertType =
+  | "topic_spike"
+  | "source_activity"
+  | "sentiment_shift"
+  | "event_polarization"
+  | "new_event";
+
+export type AlertSeverity = "low" | "medium" | "high";
+
+export type AlertItem = {
+  alert_id: string;
+  alert_type: AlertType;
+  severity: AlertSeverity;
+  title: string;
+  message: string;
+  related_article_id: string | null;
+  related_event_id: string | null;
+  related_topic: string | null;
+  related_source: string | null;
+  link_path: string | null;
+  is_read: boolean;
+  created_at: string;
+};
+
+export type AlertsResponse = {
+  items: AlertItem[];
+  unread_count: number;
+};
+
 export type EventDetail = {
   event_id: string;
   title: string | null;

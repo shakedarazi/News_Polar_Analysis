@@ -21,6 +21,7 @@ from src.db.browse import (
     list_categories,
     list_sources,
 )
+from src.db.alerts import count_unread, detect_and_save_alerts, list_alerts, mark_all_read, mark_read
 from src.db.bias import generate_and_save_bias, get_article_for_bias, get_bias
 from src.db.config import require_database_url
 from src.db.events import get_event_detail, list_events
@@ -253,6 +254,32 @@ def api_generate_article_bias(article_id: str) -> dict:
     except Exception as exc:  # OpenAI/network/parsing errors
         raise HTTPException(status_code=502, detail=f"AI bias analysis failed: {exc}") from exc
     return _bias_response(bias)
+
+
+@app.get("/api/alerts")
+def api_alerts(
+    alert_type: str | None = None,
+    severity: str | None = None,
+    limit: int = Query(default=30, ge=1, le=100),
+) -> dict:
+    detect_and_save_alerts()
+    return {
+        "items": list_alerts(alert_type=alert_type, severity=severity, limit=limit),
+        "unread_count": count_unread(),
+    }
+
+
+@app.patch("/api/alerts/{alert_id}/read")
+def api_mark_alert_read(alert_id: str) -> dict:
+    if not mark_read(alert_id):
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"status": "ok", "unread_count": count_unread()}
+
+
+@app.patch("/api/alerts/read-all")
+def api_mark_all_alerts_read() -> dict:
+    mark_all_read()
+    return {"status": "ok", "unread_count": count_unread()}
 
 
 @app.get("/", response_class=HTMLResponse)

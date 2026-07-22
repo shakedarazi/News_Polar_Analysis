@@ -1,5 +1,6 @@
 import type {
   AiSummary,
+  AlertsResponse,
   ArticleBias,
   ArticleDetail,
   ArticlesResponse,
@@ -40,6 +41,15 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? `API ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function patchJson<T>(path: string): Promise<T> {
+  const res = await fetch(path, { method: "PATCH" });
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
     throw new Error(detail?.detail ?? `API ${res.status}`);
@@ -158,4 +168,20 @@ export function getEvents(params: {
 
 export function getEventDetail(eventId: string) {
   return fetchApi<EventDetail>(`/api/events/${eventId}/timeline`);
+}
+
+export function getAlertsClient(params: { alert_type?: string; severity?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.alert_type) qs.set("alert_type", params.alert_type);
+  if (params.severity) qs.set("severity", params.severity);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return getJson<AlertsResponse>(`/api/alerts${suffix}`);
+}
+
+export function markAlertReadClient(alertId: string) {
+  return patchJson<{ status: string; unread_count: number }>(`/api/alerts/${alertId}/read`);
+}
+
+export function markAllAlertsReadClient() {
+  return patchJson<{ status: string; unread_count: number }>("/api/alerts/read-all");
 }
