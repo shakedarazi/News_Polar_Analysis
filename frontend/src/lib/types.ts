@@ -176,11 +176,16 @@ export type ArticleBias = {
 
 export type TrendDirection = "up" | "down" | "flat" | "new";
 
+export type TrendingItemType = "event" | "entity";
+
 export type SparklinePoint = { date: string; count: number };
 
 export type TrendingTopic = {
   rank: number;
-  topic: string;
+  item_type: TrendingItemType;
+  name: string;
+  event_id: string | null;
+  href: string;
   current_count: number;
   previous_count: number;
   unique_sources: number;

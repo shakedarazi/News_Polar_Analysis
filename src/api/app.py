@@ -124,6 +124,7 @@ def api_articles(
     min_audience_mean: float | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    q: str | None = None,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
@@ -133,6 +134,7 @@ def api_articles(
         min_audience_mean=min_audience_mean,
         start_date=start_date,
         end_date=end_date,
+        q=q,
         limit=limit,
         offset=offset,
     )
@@ -142,6 +144,7 @@ def api_articles(
         min_audience_mean=min_audience_mean,
         start_date=start_date,
         end_date=end_date,
+        q=q,
     )
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 

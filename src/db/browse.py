@@ -59,6 +59,7 @@ def list_articles(
     min_audience_mean: float | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    q: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> list[dict]:
@@ -97,6 +98,10 @@ def list_articles(
     if min_audience_mean is not None:
         query += " AND agg.audience_mean >= %s"
         params.append(min_audience_mean)
+    if q:
+        query += " AND (a.title ILIKE %s OR a.text ILIKE %s)"
+        pattern = f"%{q}%"
+        params.extend([pattern, pattern])
     query += " ORDER BY a.first_seen_at DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
 
@@ -519,6 +524,7 @@ def count_articles(
     min_audience_mean: float | None = None,
     start_date: str | None = None,
     end_date: str | None = None,
+    q: str | None = None,
 ) -> int:
     require_database_url()
     query = """
@@ -540,6 +546,10 @@ def count_articles(
     if min_audience_mean is not None:
         query += " AND agg.audience_mean >= %s"
         params.append(min_audience_mean)
+    if q:
+        query += " AND (a.title ILIKE %s OR a.text ILIKE %s)"
+        pattern = f"%{q}%"
+        params.extend([pattern, pattern])
 
     with get_connection() as conn:
         with conn.cursor() as cur:

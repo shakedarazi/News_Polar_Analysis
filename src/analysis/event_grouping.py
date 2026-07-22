@@ -26,33 +26,15 @@ response shape (get_events() below is the only entry point).
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 
+from src.analysis.text_keywords import title_token_set
 from src.db.config import require_database_url
 from src.db.connection import get_connection
 
 EVENT_TIME_WINDOW_HOURS = 72
 EVENT_TITLE_SIMILARITY_THRESHOLD = 0.34
 MIN_EVENT_SIZE = 2
-
-# Small, title-specific stopword list (Hebrew function words + common verbs
-# that appear across unrelated headlines) — deliberately not reused from
-# src.nlp.qa._STOPWORDS, which is tuned for question parsing, not headlines.
-_TITLE_STOPWORDS = {
-    "של", "על", "עם", "את", "זה", "זאת", "אלה", "הם", "הן", "יש", "אין",
-    "גם", "רק", "כל", "לא", "כן", "הוא", "היא", "אנחנו", "אתה", "אחרי",
-    "לפני", "בין", "מול", "אל", "כי", "אבל", "או", "אמר", "אמרה", "אמרו",
-    "כך", "עוד", "כדי", "מה", "מי", "איך", "מתי", "למה",
-}
-_TOKEN_RE = re.compile(r"[\w֐-׿]+")
-
-
-def _title_tokens(title: str | None) -> set[str]:
-    if not title:
-        return set()
-    words = _TOKEN_RE.findall(title)
-    return {w for w in words if len(w) >= 2 and w not in _TITLE_STOPWORDS}
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
@@ -114,7 +96,7 @@ def _fetch_candidate_articles() -> list[_Article]:
             primary_category=r["primary_category"],
             first_seen_at=r["first_seen_at"],
             canonical_url=r["canonical_url"],
-            tokens=_title_tokens(r["title"]),
+            tokens=title_token_set(r["title"]),
         )
         for r in rows
     ]
@@ -163,6 +145,12 @@ def _event_summary(event_id: str, members: list[_Article]) -> dict:
         "first_seen_at": members_sorted[0].first_seen_at,
         "last_seen_at": members_sorted[-1].first_seen_at,
         "article_ids": [m.article_id for m in members_sorted],
+        # Per-article detail (used by trending.py to bucket an event's
+        # articles into time windows without a second DB round-trip).
+        "members": [
+            {"article_id": m.article_id, "source": m.source, "first_seen_at": m.first_seen_at}
+            for m in members_sorted
+        ],
     }
 
 

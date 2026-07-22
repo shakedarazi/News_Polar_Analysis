@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  AtSign,
+  CalendarClock,
   ChevronDown,
   ChevronUp,
   Flame,
@@ -78,6 +80,20 @@ function TrendBadge({ topic }: { topic: TrendingTopic }) {
   );
 }
 
+function ItemTypeIcon({ itemType }: { itemType: TrendingTopic["item_type"] }) {
+  const Icon = itemType === "event" ? CalendarClock : AtSign;
+  const label = itemType === "event" ? "אירוע" : "נושא/ישות";
+  return (
+    <span
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+      title={label}
+      aria-label={label}
+    >
+      <Icon className="h-3 w-3" aria-hidden />
+    </span>
+  );
+}
+
 function TrendingList({ topics }: { topics: TrendingTopic[] }) {
   if (topics.length === 0) {
     return <EmptyState message="אין עדיין מספיק נתונים כדי להציג נושאים חמים." />;
@@ -85,17 +101,20 @@ function TrendingList({ topics }: { topics: TrendingTopic[] }) {
   return (
     <ul className="space-y-1">
       {topics.map((t) => (
-        <li key={t.topic}>
+        <li key={`${t.item_type}:${t.name}`}>
           <Link
-            href={`/?category=${encodeURIComponent(t.topic)}#topics`}
+            href={t.href}
             className="flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               {t.rank}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                {t.topic}
+              <span className="flex items-center gap-1.5">
+                <ItemTypeIcon itemType={t.item_type} />
+                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {t.name}
+                </span>
               </span>
               <span className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                 {t.current_count} כתבות · {t.unique_sources} מקורות

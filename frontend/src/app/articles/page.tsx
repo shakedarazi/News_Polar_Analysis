@@ -23,6 +23,7 @@ async function ArticlesContent({
       min_audience_mean: minPolar,
       start_date: sp.start_date,
       end_date: sp.end_date,
+      q: sp.q,
       limit: PAGE_SIZE,
       offset,
     }),
@@ -40,6 +41,7 @@ async function ArticlesContent({
     if (sp.min_polar) qs.set("min_polar", sp.min_polar);
     if (sp.start_date) qs.set("start_date", sp.start_date);
     if (sp.end_date) qs.set("end_date", sp.end_date);
+    if (sp.q) qs.set("q", sp.q);
     qs.set("offset", String((page - 1) * PAGE_SIZE));
     return `/articles?${qs}`;
   };
@@ -48,6 +50,11 @@ async function ArticlesContent({
     <div className="space-y-6">
       <ArticleFilters sources={sources} categories={categories} />
       <p className="text-sm text-slate-500 dark:text-slate-400">
+        {sp.q ? (
+          <>
+            תוצאות עבור <span className="font-semibold text-slate-700 dark:text-slate-300">&quot;{sp.q}&quot;</span> ·{" "}
+          </>
+        ) : null}
         מציג {formatNumber(data.items.length)} מתוך {formatNumber(data.total)} כתבות
       </p>
       <ArticlesTable articles={data.items} />

@@ -59,35 +59,38 @@ def _today_key() -> str:
 
 
 def detect_topic_spikes() -> list[dict]:
+    """Despite the name (kept for dedup_key/alert_type stability), this now
+    covers both trending event and trending entity/phrase items — see
+    src/db/trending.py, which no longer groups by generic category."""
     candidates = []
-    for topic in get_trending_topics(limit=12):
-        if topic["current_count"] < TOPIC_SPIKE_MIN_ARTICLES:
+    for item in get_trending_topics(limit=12):
+        if item["current_count"] < TOPIC_SPIKE_MIN_ARTICLES:
             continue
-        is_spike = topic["direction"] == "new" or (
-            topic["growth_pct"] is not None and topic["growth_pct"] >= TOPIC_SPIKE_MIN_GROWTH_PCT
+        is_spike = item["direction"] == "new" or (
+            item["growth_pct"] is not None and item["growth_pct"] >= TOPIC_SPIKE_MIN_GROWTH_PCT
         )
         if not is_spike:
             continue
         growth_label = (
             "כתבות חדשות (ללא נתונים בתקופה הקודמת)"
-            if topic["growth_pct"] is None
-            else f"עלייה של {topic['growth_pct']:.0f}%"
+            if item["growth_pct"] is None
+            else f"עלייה של {item['growth_pct']:.0f}%"
         )
         candidates.append(
             {
                 "alert_type": "topic_spike",
                 "severity": "medium",
-                "title": f'עלייה חדה בנושא "{topic["topic"]}"',
+                "title": f'עלייה חדה ב"{item["name"]}"',
                 "message": (
-                    f'{topic["current_count"]} כתבות בנושא "{topic["topic"]}" ב-{CURRENT_WINDOW_HOURS} '
-                    f"השעות האחרונות ({growth_label}), מ-{topic['unique_sources']} מקורות."
+                    f'{item["current_count"]} כתבות הקשורות ל"{item["name"]}" ב-{CURRENT_WINDOW_HOURS} '
+                    f"השעות האחרונות ({growth_label}), מ-{item['unique_sources']} מקורות."
                 ),
-                "related_topic": topic["topic"],
+                "related_topic": item["name"],
                 "related_source": None,
                 "related_article_id": None,
-                "related_event_id": None,
-                "link_path": f"/?category={topic['topic']}#topics",
-                "dedup_key": f"topic_spike:{topic['topic']}:{_today_key()}",
+                "related_event_id": item["event_id"],
+                "link_path": item["href"],
+                "dedup_key": f"topic_spike:{item['item_type']}:{item['name']}:{_today_key()}",
             }
         )
     return candidates

@@ -98,6 +98,7 @@ export function getArticles(params: {
   min_audience_mean?: number;
   start_date?: string;
   end_date?: string;
+  q?: string;
   limit?: number;
   offset?: number;
 }) {
@@ -109,6 +110,7 @@ export function getArticles(params: {
   }
   if (params.start_date) qs.set("start_date", params.start_date);
   if (params.end_date) qs.set("end_date", params.end_date);
+  if (params.q) qs.set("q", params.q);
   qs.set("limit", String(params.limit ?? 50));
   qs.set("offset", String(params.offset ?? 0));
   return fetchApi<ArticlesResponse>(`/api/articles?${qs}`);

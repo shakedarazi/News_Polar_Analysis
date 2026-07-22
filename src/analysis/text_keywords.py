@@ -1,0 +1,71 @@
+"""Shared Hebrew title tokenization for the analysis layer.
+
+Used by both event_grouping.py (title-token Jaccard similarity, for
+clustering articles into an "event") and trending.py (n-gram entity/keyword
+frequency, for surfacing real trending entities instead of generic
+categories) — kept in one place so the two stay consistent instead of
+drifting into two different stopword lists / tokenizers.
+"""
+
+from __future__ import annotations
+
+import re
+
+# Hebrew function words + common verbs and generic journalism words that
+# appear across unrelated headlines — filtered out so they don't create
+# false title-similarity matches or show up themselves as "trending
+# entities" (e.g. "דיווח" recurs in dozens of unrelated headlines).
+TITLE_STOPWORDS = frozenset(
+    {
+        "של", "על", "עם", "את", "זה", "זאת", "אלה", "הם", "הן", "יש", "אין",
+        "גם", "רק", "כל", "לא", "כן", "הוא", "היא", "אנחנו", "אתה", "אחרי",
+        "לפני", "בין", "מול", "אל", "כי", "אבל", "או", "אמר", "אמרה", "אמרו",
+        "כך", "עוד", "כדי", "מה", "מי", "איך", "מתי", "למה", "יותר", "פחות",
+        "כמה", "האם", "כנגד", "נגד", "לגבי", "בעקבות", "במהלך", "לאחר",
+        "תוך", "ללא", "עד", "כאשר", "אז", "שוב", "כבר", "עדיין",
+        "דיווח", "דיווחים", "דיווחה", "דיווחו", "נחשף", "נחשפה", "נחשפו",
+        "פרסום", "פרסם", "פרסמה", "פרסמו", "בלעדי", "צפו", "לצפייה",
+        "חדש", "חדשה", "חדשות", "ראשונה", "ראשון", "לראשונה",
+        "הודיע", "הודיעה", "הודיעו", "טען", "טענה", "טענו",
+        "הוסיף", "הוסיפה", "הוסיפו", "ציין", "ציינה", "ציינו",
+        "מדובר", "לדברי", "דובר", "דוברת",
+    }
+)
+
+# Words that are only meaningful as part of a longer phrase (e.g. "בן גביר")
+# and pure noise on their own ("בן 80"). Kept in the token stream so 2-grams
+# containing them still form, but never emitted as a standalone 1-gram.
+CONNECTOR_WORDS = frozenset({"בן", "בת", "בני", "בנות"})
+
+MIN_TOKEN_LEN = 2
+# Word chars plus internal gershayim/quote for Hebrew abbreviations
+# (צה"ל, ארה"ב, שב"כ) — without this, "צה\"ל" fragments into "צה" + "ל".
+_TOKEN_RE = re.compile(r'[\w֐-׿]+(?:["\'׳״][\w֐-׿]+)*')
+
+
+def tokenize_title(title: str | None) -> list[str]:
+    """Ordered, stopword-filtered tokens from a title (order matters for n-grams)."""
+    if not title:
+        return []
+    words = _TOKEN_RE.findall(title)
+    return [w for w in words if len(w) >= MIN_TOKEN_LEN and w not in TITLE_STOPWORDS]
+
+
+def title_token_set(title: str | None) -> set[str]:
+    return set(tokenize_title(title))
+
+
+def extract_ngrams(title: str | None, max_n: int = 2) -> list[str]:
+    """Contiguous 1..max_n word phrases from the stopword-filtered token
+    sequence — e.g. "איראן" (1-gram) and "בן גביר" (2-gram). Only adjacent
+    *surviving* tokens are combined, so a stopword never ends up glued into
+    a phrase, and a lone CONNECTOR_WORDS token is never emitted by itself."""
+    tokens = tokenize_title(title)
+    grams: list[str] = []
+    for n in range(1, max_n + 1):
+        for i in range(len(tokens) - n + 1):
+            gram_tokens = tokens[i : i + n]
+            if n == 1 and gram_tokens[0] in CONNECTOR_WORDS:
+                continue
+            grams.append(" ".join(gram_tokens))
+    return grams
