@@ -32,12 +32,13 @@ def extract_window_features(
     text: str,
     word_to_category: dict[str, int],
 ) -> list[WindowFeatures]:
-    normalized = normalize_text(text)
-    windows = sentence_windows(normalized)
+    # Split on raw text first: normalization strips sentence-ending punctuation,
+    # so normalizing before splitting collapses the article into one window.
+    windows = sentence_windows(text)
     results: list[WindowFeatures] = []
 
     for sentence_idx, window_text in enumerate(windows):
-        tokens = tokenize(window_text, normalized=True)
+        tokens = tokenize(normalize_text(window_text), normalized=True)
         counts = [0] * 7
         for token in tokens:
             category = word_to_category.get(token)
