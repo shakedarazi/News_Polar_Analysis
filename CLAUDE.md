@@ -122,3 +122,13 @@ article/comment signal separation). `docs/algorithms/` has exact formulas for ag
 comment scoring. `docs/schemas/` and `docs/contracts/` describe the target BigQuery/GCS schemas and ID/versioning
 contracts from the RFC — useful for intent, but the live system substitutes Postgres tables (`sql/schema.sql`,
 `sql/migrations/`) for those BigQuery tables.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub issues (`shakedarazi/News_Polar_Analysis`), managed via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
