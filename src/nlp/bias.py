@@ -18,7 +18,7 @@ import json
 from dataclasses import dataclass
 
 from src.nlp.categories import DEFAULT_MODEL
-from src.nlp.openai_config import require_openai_api_key
+from src.nlp.openai_config import get_openai_client, require_openai_api_key
 from src.nlp.truncate import truncate_for_summary
 
 # -1.0 = מובהק שמאל, 0.0 = מרכז, +1.0 = מובהק ימין. This scale is defined by
@@ -126,13 +126,12 @@ def estimate_bias(
     model: str = DEFAULT_MODEL,
 ) -> BiasResult:
     require_openai_api_key()
-    from openai import OpenAI
 
     body = truncate_for_summary(text)
     if not body:
         raise ValueError("Article has no content to analyze")
 
-    client = OpenAI()
+    client = get_openai_client()
     user_content = (
         f"מקור: {source or 'לא ידוע'}\n"
         f"כותרת: {title or '(ללא כותרת)'}\n\n"

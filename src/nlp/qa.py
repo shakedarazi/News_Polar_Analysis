@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from src.db.browse import get_dashboard_stats, search_articles_for_qa
 from src.nlp.categories import DEFAULT_MODEL
-from src.nlp.openai_config import require_openai_api_key
+from src.nlp.openai_config import get_openai_client, require_openai_api_key
 
 MAX_QUESTION_CHARS = 500
 MAX_CONTEXT_ARTICLES = 8
@@ -137,7 +137,6 @@ def _build_system_prompt() -> str:
 
 def answer_question(question: str) -> QaResult:
     require_openai_api_key()
-    from openai import OpenAI
 
     question = question.strip()[:MAX_QUESTION_CHARS]
     if not question:
@@ -155,7 +154,7 @@ def answer_question(question: str) -> QaResult:
         f'(לדוגמה: שאלה שאינה על כתבות/מקורות/קטגוריות/קיטוב), השב בדיוק: "{_REFUSAL}"'
     )
 
-    client = OpenAI()
+    client = get_openai_client()
     response = client.chat.completions.create(
         model=DEFAULT_MODEL,
         temperature=0,

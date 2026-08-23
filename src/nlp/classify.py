@@ -10,7 +10,7 @@ from src.nlp.categories import (
     CATEGORY_DESCRIPTIONS,
     DEFAULT_MODEL,
 )
-from src.nlp.openai_config import require_openai_api_key
+from src.nlp.openai_config import get_openai_client, require_openai_api_key
 from src.nlp.truncate import truncate_for_classification
 
 
@@ -70,9 +70,7 @@ def classify_article(
     model: str = DEFAULT_MODEL,
 ) -> ClassificationResult:
     require_openai_api_key()
-    from openai import OpenAI
-
-    client = OpenAI()
+    client = get_openai_client()
     body = truncate_for_classification(text)
     user_content = (
         f"מקור: {source or 'לא ידוע'}\n"

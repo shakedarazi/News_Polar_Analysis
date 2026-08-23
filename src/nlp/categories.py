@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 CATEGORIES: tuple[str, ...] = (
     "פוליטיקה",
     "ביטחון",
@@ -26,4 +28,6 @@ CATEGORY_DESCRIPTIONS: dict[str, str] = {
     "אחר": "כתבות שלא מתאימות בבירור לאף קטגוריה אחרת",
 }
 
-DEFAULT_MODEL = "gpt-4o-mini"
+# Overridable so the same code works against OpenRouter (which needs
+# provider-prefixed ids like "openai/gpt-4o-mini") without a code change.
+DEFAULT_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")

@@ -37,6 +37,14 @@ server-side to the Render API via `NEXT_PUBLIC_API_URL`, so the browser only eve
   `render.yaml`, so they must be filled in by hand in the Render dashboard (not auto-provisioned).
 - **Vercel project env var**: `NEXT_PUBLIC_API_URL` — the Render service's public URL.
 
+`OPENAI_API_KEY` in this project is actually an **OpenRouter** key, not an OpenAI one — `src/nlp/openai_config.py`
+routes every OpenAI SDK call through `OPENAI_BASE_URL`/`OPENAI_MODEL` (`https://openrouter.ai/api/v1` /
+`openai/gpt-4o-mini`) instead of hitting `api.openai.com` directly, so the same key works against both classify
+and the summary/bias/Q&A endpoints. Those two vars aren't secret and are already baked into both
+`.github/workflows/ingestion.yml` and `render.yaml` — nothing to configure by hand for them. If you swap in a
+real OpenAI key instead, just delete/unset `OPENAI_BASE_URL` and `OPENAI_MODEL` (or set `OPENAI_MODEL=gpt-4o-mini`)
+everywhere.
+
 ### One-time provisioning
 
 1. **Neon** — create a project, copy the connection string. It goes into local `.env`, the GitHub secret, and

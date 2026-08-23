@@ -14,5 +14,12 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      # OPENAI_API_KEY is an OpenRouter key — these route it there instead of
+      # api.openai.com (see src/nlp/openai_config.py). Not secret, so they're
+      # provisioned automatically instead of requiring manual dashboard entry.
+      - key: OPENAI_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENAI_MODEL
+        value: openai/gpt-4o-mini
       - key: CORS_ORIGINS
         sync: false
