@@ -11,6 +11,7 @@ import requests
 from src.crawling.base import BaseCrawler
 from src.crawling.extract_article import fetch_html
 from src.crawling.extractors import extract_article_with_fallback
+from src.crawling.retry import fetch_with_retry
 from src.crawling.rss_utils import BROWSER_HEADERS, NO_LIMIT
 
 NEWSFEED_URL = "https://13tv.co.il/news/newsfeed/"
@@ -18,12 +19,17 @@ NEWSFEED_URL = "https://13tv.co.il/news/newsfeed/"
 DOM_SELECTORS = ["[class*='articleContent'] p", "[class*='ArticleBody'] p", "article p"]
 
 
-def discover_reshet13_urls(limit: int = NO_LIMIT) -> list[str]:
+def _fetch_newsfeed_html() -> str:
     response = requests.get(NEWSFEED_URL, headers=BROWSER_HEADERS, timeout=25)
     response.raise_for_status()
+    return response.text
+
+
+def discover_reshet13_urls(limit: int = NO_LIMIT) -> list[str]:
+    html = fetch_with_retry(_fetch_newsfeed_html)
     match = re.search(
         r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>',
-        response.text,
+        html,
         re.DOTALL,
     )
     if not match:

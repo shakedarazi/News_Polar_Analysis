@@ -5,6 +5,8 @@ from __future__ import annotations
 import feedparser
 import requests
 
+from src.crawling.retry import fetch_with_retry
+
 # limit <= 0 means no cap — use every entry from all feeds
 NO_LIMIT = 0
 
@@ -19,9 +21,12 @@ BROWSER_HEADERS = {
 
 
 def fetch_feed_xml(url: str) -> str:
-    response = requests.get(url, headers=BROWSER_HEADERS, timeout=25, allow_redirects=True)
-    response.raise_for_status()
-    return response.text
+    def _do_fetch() -> str:
+        response = requests.get(url, headers=BROWSER_HEADERS, timeout=25, allow_redirects=True)
+        response.raise_for_status()
+        return response.text
+
+    return fetch_with_retry(_do_fetch)
 
 
 def discover_from_feeds(feed_urls: list[str], limit: int = NO_LIMIT) -> list[str]:

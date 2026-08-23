@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from src.common.canonical_url import canonicalize_url
 from src.common.hashing import article_id_from_url
+from src.crawling.retry import fetch_with_retry
 from src.crawling.rss_utils import BROWSER_HEADERS
 
 DEFAULT_HEADERS = BROWSER_HEADERS
@@ -14,10 +15,13 @@ DEFAULT_HEADERS = BROWSER_HEADERS
 def fetch_html(url: str, *, timeout: int = 20) -> str:
     import requests
 
-    response = requests.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
-    response.raise_for_status()
-    response.encoding = response.apparent_encoding or "utf-8"
-    return response.text
+    def _do_fetch() -> str:
+        response = requests.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
+        response.raise_for_status()
+        response.encoding = response.apparent_encoding or "utf-8"
+        return response.text
+
+    return fetch_with_retry(_do_fetch)
 
 
 def extract_title_and_text(html: str, selectors: list[str]) -> tuple[str, str]:
