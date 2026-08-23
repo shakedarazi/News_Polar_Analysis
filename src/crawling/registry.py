@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
+import functools
+from typing import Callable
+
 from src.crawling.base import BaseCrawler
-from src.crawling.sources.channel14 import Channel14Crawler
-from src.crawling.sources.haaretz import HaaretzCrawler
-from src.crawling.sources.mako import MakoCrawler
-from src.crawling.sources.news12 import News12Crawler
+from src.crawling.sources.feed_dom import SOURCES, FeedDomCrawler
 from src.crawling.sources.reshet13 import Reshet13Crawler
 from src.crawling.sources.ynet import YnetCrawler
 
-CRAWLERS: dict[str, type[BaseCrawler]] = {
+CRAWLERS: dict[str, Callable[[], BaseCrawler]] = {
     "ynet": YnetCrawler,
-    "haaretz": HaaretzCrawler,
-    "mako": MakoCrawler,
-    "news12": News12Crawler,
     "reshet13": Reshet13Crawler,
-    "channel14": Channel14Crawler,
+    **{
+        name: functools.partial(FeedDomCrawler, name, cfg.feeds, cfg.dom_selectors, min_len=cfg.min_len)
+        for name, cfg in SOURCES.items()
+    },
 }
 
 ALL_SOURCES: list[str] = list(CRAWLERS.keys())
