@@ -6,19 +6,16 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.common.hashing import article_id_from_url
-from src.crawling.extract_article import build_article_record
 from src.crawling.registry import ALL_SOURCES, get_crawler
 from src.crawling.rss_utils import NO_LIMIT
-from src.db.articles import load_known_ids, save_article
-from src.db.classification import ensure_classification_schema, maybe_classify_after_save
+from src.db.articles import load_known_ids
+from src.db.classification import ensure_classification_schema
 from src.db.config import get_database_url, require_database_url
 
 # Child of the "ingestion" logger configured in src/scheduler/ingestion_scheduler.py
@@ -26,62 +23,6 @@ from src.db.config import get_database_url, require_database_url
 # directly as a CLI (not via the scheduler), __main__ below attaches its own
 # basicConfig so output still shows up in the terminal as before.
 logger = logging.getLogger("ingestion.crawl")
-
-
-def crawl_source(
-    source: str,
-    *,
-    limit: int,
-    delay: float,
-    run_id: str,
-    known_ids: set[str],
-    classify: bool,
-) -> tuple[int, int, int]:
-    logger.info("Source being scraped: %s", source)
-    crawler = get_crawler(source)
-    urls = crawler.discover_urls(limit)
-    logger.info("%s: %d articles found (RSS/feed discovery)", source, len(urls))
-
-    saved = skipped = failed = 0
-
-    for index, url in enumerate(urls, start=1):
-        aid = article_id_from_url(url)
-        if aid in known_ids:
-            logger.debug("[%d/%d] SKIP (duplicate): %s", index, len(urls), url)
-            skipped += 1
-            continue
-
-        logger.debug("[%d/%d] Fetching: %s", index, len(urls), url)
-        try:
-            article = crawler.extract_article(url)
-            record = build_article_record(
-                source=crawler.source_name,
-                title=article["title"],
-                text=article["text"],
-                url=url,
-                run_id=run_id,
-            )
-            save_article(record)
-            logger.info(
-                "  OK: %s (%d chars -> db:%s...)",
-                article["title"][:70],
-                len(article["text"]),
-                record["article_id"][:16],
-            )
-            maybe_classify_after_save(record, enabled=classify)
-            saved += 1
-            known_ids.add(aid)
-        except Exception as exc:
-            logger.error("  FAILED to fetch/save %s: %s", url, exc, exc_info=True)
-            failed += 1
-
-        time.sleep(delay)
-
-    logger.info(
-        "%s: new articles inserted=%d, duplicates skipped=%d, failed=%d",
-        source, saved, skipped, failed,
-    )
-    return saved, skipped, failed
 
 
 def main() -> int:
@@ -139,11 +80,10 @@ def main() -> int:
         # this loop previously had no protection here, so one bad source
         # silently killed the whole scheduled run.
         try:
-            saved, skipped, failed = crawl_source(
-                source,
+            summary = get_crawler(source).crawl(
                 limit=args.limit,
-                delay=args.delay,
                 run_id=run_id,
+                delay_seconds=args.delay,
                 known_ids=known_ids,
                 classify=classify,
             )
@@ -151,9 +91,9 @@ def main() -> int:
             logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)
             sources_crashed.append(source)
             continue
-        total_saved += saved
-        total_skipped += skipped
-        total_failed += failed
+        total_saved += summary.saved
+        total_skipped += summary.skipped
+        total_failed += summary.failed
 
     logger.info("Done (all sources).")
     logger.info("  New articles inserted: %d", total_saved)

@@ -1,5 +1,9 @@
 """Base crawler interface."""
 
+from __future__ import annotations
+
+import logging
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -8,12 +12,16 @@ from src.crawling.extract_article import build_article_record
 from src.db.articles import load_known_ids, save_article
 from src.db.classification import maybe_classify_after_save
 
+logger = logging.getLogger("ingestion.crawl")
+
 
 @dataclass
-class CrawlResult:
-    article_id: str
-    title: str
-    skipped: bool = False
+class CrawlSummary:
+    source: str
+    discovered: int = 0
+    saved: int = 0
+    skipped: int = 0
+    failed: int = 0
 
 
 class BaseCrawler(ABC):
@@ -35,25 +43,21 @@ class BaseCrawler(ABC):
         delay_seconds: float = 2.0,
         known_ids: set[str] | None = None,
         classify: bool = True,
-    ) -> list[CrawlResult]:
-        import time
-
+    ) -> CrawlSummary:
         known_ids = known_ids if known_ids is not None else load_known_ids()
-        results: list[CrawlResult] = []
+
         urls = self.discover_urls(limit)
+        summary = CrawlSummary(source=self.source_name, discovered=len(urls))
+        logger.info("%s: %d articles found (RSS/feed discovery)", self.source_name, len(urls))
 
         for index, url in enumerate(urls, start=1):
             aid = article_id_from_url(url)
             if aid in known_ids:
-                results.append(
-                    CrawlResult(
-                        article_id=aid,
-                        title="",
-                        skipped=True,
-                    )
-                )
+                logger.debug("[%d/%d] SKIP (duplicate): %s", index, len(urls), url)
+                summary.skipped += 1
                 continue
 
+            logger.debug("[%d/%d] Fetching: %s", index, len(urls), url)
             try:
                 article = self.extract_article(url)
                 record = build_article_record(
@@ -64,19 +68,23 @@ class BaseCrawler(ABC):
                     run_id=run_id,
                 )
                 save_article(record)
-                maybe_classify_after_save(record, enabled=classify)
-                results.append(
-                    CrawlResult(
-                        article_id=aid,
-                        title=article["title"],
-                    )
+                logger.info(
+                    "  OK: %s (%d chars -> db:%s...)",
+                    article["title"][:70],
+                    len(article["text"]),
+                    record["article_id"][:16],
                 )
+                maybe_classify_after_save(record, enabled=classify)
+                summary.saved += 1
                 known_ids.add(aid)
             except Exception as exc:
-                print(f"  [{index}/{len(urls)}] FAILED {url}: {exc}")
-                continue
+                logger.error("  FAILED to fetch/save %s: %s", url, exc, exc_info=True)
+                summary.failed += 1
 
-            if index < len(urls):
-                time.sleep(delay_seconds)
+            time.sleep(delay_seconds)
 
-        return results
+        logger.info(
+            "%s: new articles inserted=%d, duplicates skipped=%d, failed=%d",
+            self.source_name, summary.saved, summary.skipped, summary.failed,
+        )
+        return summary

@@ -1,4 +1,13 @@
-"""Shared HTML article extractors."""
+"""Shared HTML article extractors.
+
+Every source follows the same tier order when extracting an article's text:
+structured JSON-LD (`extract_json_ld`), then a site-specific DOM/CSS fallback
+(`extract_article_paragraphs`), then a generic meta-description fallback
+(`extract_og_description`). `extract_article_with_fallback` chains all three
+for sources whose DOM fallback is a plain paragraph-selector list; sources
+with a bespoke DOM fallback (e.g. ynet's draft.js structure) call the tiers
+individually instead.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +25,8 @@ def title_from_soup(soup: BeautifulSoup) -> str:
     return title_el.get_text(strip=True)
 
 
-def extract_json_ld_news_article(html: str, *, min_len: int = 100) -> tuple[str, str]:
+def extract_json_ld(html: str, *, min_len: int = 100) -> tuple[str, str]:
+    """Structured-data tier: JSON-LD `NewsArticle.articleBody` only."""
     soup = BeautifulSoup(html, "lxml")
     title = title_from_soup(soup)
 
@@ -39,6 +49,14 @@ def extract_json_ld_news_article(html: str, *, min_len: int = 100) -> tuple[str,
                 headline = (item.get("headline") or "").strip()
                 return title or headline, body
 
+    return title, ""
+
+
+def extract_og_description(html: str, *, min_len: int = 100) -> tuple[str, str]:
+    """Generic-meta tier: the page's `og:description` tag."""
+    soup = BeautifulSoup(html, "lxml")
+    title = title_from_soup(soup)
+
     og = soup.select_one("meta[property='og:description']")
     if og is not None:
         desc = og.get("content", "").strip()
@@ -48,6 +66,15 @@ def extract_json_ld_news_article(html: str, *, min_len: int = 100) -> tuple[str,
     return title, ""
 
 
+def extract_json_ld_news_article(html: str, *, min_len: int = 100) -> tuple[str, str]:
+    """JSON-LD, falling back to `og:description` — preserved for callers that
+    don't yet distinguish a middle DOM tier."""
+    title, body = extract_json_ld(html, min_len=min_len)
+    if body:
+        return title, body
+    return extract_og_description(html, min_len=min_len)
+
+
 def extract_article_paragraphs(
     html: str,
     selectors: list[str],
@@ -55,6 +82,7 @@ def extract_article_paragraphs(
     min_len: int = 100,
     min_paragraph_len: int = 30,
 ) -> tuple[str, str]:
+    """Site-specific DOM tier: the first selector yielding paragraphs wins."""
     soup = BeautifulSoup(html, "lxml")
     title = title_from_soup(soup)
 
@@ -70,3 +98,25 @@ def extract_article_paragraphs(
                 return title, text
 
     return title, ""
+
+
+def extract_article_with_fallback(
+    html: str,
+    dom_selectors: list[str],
+    *,
+    min_len: int = 100,
+    min_paragraph_len: int = 30,
+) -> tuple[str, str]:
+    """Run the full JSON-LD -> DOM -> og:description tier chain."""
+    title, text = extract_json_ld(html, min_len=min_len)
+    if len(text) >= min_len:
+        return title, text
+
+    dom_title, dom_text = extract_article_paragraphs(
+        html, dom_selectors, min_len=min_len, min_paragraph_len=min_paragraph_len
+    )
+    if len(dom_text) >= min_len:
+        return title or dom_title, dom_text
+
+    og_title, og_text = extract_og_description(html, min_len=min_len)
+    return title or dom_title or og_title, og_text

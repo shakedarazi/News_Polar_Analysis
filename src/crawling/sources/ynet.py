@@ -2,11 +2,9 @@
 
 import json
 
-import feedparser
-
 from src.crawling.base import BaseCrawler
 from src.crawling.extract_article import fetch_html
-from src.crawling.rss_utils import NO_LIMIT, fetch_feed_xml
+from src.crawling.rss_utils import NO_LIMIT, discover_from_feeds
 
 RSS_FEEDS = [
     "https://www.ynet.co.il/Integration/StoryRss2.xml",
@@ -76,27 +74,7 @@ class YnetCrawler(BaseCrawler):
     source_name = "ynet"
 
     def discover_urls(self, limit: int = NO_LIMIT) -> list[str]:
-        seen: set[str] = set()
-        urls: list[str] = []
-        unlimited = limit <= 0
-
-        for feed_url in RSS_FEEDS:
-            try:
-                xml = fetch_feed_xml(feed_url)
-                feed = feedparser.parse(xml)
-            except Exception:
-                continue
-
-            for entry in feed.entries:
-                link = getattr(entry, "link", None)
-                if not link or not link.startswith("http") or link in seen:
-                    continue
-                seen.add(link)
-                urls.append(link)
-                if not unlimited and len(urls) >= limit:
-                    return urls
-
-        return urls
+        return discover_from_feeds(RSS_FEEDS, limit)
 
     def extract_article(self, url: str) -> dict[str, str]:
         html = fetch_html(url)
