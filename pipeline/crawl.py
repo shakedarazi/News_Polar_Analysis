@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -17,12 +18,76 @@ from src.crawling.rss_utils import NO_LIMIT
 from src.db.articles import load_known_ids
 from src.db.classification import ensure_classification_schema
 from src.db.config import get_database_url, require_database_url
+from src.db.ingestion_runs import record_ingestion_run
 
 # Child of the "ingestion" logger configured in src/scheduler/ingestion_scheduler.py
 # (rotating file + console handlers attached there). When this module is run
 # directly as a CLI (not via the scheduler), __main__ below attaches its own
 # basicConfig so output still shows up in the terminal as before.
 logger = logging.getLogger("ingestion.crawl")
+
+
+@dataclass
+class RunAllSourcesResult:
+    total_saved: int
+    total_skipped: int
+    total_failed: int
+    sources_crashed: list[str]
+
+
+def run_all_sources(
+    sources: list[str],
+    *,
+    run_id: str,
+    limit: int,
+    delay_seconds: float,
+    known_ids: set[str],
+    classify: bool,
+) -> RunAllSourcesResult:
+    """Crawl each source in turn, recording one ingestion_runs row per source."""
+    total_saved = total_skipped = total_failed = 0
+    sources_crashed: list[str] = []
+    for source in sources:
+        started_at = datetime.now(timezone.utc)
+        # Fault tolerance: a single source raising (feed timeout, parser bug,
+        # site markup change, ...) must never stop the remaining sources —
+        # this loop previously had no protection here, so one bad source
+        # silently killed the whole scheduled run.
+        try:
+            summary = get_crawler(source).crawl(
+                limit=limit,
+                run_id=run_id,
+                delay_seconds=delay_seconds,
+                known_ids=known_ids,
+                classify=classify,
+            )
+        except Exception as exc:
+            logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)
+            sources_crashed.append(source)
+            record_ingestion_run(
+                run_id=run_id,
+                source=source,
+                started_at=started_at,
+                finished_at=datetime.now(timezone.utc),
+                crashed=True,
+                error_message=str(exc),
+            )
+            continue
+
+        record_ingestion_run(
+            run_id=run_id,
+            source=source,
+            started_at=started_at,
+            finished_at=datetime.now(timezone.utc),
+            saved=summary.saved,
+            skipped=summary.skipped,
+            failed=summary.failed,
+        )
+        total_saved += summary.saved
+        total_skipped += summary.skipped
+        total_failed += summary.failed
+
+    return RunAllSourcesResult(total_saved, total_skipped, total_failed, sources_crashed)
 
 
 def main() -> int:
@@ -72,36 +137,22 @@ def main() -> int:
     logger.info("Sources:      %s", ", ".join(sources))
     logger.info("Limit/source: %s", limit_label)
 
-    total_saved = total_skipped = total_failed = 0
-    sources_crashed: list[str] = []
-    for source in sources:
-        # Fault tolerance: a single source raising (feed timeout, parser bug,
-        # site markup change, ...) must never stop the remaining sources —
-        # this loop previously had no protection here, so one bad source
-        # silently killed the whole scheduled run.
-        try:
-            summary = get_crawler(source).crawl(
-                limit=args.limit,
-                run_id=run_id,
-                delay_seconds=args.delay,
-                known_ids=known_ids,
-                classify=classify,
-            )
-        except Exception as exc:
-            logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)
-            sources_crashed.append(source)
-            continue
-        total_saved += summary.saved
-        total_skipped += summary.skipped
-        total_failed += summary.failed
+    result = run_all_sources(
+        sources,
+        run_id=run_id,
+        limit=args.limit,
+        delay_seconds=args.delay,
+        known_ids=known_ids,
+        classify=classify,
+    )
 
     logger.info("Done (all sources).")
-    logger.info("  New articles inserted: %d", total_saved)
-    logger.info("  Duplicates skipped:    %d (already stored)", total_skipped)
-    logger.info("  Failed (per-article):  %d", total_failed)
-    if sources_crashed:
-        logger.error("  Sources that crashed entirely: %s", ", ".join(sources_crashed))
-    return 0 if (total_failed == 0 and not sources_crashed) or total_saved > 0 else 1
+    logger.info("  New articles inserted: %d", result.total_saved)
+    logger.info("  Duplicates skipped:    %d (already stored)", result.total_skipped)
+    logger.info("  Failed (per-article):  %d", result.total_failed)
+    if result.sources_crashed:
+        logger.error("  Sources that crashed entirely: %s", ", ".join(result.sources_crashed))
+    return 0 if (result.total_failed == 0 and not result.sources_crashed) or result.total_saved > 0 else 1
 
 
 if __name__ == "__main__":
