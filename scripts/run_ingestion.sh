@@ -30,6 +30,15 @@ fi
   python "$ROOT/pipeline/crawl.py" --source all --delay 2.0 || crawl_status=$?
   echo "=== Ingestion run finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
+  echo "=== Article-text analysis backfill (no age/comments gate): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  # Safety net, not the primary path: new crawls already get this immediately
+  # (crawl.py -> maybe_analyze_windows_after_save). This just catches any
+  # article that slipped through without it (a per-article failure there is
+  # swallowed as a warning so it never fails the crawl itself).
+  windows_status=0
+  python "$ROOT/pipeline/analyze_articles.py" --windows-only || windows_status=$?
+  echo "=== Article-text analysis backfill finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo ""
   echo "=== Comment fetch started (articles >= 24h old, once per article): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   # A handful of per-article failures (e.g. a source rate-limiting near the
   # end of the run) is routine and must not skip analysis for every article
@@ -47,8 +56,8 @@ fi
   python "$ROOT/pipeline/analyze_articles.py" --min-age-hours 24 --include-stale --require-comments-fetched || analyze_status=$?
   echo "=== Polarity analysis finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
 
-  if [[ $crawl_status -ne 0 || $fetch_status -ne 0 || $analyze_status -ne 0 ]]; then
-    echo "=== Ingestion run completed with partial failures (crawl=$crawl_status fetch=$fetch_status analyze=$analyze_status) — see per-article FAILED lines above ==="
+  if [[ $crawl_status -ne 0 || $windows_status -ne 0 || $fetch_status -ne 0 || $analyze_status -ne 0 ]]; then
+    echo "=== Ingestion run completed with partial failures (crawl=$crawl_status windows=$windows_status fetch=$fetch_status analyze=$analyze_status) — see per-article FAILED lines above ==="
     exit 1
   fi
 } 2>&1 | tee -a "$LOG_FILE"

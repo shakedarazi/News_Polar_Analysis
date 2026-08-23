@@ -17,9 +17,11 @@ from src.common.hashing import article_id_from_url
 from src.crawling.extract_article import build_article_record
 from src.crawling.registry import ALL_SOURCES, get_crawler
 from src.crawling.rss_utils import NO_LIMIT
+from src.db.analysis import maybe_analyze_windows_after_save
 from src.db.articles import load_known_ids, save_article
 from src.db.classification import ensure_classification_schema, maybe_classify_after_save
 from src.db.config import get_database_url, require_database_url
+from src.lexicon.load_lexicon import load_article_lexicon
 
 # Child of the "ingestion" logger configured in src/scheduler/ingestion_scheduler.py
 # (rotating file + console handlers attached there). When this module is run
@@ -36,6 +38,8 @@ def crawl_source(
     run_id: str,
     known_ids: set[str],
     classify: bool,
+    article_lexicon: dict[str, int],
+    lexicon_version: str,
 ) -> tuple[int, int, int]:
     logger.info("Source being scraped: %s", source)
     crawler = get_crawler(source)
@@ -69,6 +73,7 @@ def crawl_source(
                 record["article_id"][:16],
             )
             maybe_classify_after_save(record, enabled=classify)
+            maybe_analyze_windows_after_save(record, article_lexicon, lexicon_version)
             saved += 1
             known_ids.add(aid)
         except Exception as exc:
@@ -121,6 +126,7 @@ def main() -> int:
 
     run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
     known_ids = load_known_ids()
+    article_lexicon, lexicon_version = load_article_lexicon()
 
     limit_label = "unlimited (all feed entries)" if args.limit <= 0 else str(args.limit)
 
@@ -146,6 +152,8 @@ def main() -> int:
                 run_id=run_id,
                 known_ids=known_ids,
                 classify=classify,
+                article_lexicon=article_lexicon,
+                lexicon_version=lexicon_version,
             )
         except Exception as exc:
             logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)

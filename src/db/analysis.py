@@ -69,16 +69,16 @@ def fetch_comments_for_article(article_id: str) -> list[dict]:
             return [dict(zip(columns, row)) for row in cur.fetchall()]
 
 
-def save_analysis(
+def save_window_features(
     article_id: str,
-    *,
     windows: list[WindowFeatures],
-    comment_features: list[CommentFeatures],
-    aggregate: ArticleCommentAgg,
+    *,
     lexicon_version: str,
-    comment_lexicon_version: str,
     run_id: str,
 ) -> None:
+    """Persist article-text (dominance) analysis only — independent of
+    comments, so it can run immediately after crawl instead of waiting on
+    the 24h/comments-fetched gate that comment-based audience analysis needs."""
     require_database_url()
     now = datetime.now(timezone.utc)
 
@@ -124,6 +124,73 @@ def save_analysis(
                     ),
                 )
 
+
+def iter_articles_missing_windows(limit: int | None = None) -> list[dict]:
+    """Articles with no article-text (dominance) analysis yet — no age or
+    comments-fetched gate, since this analysis doesn't depend on comments."""
+    require_database_url()
+    query = """
+        SELECT a.article_id, a.source, a.title, a.text
+        FROM articles a
+        WHERE NOT EXISTS (
+            SELECT 1 FROM windows_features w WHERE w.article_id = a.article_id
+        )
+        ORDER BY a.first_seen_at DESC
+    """
+    params: list = []
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            columns = [desc[0] for desc in cur.description]
+            return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def maybe_analyze_windows_after_save(
+    record: dict,
+    article_lexicon: dict[str, int],
+    lexicon_version: str,
+    *,
+    enabled: bool = True,
+) -> None:
+    """Compute + persist article-text analysis right after a crawl save.
+    Comment-based audience analysis still waits for the 24h/comments-fetched
+    gate (see analyze_articles.py) — this only covers the article text
+    itself, which needs nothing but what's already in `record`."""
+    if not enabled:
+        return
+    from src.analysis.article_windows import extract_window_features
+
+    try:
+        windows = extract_window_features(record["text"], article_lexicon)
+        run_id = datetime.now(timezone.utc).strftime("windows_%Y%m%d_%H%M%S")
+        save_window_features(
+            record["article_id"], windows, lexicon_version=lexicon_version, run_id=run_id
+        )
+    except Exception as exc:
+        print(f"  WARN: article-text analysis failed ({exc}) — article saved without it")
+
+
+def save_analysis(
+    article_id: str,
+    *,
+    windows: list[WindowFeatures],
+    comment_features: list[CommentFeatures],
+    aggregate: ArticleCommentAgg,
+    lexicon_version: str,
+    comment_lexicon_version: str,
+    run_id: str,
+) -> None:
+    require_database_url()
+    now = datetime.now(timezone.utc)
+
+    save_window_features(article_id, windows, lexicon_version=lexicon_version, run_id=run_id)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
             for feature in comment_features:
                 cur.execute(
                     """
