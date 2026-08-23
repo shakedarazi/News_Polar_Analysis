@@ -46,8 +46,8 @@ cd frontend && npm run build        # production build
 
 ### Pipeline scripts (all under `pipeline/`, run from repo root with venv active)
 ```bash
-python pipeline/crawl.py --source all|ynet|haaretz|mako|news12|reshet13|channel14 [--limit N] [--no-classify]
-python pipeline/classify_articles.py [--all] [--limit N] [--dry-run]   # OpenAI category backfill
+python pipeline/crawl.py --source all|ynet|haaretz|mako|news12|reshet13|channel14 [--limit N]
+python pipeline/classify_articles.py [--all] [--limit N] [--dry-run]   # OpenAI category labeling, run after crawl
 python pipeline/fetch_comments.py [--source X] [--min-age-hours 0] [--force]
 python pipeline/build_lexicon.py    # expands data/lexicon_base/* and data/comment_lexicon_base/* -> data/*_expanded
 python pipeline/analyze_articles.py [--limit N] [--force]              # lexicon polarity scoring
@@ -68,8 +68,8 @@ python pipeline/import_json_to_db.py  # one-time legacy JSON import
    `load_known_ids()` before fetching, so re-running crawl is idempotent.
 2. **Classify** (optional, OpenAI) — `src/nlp/classify.py` sends only title + first ~1,200 chars
    (`src/nlp/truncate.py`) to `gpt-4o-mini`, parses a JSON response into one of 9 fixed Hebrew categories
-   (`src/nlp/categories.py`). Runs automatically after each save via `src/db/classification.py`
-   (`maybe_classify_after_save`), or as a backfill via `pipeline/classify_articles.py`.
+   (`src/nlp/categories.py`). Decoupled from crawl — run explicitly as a separate step via
+   `pipeline/classify_articles.py`, which `scripts/run_ingestion.sh` invokes right after crawl.
 3. **Comments** — `pipeline/fetch_comments.py` + `src/crawling/comments/{source}.py`, one fetcher per supported
    source (ynet, haaretz, mako, news12, channel14 — not reshet13). Only run for articles ≥24h old (comments need
    time to accumulate); haaretz needs Playwright/Chromium for headless rendering.

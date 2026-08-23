@@ -16,7 +16,6 @@ sys.path.insert(0, str(ROOT))
 from src.crawling.registry import ALL_SOURCES, get_crawler
 from src.crawling.rss_utils import NO_LIMIT
 from src.db.articles import load_known_ids
-from src.db.classification import ensure_classification_schema
 from src.db.config import get_database_url, require_database_url
 from src.db.ingestion_runs import record_ingestion_run
 
@@ -42,7 +41,6 @@ def run_all_sources(
     limit: int,
     delay_seconds: float,
     known_ids: set[str],
-    classify: bool,
 ) -> RunAllSourcesResult:
     """Crawl each source in turn, recording one ingestion_runs row per source."""
     total_saved = total_skipped = total_failed = 0
@@ -59,7 +57,6 @@ def run_all_sources(
                 run_id=run_id,
                 delay_seconds=delay_seconds,
                 known_ids=known_ids,
-                classify=classify,
             )
         except Exception as exc:
             logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)
@@ -104,11 +101,6 @@ def main() -> int:
         help="Max articles per source (0 = all entries from feeds, no cap)",
     )
     parser.add_argument("--delay", type=float, default=2.0)
-    parser.add_argument(
-        "--no-classify",
-        action="store_true",
-        help="Skip AI category labeling after saving each article",
-    )
     args = parser.parse_args()
 
     try:
@@ -116,10 +108,6 @@ def main() -> int:
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
-
-    classify = not args.no_classify
-    if classify:
-        ensure_classification_schema()
 
     sources = ALL_SOURCES if args.source.lower() == "all" else [args.source.lower()]
     for name in sources:
@@ -132,7 +120,6 @@ def main() -> int:
 
     logger.info("Fetch started (run_id=%s)", run_id)
     logger.info("Database:     %s", get_database_url())
-    logger.info("Classify:     %s", "on (OpenAI)" if classify else "off")
     logger.info("Known articles (all sources, deduped): %d", len(known_ids))
     logger.info("Sources:      %s", ", ".join(sources))
     logger.info("Limit/source: %s", limit_label)
@@ -143,7 +130,6 @@ def main() -> int:
         limit=args.limit,
         delay_seconds=args.delay,
         known_ids=known_ids,
-        classify=classify,
     )
 
     logger.info("Done (all sources).")

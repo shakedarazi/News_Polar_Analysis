@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from src.common.hashing import article_id_from_url
 from src.crawling.extract_article import build_article_record
 from src.db.articles import load_known_ids, save_article
-from src.db.classification import maybe_classify_after_save
 
 logger = logging.getLogger("ingestion.crawl")
 
@@ -70,7 +69,6 @@ class BaseCrawler(ABC):
         run_id: str,
         delay_seconds: float = 2.0,
         known_ids: set[str] | None = None,
-        classify: bool = True,
     ) -> CrawlSummary:
         known_ids = known_ids if known_ids is not None else load_known_ids()
 
@@ -102,7 +100,6 @@ class BaseCrawler(ABC):
                     len(article["text"]),
                     record["article_id"][:16],
                 )
-                maybe_classify_after_save(record, enabled=classify)
                 summary.saved += 1
                 known_ids.add(aid)
             except Exception as exc:

@@ -46,7 +46,6 @@ def test_records_one_row_per_source_with_correct_counts(monkeypatch):
         limit=10,
         delay_seconds=0,
         known_ids=set(),
-        classify=False,
     )
 
     assert result.total_saved == 5
@@ -86,7 +85,6 @@ def test_crashed_source_still_records_a_row(monkeypatch):
         limit=10,
         delay_seconds=0,
         known_ids=set(),
-        classify=False,
     )
 
     assert result.total_saved == 0

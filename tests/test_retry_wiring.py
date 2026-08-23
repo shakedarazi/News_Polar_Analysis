@@ -50,7 +50,7 @@ def test_transient_failures_then_success_saves_article_with_no_failure(monkeypat
     monkeypatch.setattr(requests, "get", fake_get)
 
     crawler = _FetchHtmlCrawler(["https://example.com/a"])
-    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=set(), classify=False)
+    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=set())
 
     assert calls["n"] == 3
     assert summary.failed == 0
@@ -73,7 +73,7 @@ def test_permanent_404_failure_recorded_on_first_attempt_with_no_retry(monkeypat
     monkeypatch.setattr(requests, "get", fake_get)
 
     crawler = _FetchHtmlCrawler(["https://example.com/missing"])
-    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=set(), classify=False)
+    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=set())
 
     assert calls["n"] == 1
     assert [s for s in sleeps if s > 0] == []  # no retry backoff; base.crawl()'s own delay_seconds=0 sleep is incidental

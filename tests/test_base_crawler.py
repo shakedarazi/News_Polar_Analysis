@@ -29,7 +29,7 @@ def test_saves_new_articles_and_updates_known_ids(monkeypatch):
 
     crawler = FakeCrawler(["https://example.com/a", "https://example.com/b"])
     known_ids: set[str] = set()
-    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=known_ids, classify=False)
+    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=known_ids)
 
     assert summary.discovered == 2
     assert summary.saved == 2
@@ -48,7 +48,7 @@ def test_skips_urls_already_in_known_ids(monkeypatch):
     url = "https://example.com/a"
     known_ids = {article_id_from_url(url)}
     crawler = FakeCrawler([url])
-    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=known_ids, classify=False)
+    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=known_ids)
 
     assert summary.skipped == 1
     assert summary.saved == 0
@@ -62,7 +62,7 @@ def test_one_article_failure_does_not_abort_the_source(monkeypatch):
     bad_url = "https://example.com/bad"
     good_url = "https://example.com/good"
     crawler = FakeCrawler([bad_url, good_url], fail_urls={bad_url})
-    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=set(), classify=False)
+    summary = crawler.crawl(run_id="run_1", delay_seconds=0, known_ids=set())
 
     assert summary.failed == 1
     assert summary.saved == 1
