@@ -14,14 +14,16 @@ export function SourcesGrid({ sources }: { sources: Row[] }) {
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {sources.map((s) => (
         <div key={s.source} className="card flex items-center justify-between gap-3 p-4">
-          <div className="flex items-center gap-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
             <SourceLogo source={s.source} size={32} />
-            <div>
-              <p className="font-bold text-slate-900 dark:text-slate-100">{sourceLabel(s.source)}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{formatNumber(s.article_count)} כתבות</p>
+            <div className="min-w-0">
+              <p className="truncate font-bold text-slate-900 dark:text-slate-100">{sourceLabel(s.source)}</p>
+              <p className="truncate text-xs text-slate-500 dark:text-slate-400">{formatNumber(s.article_count)} כתבות</p>
             </div>
           </div>
-          <PolarScore value={s.avg_audience_mean} label="קיטוב ממוצע" />
+          <div className="shrink-0">
+            <PolarScore value={s.avg_audience_mean} label="קיטוב ממוצע" />
+          </div>
         </div>
       ))}
     </div>
