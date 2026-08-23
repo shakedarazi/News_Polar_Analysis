@@ -24,6 +24,34 @@ class CrawlSummary:
     failed: int = 0
 
 
+# Below this discovery count, a single bad article inflates the failure rate
+# past the threshold on noise alone (e.g. tiny RSS batches) - not worth paging on.
+MIN_DISCOVERED_FOR_FAILURE_ALERT = 5
+FAILURE_RATE_ALERT_THRESHOLD = 0.3
+
+
+def check_failure_rate_spike(summary: CrawlSummary) -> None:
+    """Log a WARNING if this source's article failure rate spiked this run.
+
+    The rate is failed / attempted (saved + failed) - skipped duplicates were
+    never attempted, so including them would dilute a real failure spike on
+    runs with a lot of already-known articles. The volume gate below is on
+    `discovered` per the spec, since that's what makes a run "small enough
+    to be noise" regardless of how many of those turned out to be dupes.
+    """
+    if summary.discovered < MIN_DISCOVERED_FOR_FAILURE_ALERT:
+        return
+    attempted = summary.saved + summary.failed
+    if attempted == 0:
+        return
+    failure_rate = summary.failed / attempted
+    if failure_rate > FAILURE_RATE_ALERT_THRESHOLD:
+        logger.warning(
+            "%s: failure rate spike - %d/%d attempted articles failed (%.0f%%)",
+            summary.source, summary.failed, attempted, failure_rate * 100,
+        )
+
+
 class BaseCrawler(ABC):
     source_name: str
 
@@ -87,4 +115,5 @@ class BaseCrawler(ABC):
             "%s: new articles inserted=%d, duplicates skipped=%d, failed=%d",
             self.source_name, summary.saved, summary.skipped, summary.failed,
         )
+        check_failure_rate_spike(summary)
         return summary
