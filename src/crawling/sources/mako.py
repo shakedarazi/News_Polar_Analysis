@@ -2,7 +2,7 @@
 
 from src.crawling.base import BaseCrawler
 from src.crawling.extract_article import fetch_html
-from src.crawling.extractors import extract_json_ld_news_article
+from src.crawling.extractors import extract_article_with_fallback
 from src.crawling.rss_utils import discover_from_feeds
 
 RSS_FEEDS = [
@@ -11,6 +11,8 @@ RSS_FEEDS = [
     "https://rcs.mako.co.il/rss/news-law.xml",
     "https://rcs.mako.co.il/rss/news-military.xml",
 ]
+
+DOM_SELECTORS = ["[class*='ArticleBodyWrapper'] p"]
 
 
 class MakoCrawler(BaseCrawler):
@@ -21,7 +23,7 @@ class MakoCrawler(BaseCrawler):
 
     def extract_article(self, url: str) -> dict[str, str]:
         html = fetch_html(url)
-        title, text = extract_json_ld_news_article(html)
+        title, text = extract_article_with_fallback(html, DOM_SELECTORS)
         if len(text) < 100:
             raise ValueError(f"Extracted text too short ({len(text)} chars)")
         return {"title": title, "text": text, "url": url}

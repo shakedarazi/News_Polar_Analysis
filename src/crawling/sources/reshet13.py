@@ -10,10 +10,12 @@ import requests
 
 from src.crawling.base import BaseCrawler
 from src.crawling.extract_article import fetch_html
-from src.crawling.extractors import extract_json_ld_news_article
+from src.crawling.extractors import extract_article_with_fallback
 from src.crawling.rss_utils import BROWSER_HEADERS, NO_LIMIT
 
 NEWSFEED_URL = "https://13tv.co.il/news/newsfeed/"
+
+DOM_SELECTORS = ["[class*='articleContent'] p", "[class*='ArticleBody'] p", "article p"]
 
 
 def discover_reshet13_urls(limit: int = NO_LIMIT) -> list[str]:
@@ -65,7 +67,7 @@ class Reshet13Crawler(BaseCrawler):
 
     def extract_article(self, url: str) -> dict[str, str]:
         html = fetch_html(url)
-        title, text = extract_json_ld_news_article(html, min_len=80)
+        title, text = extract_article_with_fallback(html, DOM_SELECTORS, min_len=80)
         if len(text) < 80:
             raise ValueError(f"Extracted text too short ({len(text)} chars)")
         return {"title": title, "text": text, "url": url}

@@ -51,3 +51,17 @@ def test_extract_draftjs_fallback():
     assert title == "כותרת"
     assert "פסקה א." in text
     assert "פסקה ב" in text
+
+
+def test_extract_og_description_fallback_when_json_ld_and_draftjs_missing():
+    og_desc = "תיאור מהמטא " + "עם מספיק תוכן " * 10
+    html = f"""
+    <html><head>
+      <meta property="og:description" content="{og_desc}" />
+    </head><body>
+      <h1>כותרת</h1>
+    </body></html>
+    """
+    title, text = extract_ynet_article(html)
+    assert title == "כותרת"
+    assert text == og_desc.strip()

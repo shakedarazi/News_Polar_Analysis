@@ -4,6 +4,7 @@ import json
 
 from src.crawling.base import BaseCrawler
 from src.crawling.extract_article import fetch_html
+from src.crawling.extractors import extract_og_description
 from src.crawling.rss_utils import NO_LIMIT, discover_from_feeds
 
 RSS_FEEDS = [
@@ -25,6 +26,10 @@ def extract_ynet_article(html: str) -> tuple[str, str]:
     text = _extract_from_json_ld(soup)
     if not text:
         text = _extract_from_draftjs(soup)
+    if len(text) < 100:
+        _, og_text = extract_og_description(html)
+        if og_text:
+            text = og_text
 
     if not title:
         og = soup.select_one("meta[property='og:title']")
