@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from src.common.hashing import article_id_from_url
 from src.crawling.extract_article import build_article_record
 from src.crawling.known_ids import KnownIds
+from src.db.analysis import maybe_analyze_windows_after_save
 from src.db.articles import load_known_ids, save_article
 
 logger = logging.getLogger("ingestion.crawl")
@@ -70,6 +71,8 @@ class BaseCrawler(ABC):
         run_id: str,
         delay_seconds: float = 2.0,
         known_ids: KnownIds | None = None,
+        article_lexicon: dict[str, int] | None = None,
+        lexicon_version: str | None = None,
     ) -> CrawlSummary:
         known_ids = known_ids if known_ids is not None else KnownIds(load_known_ids())
 
@@ -107,6 +110,14 @@ class BaseCrawler(ABC):
                     len(article["text"]),
                     record["article_id"][:16],
                 )
+                # Article-text (dominance) analysis has no external dependency
+                # (unlike OpenAI classification) so it's safe to run inline
+                # right after save, instead of waiting for the separate
+                # analyze_articles.py step. A per-article failure here is
+                # swallowed as a warning inside maybe_analyze_windows_after_save
+                # so it never turns into a crawl failure.
+                if article_lexicon is not None:
+                    maybe_analyze_windows_after_save(record, article_lexicon, lexicon_version)
                 summary.saved += 1
             except Exception as exc:
                 logger.error("  FAILED to fetch/save %s: %s", url, exc, exc_info=True)

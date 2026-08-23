@@ -74,7 +74,7 @@ export function LeadingArticles({ articles }: { articles: LeadingArticle[] }) {
                 <h3 className="line-clamp-2 text-sm font-bold text-slate-900 dark:text-slate-100">
                   {article.title || "ללא כותרת"}
                 </h3>
-                <p className="mt-2 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400 dark:text-slate-500">
                   <span
                     className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${LEVEL_CLASS[level]}`}
                   >

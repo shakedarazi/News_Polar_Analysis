@@ -44,6 +44,14 @@ STEP_FAILED=0
   run_step python "$ROOT/pipeline/crawl.py" --source all --delay 2.0
   echo "=== Ingestion run finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
+  echo "=== Article-text analysis backfill (no age/comments gate): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  # Safety net, not the primary path: new crawls already get this immediately
+  # (crawl.py -> BaseCrawler.crawl -> maybe_analyze_windows_after_save). This
+  # just catches any article that slipped through without it (a per-article
+  # failure there is swallowed as a warning so it never fails the crawl itself).
+  run_step python "$ROOT/pipeline/analyze_articles.py" --windows-only
+  echo "=== Article-text analysis backfill finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo ""
   echo "=== Classification started: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   run_step python "$ROOT/pipeline/classify_articles.py" --limit 200
   echo "=== Classification finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="

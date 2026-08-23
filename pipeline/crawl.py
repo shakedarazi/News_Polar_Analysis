@@ -21,6 +21,7 @@ from src.crawling.rss_utils import NO_LIMIT
 from src.db.articles import load_known_ids
 from src.db.config import get_database_url, require_database_url
 from src.db.ingestion_runs import record_ingestion_run
+from src.lexicon.load_lexicon import load_article_lexicon
 
 # Child of the "ingestion" logger configured in src/scheduler/ingestion_scheduler.py
 # (rotating file + console handlers attached there). When this module is run
@@ -44,6 +45,8 @@ def _crawl_one_source(
     limit: int,
     delay_seconds: float,
     known_ids: KnownIds,
+    article_lexicon: dict[str, int] | None = None,
+    lexicon_version: str | None = None,
 ) -> tuple[str, CrawlSummary | None, Exception | None]:
     """Crawl a single source and record its own ingestion_runs row.
 
@@ -61,6 +64,8 @@ def _crawl_one_source(
             run_id=run_id,
             delay_seconds=delay_seconds,
             known_ids=known_ids,
+            article_lexicon=article_lexicon,
+            lexicon_version=lexicon_version,
         )
     except Exception as exc:
         logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)
@@ -93,6 +98,8 @@ def run_all_sources(
     limit: int,
     delay_seconds: float,
     known_ids: KnownIds,
+    article_lexicon: dict[str, int] | None = None,
+    lexicon_version: str | None = None,
 ) -> RunAllSourcesResult:
     """Crawl all sources concurrently (one worker per source), recording one
     ingestion_runs row per source. Article-by-article fetching stays
@@ -110,6 +117,8 @@ def run_all_sources(
                 limit=limit,
                 delay_seconds=delay_seconds,
                 known_ids=known_ids,
+                article_lexicon=article_lexicon,
+                lexicon_version=lexicon_version,
             )
             for source in sources
         ]
@@ -153,6 +162,10 @@ def main() -> int:
 
     run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
     known_ids = KnownIds(load_known_ids())
+    # Article-text (dominance) analysis has no external dependency and no
+    # rate limit, unlike OpenAI classification (see ADR 0002) — so it runs
+    # inline right after each save instead of waiting for a separate step.
+    article_lexicon, lexicon_version = load_article_lexicon()
 
     limit_label = "unlimited (all feed entries)" if args.limit <= 0 else str(args.limit)
 
@@ -168,6 +181,8 @@ def main() -> int:
         limit=args.limit,
         delay_seconds=args.delay,
         known_ids=known_ids,
+        article_lexicon=article_lexicon,
+        lexicon_version=lexicon_version,
     )
 
     logger.info("Done (all sources).")

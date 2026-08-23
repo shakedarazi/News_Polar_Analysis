@@ -40,7 +40,7 @@
   color-scheme: light;
 }
 
-:root[data-theme="dark"] {
+html[data-theme="dark"] {
   --background: #0b1220;
   --foreground: #e2e8f0;
   --card: #111a2c;
@@ -107,19 +107,19 @@ body {
   background: #f1f5f9;
 }
 
-:root[data-theme="dark"] .score-high {
+html[data-theme="dark"] .score-high {
   color: #ff8a80;
   background: rgba(179, 38, 30, 0.25);
 }
-:root[data-theme="dark"] .score-mid {
+html[data-theme="dark"] .score-mid {
   color: #cbd5e1;
   background: rgba(148, 163, 184, 0.15);
 }
-:root[data-theme="dark"] .score-low {
+html[data-theme="dark"] .score-low {
   color: #6ee7b7;
   background: rgba(45, 190, 127, 0.18);
 }
-:root[data-theme="dark"] .score-none {
+html[data-theme="dark"] .score-none {
   color: #94a3b8;
   background: rgba(100, 116, 139, 0.18);
 }

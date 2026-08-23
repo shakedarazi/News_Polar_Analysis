@@ -17,11 +17,47 @@ from src.analysis.comments_scoring import score_comment
 from src.db.analysis import (
     fetch_comments_for_article,
     iter_articles_for_analysis,
+    iter_articles_missing_windows,
     save_analysis,
+    save_window_features,
 )
 from src.db.config import require_database_url
 from src.db.migrations import apply_migrations
 from src.lexicon.load_lexicon import load_article_lexicon, load_comment_lexicon
+
+
+def _run_windows_only(article_lexicon: dict, lexicon_version: str, limit: int | None) -> int:
+    articles = iter_articles_missing_windows(limit=limit)
+    run_id = datetime.now(timezone.utc).strftime("windows_%Y%m%d_%H%M%S")
+    print(f"Windows-only backfill run: {run_id}")
+    print(f"Articles:     {len(articles)}")
+    print(f"Lexicon:      {lexicon_version[:16]}...")
+    print()
+
+    if not articles:
+        print("Nothing to backfill.")
+        return 0
+
+    processed = failed = 0
+    for index, article in enumerate(articles, start=1):
+        title = (article.get("title") or "")[:60]
+        print(f"[{index}/{len(articles)}] {article['source']}: {title}")
+        try:
+            windows = extract_window_features(article["text"], article_lexicon)
+            save_window_features(
+                article["article_id"], windows, lexicon_version=lexicon_version, run_id=run_id
+            )
+            print(f"  OK: {len(windows)} windows")
+            processed += 1
+        except Exception as exc:
+            print(f"  FAILED: {exc}")
+            failed += 1
+
+    print()
+    print("Done.")
+    print(f"  Processed: {processed}")
+    print(f"  Failed:    {failed}")
+    return 0 if failed == 0 else 1
 
 
 def main() -> int:
@@ -39,6 +75,16 @@ def main() -> int:
         action="store_true",
         help="Only articles that completed comment fetch (or unsupported mark)",
     )
+    parser.add_argument(
+        "--windows-only",
+        action="store_true",
+        help=(
+            "Backfill article-text (dominance) analysis only, for articles with none yet — "
+            "no age/comments-fetched gate, since this doesn't depend on comments. "
+            "New crawls get this automatically (see maybe_analyze_windows_after_save); "
+            "use this to catch up articles crawled before that existed."
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -50,9 +96,12 @@ def main() -> int:
     apply_migrations()
 
     article_lexicon, lexicon_version = load_article_lexicon()
-    comment_lexicon, comment_lexicon_version = load_comment_lexicon()
-
     limit = None if args.limit <= 0 else args.limit
+
+    if args.windows_only:
+        return _run_windows_only(article_lexicon, lexicon_version, limit)
+
+    comment_lexicon, comment_lexicon_version = load_comment_lexicon()
     articles = iter_articles_for_analysis(
         min_age_hours=args.min_age_hours,
         missing_only=not args.force,
