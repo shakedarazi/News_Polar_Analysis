@@ -22,13 +22,32 @@ TITLE_STOPWORDS = frozenset(
         "לפני", "בין", "מול", "אל", "כי", "אבל", "או", "אמר", "אמרה", "אמרו",
         "כך", "עוד", "כדי", "מה", "מי", "איך", "מתי", "למה", "יותר", "פחות",
         "כמה", "האם", "כנגד", "נגד", "לגבי", "בעקבות", "במהלך", "לאחר",
-        "תוך", "ללא", "עד", "כאשר", "אז", "שוב", "כבר", "עדיין",
+        "תוך", "ללא", "עד", "כאשר", "אז", "שוב", "כבר", "עדיין", "אך",
+        "אותו", "אותה", "אותם", "אותן",
         "דיווח", "דיווחים", "דיווחה", "דיווחו", "נחשף", "נחשפה", "נחשפו",
         "פרסום", "פרסם", "פרסמה", "פרסמו", "בלעדי", "צפו", "לצפייה",
         "חדש", "חדשה", "חדשות", "ראשונה", "ראשון", "לראשונה",
         "הודיע", "הודיעה", "הודיעו", "טען", "טענה", "טענו",
         "הוסיף", "הוסיפה", "הוסיפו", "ציין", "ציינה", "ציינו",
         "מדובר", "לדברי", "דובר", "דוברת",
+        # Casualty/severity outcome words — recur across unrelated incident
+        # headlines (stabbings, accidents, shootings) so they pass the
+        # recurrence threshold without naming any real entity/topic.
+        "למוות", "קשה", "קל", "קלה", "בינוני", "בינונית", "אנוש", "אנושה",
+        "נפצע", "נפצעה", "נפצעו", "נהרג", "נהרגה", "נהרגו",
+        "נדקר", "נדקרה", "נדקרו", "נורה", "נורתה", "נורו",
+        "נעצר", "נעצרה", "נעצרו", "מצבו", "מצבה",
+        "פצוע", "פצועה", "פצועים", "חשד", "חשוד", "חשודה", "חשודים",
+        "מעורב", "מעורבות",
+        # Generic nouns/descriptors that recur across unrelated crime and
+        # accident headlines ("גבר נדקר ליד תחנת...", "רכב פגע ב...") — real
+        # topics/entities are what's *around* these words (a place, a name),
+        # never the words themselves.
+        "סמוך", "ליד", "עקב", "שני", "שתי", "גבר", "אישה", "נשים",
+        "צעיר", "צעירה", "נער", "נערה", "ילד", "ילדה", "אדם", "אנשים",
+        "תושב", "תושבת", "תושבים", "שוטר", "שוטרים", "רכב", "תחנה", "תחנת",
+        "כוח", "כוחות", "חוץ", "החוץ", "במזרח", "במערב", "בדרום", "בצפון",
+        "בית", "הבית",
     }
 )
 
@@ -48,7 +67,11 @@ def tokenize_title(title: str | None) -> list[str]:
     if not title:
         return []
     words = _TOKEN_RE.findall(title)
-    return [w for w in words if len(w) >= MIN_TOKEN_LEN and w not in TITLE_STOPWORDS]
+    return [
+        w
+        for w in words
+        if len(w) >= MIN_TOKEN_LEN and w not in TITLE_STOPWORDS and not w.isdigit()
+    ]
 
 
 def title_token_set(title: str | None) -> set[str]:
