@@ -1,24 +1,151 @@
 # News Polar Analysis
 
-## 🚀 Deployment & Operations (current implementation)
+A deterministic, lexicon-based pipeline that crawls Israeli news sites, fetches audience comments, scores
+article/comment polarity, and serves the results through a FastAPI backend + Next.js frontend (branded **Trust**
+in the UI). Runs 24/7 in the cloud — see [Deployment & Operations](#-deployment--operations) below.
 
-This section is the source of truth for how the system actually runs today. Everything below it
-("📘 RFC – News Analysis Pipeline" onward) is the *original design document* — an aspirational target
-architecture (Airflow, GCS, BigQuery) that was never built. The live system substitutes Postgres for BigQuery
-and has no Airflow/GCS in the loop. For local dev commands (running the app, tests, lint), see `CLAUDE.md`.
+For day-to-day dev commands and coding conventions, see `CLAUDE.md`. For the exact algorithms and formulas, see
+`docs/algorithms/` and `docs/contracts/`.
 
-### The stack
+## 🔴 Live now
 
-| Piece | Service | Role |
+| Piece | Service | Notes |
 |---|---|---|
 | Database | **Neon** (hosted Postgres) | Single source of truth, `DATABASE_URL` everywhere |
-| Ingestion scheduling | **GitHub Actions** (`.github/workflows/ingestion.yml`) | Cron every 6h + manual `workflow_dispatch`. Runs `scripts/run_ingestion.sh` (crawl → windows backfill → classify → comments → lexicon build → analyze) against Neon |
-| Backend API | **Render** (`render.yaml` blueprint) | Free web service running `uvicorn src.api.app:app`. Read-only endpoints for the frontend/legacy UI. Never runs ingestion itself |
-| Frontend | **Vercel** | Next.js app, lives in `frontend/` (not the repo root) |
+| Ingestion scheduling | **GitHub Actions** (`.github/workflows/ingestion.yml`) | Cron every 6h + manual `workflow_dispatch` |
+| Backend API | **Render** (`render.yaml` blueprint) | Free web service, `uvicorn src.api.app:app` |
+| Frontend | **Vercel** | Next.js app in `frontend/` |
 
-Browser requests never hit Render directly — `frontend/src/app/api/*/route.ts` route handlers proxy
+Full provisioning/operations details are in [Deployment & Operations](#-deployment--operations).
+
+## How it works
+
+Everything downstream of "serve" is derived, deterministic, and re-computable — the only non-deterministic step
+(AI classification/summary/bias/assistant) is decoupled from the critical path and never blocks or gates the
+lexicon-based numbers.
+
+1. **Crawl** (`pipeline/crawl.py` → `src/crawling/`) — one `BaseCrawler` subclass per source
+   (`ynet`, `haaretz`, `mako`, `news12`, `reshet13`, `channel14`), registered in `src/crawling/registry.py`.
+   Discovers URLs via RSS/feed pages, extracts article text (JSON-LD with per-site HTML fallbacks).
+   `article_id = sha256(canonical_url)` is the dedup key everywhere, so re-running crawl is idempotent. Sources
+   crawl in parallel with retry + per-run observability (`ingestion_runs` table) — see
+   `docs/adr/0001-parallel-source-crawl-with-retry-and-run-observability.md`.
+2. **Article windows** (`src/analysis/article_windows.py`) — splits each new article into sentence "windows" and
+   scores lexicon-category hits immediately after crawl (`--windows-only` backfill in `run_ingestion.sh` is a
+   safety net, not the primary path).
+3. **Classify** (optional, AI) — `src/nlp/classify.py` sends title + truncated body to an OpenAI-compatible model
+   and labels one of 9 fixed Hebrew categories (`src/nlp/categories.py`: פוליטיקה, ביטחון, בידור, כלכלה, ספורט,
+   חברה, טכנולוגיה, בינלאומי, אחר). Decoupled from crawl — run via `pipeline/classify_articles.py`
+   (see `docs/adr/0002-decouple-classification-from-crawl.md`).
+4. **Comments** — `pipeline/fetch_comments.py` + `src/crawling/comments/{source}.py`, one fetcher per supported
+   source (not reshet13). Only fetched once an article is ≥24h old, so comments have time to accumulate.
+5. **Lexicon build** (`pipeline/build_lexicon.py`) — expands `data/lexicon_base/category{1..7}.txt` (7 polarity
+   categories, distinct from the 9 AI classification categories above) and `data/comment_lexicon_base/` into
+   versioned expanded dictionaries via deterministic Hebrew prefix generation. No runtime stemming — matching is
+   a static lookup against the pre-expanded set.
+6. **Analyze** (`pipeline/analyze_articles.py` → `src/analysis/`) — per-window category dominance, per-comment
+   `polar_ratio` (like-weighted), and per-article weighted aggregates (`audience_mean`, `audience_p85`). Fully
+   explainable, no ML. Exact formulas: `docs/algorithms/`.
+7. **AI enrichment** (optional, all off the critical path) — per-article summary (`src/nlp/summarize.py`),
+   political bias/framing estimate (`src/nlp/bias.py`), and a RAG-style assistant that answers only from what's
+   in the database (`src/nlp/qa.py`). Generated on demand from the frontend, cached in `articles.summary_*` /
+   `articles.bias_*` columns.
+8. **Derived signals** — trending topics (`src/db/trending.py`), cross-article event timelines
+   (`src/analysis/event_grouping.py`), and smart alerts (`src/analysis/alerts.py`, e.g. polarity spikes) are all
+   computed from the analyzed data, not separately crawled.
+9. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only; `frontend/` (Next.js) consumes it. See
+   [API reference](#api-reference) and [Product tour](#product-tour) below.
+
+`scripts/run_ingestion.sh` runs steps 1–6 in order (crawl → windows backfill → classify → comments → lexicon
+build → analyze) and is what the GitHub Actions workflow calls every 6 hours.
+
+### Key invariants
+
+- `article_id = sha256(canonical_url)` is the only notion of article identity — never introduce a second one.
+- Comment analysis intentionally excludes author identity and timestamps (privacy/simplicity by design).
+- Lexicon matching is build-once-then-lookup, never runtime NLP/stemming.
+- Concurrency is scoped to the article level only — no concurrency within one article's windows or comments.
+
+## Product tour
+
+The frontend (`frontend/src/app/`, Hebrew RTL UI branded "Trust") has:
+
+| Page | Route | What it shows |
+|---|---|---|
+| Home | `/` | Headline stats, polarity trend chart, per-source comparison, trending topics, sources grid |
+| Articles | `/articles` | Filterable/searchable article table (source, category, date range, min audience polarity) |
+| Article detail | `/articles/[id]` | Full polarity breakdown, comment list, AI summary card, political bias meter — summary/bias generated on demand |
+| Events | `/events` | Cross-article event timeline (clustered by `src/analysis/event_grouping.py`) |
+| Event detail | `/events/[id]` | Timeline of articles belonging to one event |
+| AI Assistant | `/assistant` | Chat that answers only from the database (no external knowledge) via `/api/ai/ask` |
+| About | `/about` | Plain-language explanation of the system for end users |
+
+A notification bell (`NotificationBell` / `AnalysisStatusBar`) surfaces smart alerts from `/api/alerts` anywhere
+in the shell. Browser requests never hit Render directly — `frontend/src/app/api/*/route.ts` route handlers proxy
 server-side to the Render API via `NEXT_PUBLIC_API_URL`, so the browser only ever talks same-origin to Vercel.
-`CORS_ORIGINS` on Render is defense-in-depth, not load-bearing.
+
+## API reference
+
+All endpoints are read-only except the two `POST .../generate` AI endpoints and the alert-read mutations. Backed
+by `src/db/browse.py`, `trending.py`, `events.py`, `summary.py`, `bias.py`, `alerts.py`.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health` | Liveness check |
+| `GET /api/stats` | Dashboard headline numbers (filterable by source/category/date range) |
+| `GET /api/sources`, `GET /api/categories` | Filter option lists |
+| `GET /api/analytics/polarity-trend`, `GET /api/analytics/polarity-by-source` | Chart data |
+| `GET /api/articles` | Paginated, filterable article list |
+| `GET /api/articles/{id}` | Full article detail |
+| `GET/POST /api/articles/{id}/summary[/generate]` | AI summary — fetch cached or generate on demand |
+| `GET/POST /api/articles/{id}/bias[/generate]` | AI bias/framing estimate — fetch cached or generate on demand |
+| `POST /api/ai/ask` | Database-grounded Q&A assistant |
+| `GET /api/trending` | Trending topics |
+| `GET /api/events`, `GET /api/events/{id}/timeline` | Event list / single event timeline |
+| `GET /api/alerts`, `PATCH /api/alerts/{id}/read`, `PATCH /api/alerts/read-all` | Smart alerts + read state |
+
+## Running it locally
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+docker compose up -d                # starts local Postgres (news_polar_db)
+cp .env.example .env                # set DATABASE_URL, OPENAI_API_KEY (see note below)
+python pipeline/init_db.py          # applies sql/schema.sql + sql/migrations/*.sql
+```
+
+Run the app (two processes):
+
+```bash
+python pipeline/serve_api.py        # FastAPI on :8000
+cd frontend && npm run dev          # Next.js on :3000 (frontend/.env.local sets NEXT_PUBLIC_API_URL)
+```
+
+Run the pipeline manually:
+
+```bash
+python pipeline/crawl.py --source all|ynet|haaretz|mako|news12|reshet13|channel14 [--limit N]
+python pipeline/classify_articles.py [--all] [--limit N] [--dry-run]
+python pipeline/fetch_comments.py [--source X] [--min-age-hours 0] [--force]
+python pipeline/build_lexicon.py
+python pipeline/analyze_articles.py [--limit N] [--force]
+```
+
+Tests and lint:
+
+```bash
+PYTHONPATH=. pytest tests/ -q
+cd frontend && npm run lint && npm run build
+```
+
+> **Note on `OPENAI_API_KEY`:** in this project it's actually an **OpenRouter** key (`sk-or-v1-...`), not a real
+> OpenAI one. `src/nlp/openai_config.py` routes every OpenAI SDK call through `OPENAI_BASE_URL` /
+> `OPENAI_MODEL` (`https://openrouter.ai/api/v1` / `openai/gpt-4o-mini`) instead of `api.openai.com`. If you swap
+> in a real OpenAI key, unset both (or set `OPENAI_MODEL=gpt-4o-mini`).
+
+## 🚀 Deployment & Operations
+
+This section is the source of truth for how the system actually runs in the cloud.
 
 ### Why not cron / an in-process scheduler
 
@@ -37,646 +164,96 @@ server-side to the Render API via `NEXT_PUBLIC_API_URL`, so the browser only eve
   `render.yaml`, so they must be filled in by hand in the Render dashboard (not auto-provisioned).
 - **Vercel project env var**: `NEXT_PUBLIC_API_URL` — the Render service's public URL.
 
-`OPENAI_API_KEY` in this project is actually an **OpenRouter** key, not an OpenAI one — `src/nlp/openai_config.py`
-routes every OpenAI SDK call through `OPENAI_BASE_URL`/`OPENAI_MODEL` (`https://openrouter.ai/api/v1` /
-`openai/gpt-4o-mini`) instead of hitting `api.openai.com` directly, so the same key works against both classify
-and the summary/bias/Q&A endpoints. Those two vars aren't secret and are already baked into both
-`.github/workflows/ingestion.yml` and `render.yaml` — nothing to configure by hand for them. If you swap in a
-real OpenAI key instead, just delete/unset `OPENAI_BASE_URL` and `OPENAI_MODEL` (or set `OPENAI_MODEL=gpt-4o-mini`)
-everywhere.
+`OPENAI_BASE_URL` / `OPENAI_MODEL` aren't secret and are already baked into both `.github/workflows/ingestion.yml`
+and `render.yaml` — nothing to configure by hand for them (see the OpenRouter note above).
 
 ### One-time provisioning
 
 1. **Neon** — create a project, copy the connection string. It goes into local `.env`, the GitHub secret, and
    the Render env var below.
-2. **GitHub** — `gh secret set DATABASE_URL` and `gh secret set OPENAI_API_KEY` on this repo (or do it via the
+2. **GitHub** — `gh secret set DATABASE_URL` and `gh secret set OPENAI_API_KEY` on this repo (or via the
    Settings UI).
 3. **Render** — dashboard.render.com → New → Blueprint → select this repo (it reads `render.yaml`
    automatically) → Apply. Then open the `news-polar-api` service → Environment and fill in the three vars
    above. Note the resulting `https://*.onrender.com` URL.
 4. **Vercel** — vercel.com/new → Import this repo → set **Root Directory to `frontend`** (required — the repo
    root isn't the Next.js app) → add `NEXT_PUBLIC_API_URL` = the Render URL from step 3 → Deploy.
-5. Back on Render, optionally set `CORS_ORIGINS` to the Vercel URL from step 4.
+5. Back on Render, set `CORS_ORIGINS` to the Vercel URL from step 4.
+
+An interactive wizard for steps 3–5 can be regenerated any time with the `wizard` skill.
+
+### Sharing dashboard access
+
+Inviting collaborators to Render/Vercel is separate from the git workflow below — it only affects who can see
+dashboards/logs, not how code ships (that's still just a GitHub push).
+
+- **Vercel** — a personal (Hobby) project can't have collaborators directly. Dashboard → scope switcher (top
+  left) → **Create Team** → move the project in via Project → Settings → General → **Transfer Project** → then
+  **Team Settings → Members → Invite**.
+- **Render** — dashboard → workspace switcher (top left) → **New Team**. If there's no "Transfer" option under
+  the service's Settings, the fastest path is re-running the Blueprint deploy (step 3 above) from inside the new
+  Team workspace — the database (Neon) is unaffected either way. Then **Team Settings → People → Invite**.
+
+### Making a change
+
+Both Render and Vercel auto-deploy from the branch they track (`main`) — there's no manual deploy step for
+ordinary code changes:
+
+1. Branch, edit, and test locally before pushing:
+   ```bash
+   git checkout -b my-change
+   PYTHONPATH=. pytest tests/ -q                    # if you touched Python
+   cd frontend && npm run lint && npm run build      # if you touched the frontend
+   ```
+2. Commit and push, then merge to `main` (directly or via PR).
+3. On merge, Render rebuilds/redeploys the API and Vercel rebuilds/redeploys the frontend automatically — no
+   action needed. The GitHub Actions ingestion cron is unaffected and just picks up the new code on its next
+   scheduled or manually dispatched run.
+4. **Exception — DB migrations**: new files in `sql/migrations/` need no manual step either; they're re-applied
+   idempotently on every API startup (`src/db/migrations.py`), so a Render redeploy is enough.
+5. **Exception — new/changed secrets**: env vars (a new API key, a changed `DATABASE_URL`, etc.) do **not**
+   sync from git. Update them by hand in every place they're consumed: the Render dashboard, the Vercel
+   dashboard (if frontend-facing), and `gh secret set <NAME>` for GitHub Actions.
+6. Verify: `curl https://<render-url>/api/health`, then load the Vercel URL and confirm the frontend renders
+   data with no CORS errors in the browser console.
 
 ### Operating it
 
 - Trigger an ingestion run manually: `gh workflow run ingestion.yml` (or Actions tab → "Scheduled ingestion" →
   Run workflow).
-- Check ingestion logs: the workflow run's "Upload ingestion logs" artifact, or the run log directly.
+- Check ingestion logs: the workflow run's "Upload ingestion logs" artifact, the run log directly, or the
+  `ingestion_runs` table (per-source history).
 - Check API health: `curl https://<render-url>/api/health`.
 - Redeploy backend: push to the branch Render tracks (auto-deploy), or "Manual Deploy" in the Render dashboard.
 - Redeploy frontend: push to the branch Vercel tracks (auto-deploy).
 
----
-
-📘 RFC – News Analysis Pipeline
-
-Deterministic, Research-Grade, Batch-Oriented (Up to BigQuery)
-
-1️⃣ System Goal
-
-Build a deterministic, stable system that does not depend on the behavior of news websites, which performs:
-
-Collection of news articles from major Israeli news outlets
-
-Collection of audience comments for each article
-
-Lexicon-based textual analysis
-
-Extraction of quantitative metrics over article windows (sentences) and comments
-
-Clean loading into BigQuery for future analytical queries
-
-❗️The system is not streaming and not real-time.
-The objective is accuracy, stability, and research validity, not low latency.
-
-2️⃣ Data Sources
-
-The system supports major Israeli news outlets, including:
-
-Haaretz
-
-ynet
-
-mako / Keshet 12
-
-News 12
-
-Reshet 13 (formerly Channel 10)
-
-Channel 14
-
-Additional major news centers with the same structure
-
-❗️Assumption:
-There is no reliable way to fetch “all articles of the day” directly from the sites
-(feeds are limited, ordering is unstable, content is dynamic).
-
-3️⃣ Design Principles
-3.1 Determinism
-
-Same input ⇒ same output
-
-No non-deterministic algorithms in the critical path
-
-Any change to lexicons or algorithms ⇒ new version
-
-3.2 Idempotency
-
-Repeated runs never create duplicates
-
-All BigQuery writes go through staging → MERGE
-
-Every entity is identified by a unique key
-
-3.3 Separation of Concerns
-
-Ingestion is separated from processing
-
-Comments are separated from article text
-
-LLM logic is isolated as optional enrichment
-
-3.4 Batch-Oriented
-
-No streaming is required
-
-Comments are analyzed only after accumulation (24 hours)
-
-4️⃣ High-Level Architecture
-
-The system is built using two Airflow DAGs:
-
-DAG 1 – Ingestion (Every 6 Hours)
-
-Purpose:
-
-“Freeze” articles before the website modifies or removes them.
-
-DAG 2 – Daily Snapshot + Processing (Daily)
-
-Purpose:
-
-Collect accumulated comments and compute stable metrics.
-
-5️⃣ Entity Identification (IDs & Keys)
-5.1 canonical_url
-
-URL normalization (remove tracking params, normalize scheme, trailing slash)
-
-5.2 article_id
-article_id = sha256(canonical_url)
-
-5.3 Article Windows
-
-Window = sentence
-
-sentence_idx = index after deterministic sentence splitting
-
-Primary key: (article_id, sentence_idx)
-
-5.4 Comments
-
-If a stable comment_id exists from the source — use it
-
-Otherwise:
-
-comment_id = sha256(article_id + text + local_index)
-
-
-Primary key: (article_id, comment_id)
-
-6️⃣ Text Normalization (Text Processing Spec)
-6.1 Normalization (Articles + Comments)
-
-Remove URLs
-
-Remove diacritics
-
-Normalize quotation marks and hyphens
-
-Lowercasing
-
-Remove non-linguistic characters
-
-Whitespace normalization
-
-❗️No semantic modification of the text is performed.
-
-7️⃣ Article Windowing Strategy
-Locked Decision
-
-Window = sentence
-
-Sentence splitter is rule-based and deterministic
-
-Split on . ! ? … with heuristics for common abbreviations
-
-Exception
-
-If a sentence contains more than 60 tokens:
-
-It is split into sub-windows of 60 tokens
-
-sentence_idx continues sequentially
-
-Research Rationale
-
-A sentence is a natural rhetorical unit
-
-Enables meaningful category richness and dominance metrics
-
-Chunking prevents statistical outliers
-
-8️⃣ Lexicon Strategy (Locked)
-Official Choice – Approach A: Expanded Lexicon
-Principle
-
-Tokens are never modified at runtime
-
-Matching is done via an expanded lexicon built offline
-
-lexicon_expanded Contains
-
-Base word
-
-Variants with common Hebrew prefixes:
-
-ה, ו, ב, ל, מ, כ, ש
-
-(Conservative) very common two-prefix combination (e.g., וה)
-
-No variants generated for words shorter than length 3
-
-Versioning
-
-lexicon_base.json
-
-lexicon_expanded.json
-
-lexicon_version = sha256(lexicon_expanded.json)
-
-Same logic applies to comments:
-
-comment_lexicon_expanded
-
-comment_lexicon_version
-
-Future Option (Not Baseline)
-
-Approach B: Conservative prefix stripping
-
-Mentioned only as Future Work
-
-Not enabled in the current pipeline
-
-9️⃣ Article Analysis Algorithm (7 Categories)
-Precomputation
-
-Build word2category dictionary
-
-Per Window
-
-counts[7]
-
-active = number of distinct categories
-
-window_len
-
-cat_words = sum(counts)
-
-Dominance
-dominance = max(counts) / cat_words
-
-
-If cat_words == 0 → NULL
-
-Complexity
-
-O(total_tokens_in_article)
-
-🔟 Comment Analysis (Audience Signal)
-Comment = Window
-Per Comment
-
-polar_count
-
-comment_len
-
-polar_ratio = polar_count / max(1, comment_len)
-
-like_weight = 1 + ln(1 + like_count)
-
-comment_score = polar_ratio
-
-Per-Article Aggregation
-
-num_comments
-
-audience_mean (weighted mean)
-
-audience_p85 (weighted quantile)
-
-❗️No author identity, no timestamp — intentionally (simplicity and cleanliness).
-
-1️⃣1️⃣ GCS Storage
-Raw Articles (DAG 1)
-gs://bucket/raw/articles/source=.../dt=YYYY-MM-DD/article_id=.../article.json
-
-Snapshot With Comments (DAG 2)
-gs://bucket/snapshot/articles_with_comments/source=.../dt=YYYY-MM-DD/article_id=.../article_with_comments.json
-
-
-Comments are sorted by comment_id → determinism.
-
-1️⃣2️⃣ Staging Format
-Locked Decision
-
-Parquet
-
-Rationale
-
-Strong schema enforcement
-
-Columnar format
-
-Efficient BigQuery loading
-
-Reduced data corruption risk
-
-1️⃣3️⃣ BigQuery Target Tables
-
-articles
-
-windows_features
-
-comments_features
-
-article_comments_agg
-
-article_llm_enrichment (optional)
-
-All loads:
-
-staging → MERGE
-
-Based on unique keys
-
-1️⃣4️⃣ Airflow DAGs
-DAG 1 – crawl_latest_to_gcs
-
-Schedule: every 6 hours
-
-Role: article ingestion and freezing
-
-DAG 2 – daily_snapshot_process_to_bq
-
-Schedule: daily
-
-Selects articles where now - first_seen_at >= 24h
-
-Fetches comments
-
-Computes features
-
-Loads into BigQuery
-
-Concurrency:
-
-Article-level only (worker pool)
-
-1️⃣5️⃣ Data Quality Rules (DQ)
-
-window_len > 0
-
-sum(c1..c7) ≤ window_len
-
-dominance ∈ [0,1] OR NULL
-
-polar_ratio ∈ [0,1]
-
-num_comments ≤ 200 (warning)
-
-1️⃣6️⃣ LLM – Optional Only
-
-Not in the critical path
-
-Separate enrichment
-
-Full versioning
-
-Does not affect the 7 deterministic metrics
-
-📕 Appendix A – Concurrency, Staging & Algorithmic Specification
-
-(Mandatory extension to the main RFC)
-
-A️⃣ Concurrency Model
-Core Principle
-
-Concurrency is strictly limited to the article level.
-
-There is:
-
-No concurrency within an article
-
-No concurrency within a window
-
-No concurrency within comments
-
-Why This Is Critical
-
-Guarantees full determinism
-
-Prevents race conditions
-
-Prevents order-dependent computation effects
-
-Enables formal algorithmic reasoning
-
-Execution Model
-Atomic Unit
-ArticleJob(article_id)
-
-
-Each ArticleJob performs:
-
-Article processing → windows
-
-Comment processing → comment scores
-
-Per-article aggregation
-
-Write to GCS staging
-
-Worker Pool
-
-Airflow manages a worker pool
-
-Each worker:
-
-Receives one article_id
-
-Processes it end-to-end
-
-Shares no state with other workers
-
-Big-O with Concurrency
-
-Algorithmic:
-
-O(sum(tokens_articles) + sum(tokens_comments))
-
-
-Concurrency:
-
-Constant wall-clock speedup only
-
-No asymptotic complexity change
-
-Academic note:
-
-“Parallelism improves wall-clock time but not asymptotic complexity.”
-
-B️⃣ Pipeline Split (Two Logical Paths)
-Why Split Is Mandatory
-
-Because:
-
-Articles are structured text
-
-Comments are audience signals
-
-Their lifecycles differ
-
-Their algorithms differ
-
-Thus, there are two logical pipelines, converging only at the article level.
-
-C️⃣ Staging – Full Specification by Pipeline
-C1️⃣ Article Staging (Article → Windows)
-Input
-
-article_with_comments.json
-(only the text field is used here)
-
-Algorithm (Formal)
-Data Structures
-counts: int[7]
-active_categories: int
-present_mask: int (bitmask)
-
-Pseudocode
-for sentence in split_to_sentences(article_text):
-    tokens = tokenize(sentence)
-
-    if len(tokens) > 60:
-        chunks = chunk(tokens, size=60)
-    else:
-        chunks = [tokens]
-
-    for chunk in chunks:
-        counts = [0,0,0,0,0,0,0]
-        active = 0
-        present_mask = 0
-
-        for token in chunk:
-            if token in word2category:
-                c = word2category[token]
-                if counts[c] == 0:
-                    active += 1
-                    present_mask |= (1 << c)
-                counts[c] += 1
-
-        cat_words = sum(counts)
-
-        if cat_words > 0:
-            dominance = max(counts) / cat_words
-        else:
-            dominance = NULL
-
-        emit window_row
-
-Staging Output (Parquet)
-
-Logical table: windows_features_staging
-
-Fields:
-
-article_id
-
-sentence_idx
-
-window_len
-
-c1 … c7
-
-active
-
-present_mask
-
-dominance
-
-lexicon_version
-
-pipeline_version
-
-run_id
-
-C2️⃣ Comment Staging (Comments → Scores)
-Input
-
-article_with_comments.json
-(only the comments array)
-
-Algorithm
-for comment in comments:
-    tokens = tokenize(comment.text)
-
-    polar_count = count(tokens in comment_lexicon)
-    comment_len = len(tokens)
-
-    polar_ratio = polar_count / max(1, comment_len)
-    like_weight = 1 + ln(1 + like_count)
-
-    emit comment_row
-
-Staging Output (Parquet)
-
-Logical table: comments_features_staging
-
-Fields:
-
-article_id
-
-comment_id
-
-comment_len
-
-polar_count
-
-polar_ratio
-
-like_count
-
-like_weight
-
-comment_score
-
-comment_lexicon_version
-
-pipeline_version
-
-run_id
-
-C3️⃣ Comment Aggregation Staging (Per Article)
-Pseudocode
-scores = []
-weights = []
-
-for comment in article_comments:
-    scores.append(comment_score)
-    weights.append(like_weight)
-
-audience_mean = weighted_mean(scores, weights)
-audience_p85  = weighted_quantile(scores, weights, 0.85)
-
-Staging Output
-
-Logical table: article_comments_agg_staging
-
-Fields:
-
-article_id
-
-num_comments
-
-audience_mean
-
-audience_p85
-
-sum_like_weight
-
-pipeline_version
-
-run_id
-
-D️⃣ Merge Point
-
-The three staging tables:
-
-windows_features_staging
-
-comments_features_staging
-
-article_comments_agg_staging
-
-are loaded into BigQuery and merged (MERGE) into final tables.
-
-❗️No joins occur inside the pipeline.
-❗️Linking is performed only via article_id in BigQuery.
-
-E️⃣ Why This Structure Is Research-Sound
-1. Signal Separation
-
-Article text = textual signal
-
-Comments = audience signal
-
-Combined only at query time
-
-2. Simple Algorithms → Strong Metrics
-
-No heavy models
-
-No hidden state
-
-Every number is explainable
-
-3. Extensible
-
-Categories can be added
-
-LLMs can be added
-
-Without breaking the contract
+## Repository layout
+
+```
+src/crawling/     one BaseCrawler subclass per news source + comment fetchers
+src/nlp/          AI classification, summary, bias, Q&A assistant (all OpenAI-SDK, routed via openai_config.py)
+src/lexicon/      lexicon expansion + deterministic word matching
+src/analysis/     windows, comment scoring, aggregation, event grouping, alerts (the deterministic core)
+src/db/           one module per concern (articles, classification, comments, analysis, summary, bias, alerts,
+                  events, trending, browse = read-only API queries)
+src/api/          FastAPI app (src/api/app.py)
+pipeline/         CLI entry points that wire src/* together (crawl.py, classify_articles.py, ...)
+frontend/         Next.js app (App Router) — the only actively developed UI
+web/               legacy static HTML/JS UI, served by src/api/app.py only if frontend/ isn't running
+sql/               schema.sql + numbered, idempotent migrations
+scripts/           run_ingestion.sh (what GitHub Actions runs), cron helpers (local-machine alternative, unused in prod)
+docs/               architecture rationale, exact algorithms, data contracts, ADRs — see below
+```
+
+## Further reading
+
+- `CLAUDE.md` — instructions and conventions for AI coding agents working in this repo.
+- `CONTEXT.md` — domain glossary for the ingestion/crawl layer.
+- `docs/architecture/overview.md` — the *why* behind the design (determinism, batch-over-streaming, signal
+  separation).
+- `docs/algorithms/` — exact formulas for article windows, comment scoring, aggregation.
+- `docs/contracts/` — ID/versioning contracts and data-quality invariants.
+- `docs/adr/` — architecture decision records (parallel crawl hardening, decoupled classification, ...).
+- `docs/roadmap.md` — the original RFC target architecture (Airflow DAGs, GCS, BigQuery staging). This was the
+  aspirational design before the project shipped; the live system substitutes Postgres for BigQuery and has no
+  Airflow/GCS in the loop. Kept for historical context, not a description of what's running today.

@@ -91,13 +91,23 @@ not used by the deployed system.
    This whole layer is intentionally simple/explainable — see `docs/algorithms/` for the exact formulas and
    `docs/contracts/data_quality.md` for invariants (`window_len > 0`, `dominance ∈ [0,1] ∪ {NULL}`,
    `polar_ratio ∈ [0,1]`, etc.).
-6. **Serve** — `src/api/app.py` (FastAPI) exposes read-only endpoints (`/api/health`, `/api/stats`,
-   `/api/articles`, `/api/articles/{id}`, `/api/sources`, `/api/categories`) backed by `src/db/browse.py` queries.
-   Runs schema migrations (`src/db/migrations.py` — applies every file in `sql/migrations/` in sorted order, no
-   version tracking table) on startup. `frontend/` (Next.js App Router) consumes this API via
-   `frontend/src/lib/api.ts`; pages live under `frontend/src/app/` (`/`, `/articles`, `/articles/[id]`, `/about`),
-   shared UI in `frontend/src/components/`. `web/` is a legacy static HTML/JS UI, served as a fallback by
-   `src/api/app.py` if `frontend` isn't running — not actively developed.
+6. **AI enrichment** (optional, off the critical path) — per-article summary (`src/nlp/summarize.py`), political
+   bias/framing estimate (`src/nlp/bias.py`), and a Q&A assistant that answers only from what's in the DB
+   (`src/nlp/qa.py`). No pipeline script: generated on demand by `POST /api/articles/{id}/summary/generate` and
+   `.../bias/generate`, cached in `articles.summary_*` / `articles.bias_*` columns (`sql/migrations/004_summary.sql`,
+   `005_bias.sql`) so a regenerate is opt-in, not automatic. Never let analyze/classify depend on these — they're
+   enrichment, not the deterministic core.
+7. **Derived signals** — trending topics (`src/db/trending.py`), cross-article event timelines
+   (`src/analysis/event_grouping.py`), and smart alerts (`src/analysis/alerts.py`, deduped via `dedup_key` in
+   `sql/migrations/006_alerts.sql`) are computed from already-analyzed data on read (alert detection runs inside
+   `GET /api/alerts` itself), not separately crawled or scheduled.
+8. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only except the two `.../generate` AI endpoints and
+   the alert-read mutations, backed by `src/db/browse.py` / `trending.py` / `events.py` / `summary.py` / `bias.py`
+   / `alerts.py`. Runs schema migrations (`src/db/migrations.py` — applies every file in `sql/migrations/` in
+   sorted order, no version tracking table) on startup. `frontend/` (Next.js App Router) consumes this API via
+   `frontend/src/lib/api.ts`; pages live under `frontend/src/app/` (`/`, `/articles`, `/articles/[id]`, `/events`,
+   `/events/[id]`, `/assistant`, `/about`), shared UI in `frontend/src/components/`. `web/` is a legacy static
+   HTML/JS UI, served as a fallback by `src/api/app.py` if `frontend` isn't running — not actively developed.
 
 ### Cloud deployment
 The system also runs 24/7 in the cloud, decoupling ingestion scheduling from API uptime:
@@ -117,11 +127,13 @@ The system also runs 24/7 in the cloud, decoupling ingestion scheduling from API
 ### Database
 - Single source of truth: PostgreSQL, connection via `DATABASE_URL` (`src/db/config.py`, `src/db/connection.py`).
 - Base schema in `sql/schema.sql` (`articles` table: `article_id` PK = sha256 of canonical URL). Additive changes
-  live as numbered files in `sql/migrations/` (`001_classification.sql`, `002_comments.sql`, `003_analysis.sql`)
+  live as numbered files in `sql/migrations/` (currently `001_classification.sql` through `007_ingestion_runs.sql`)
   and are all re-applied (idempotently, via `IF NOT EXISTS`-style DDL) on every `init_db.py` run and API startup —
   there is no migration-version tracking, so new migrations must be safe to re-run.
 - `src/db/` modules are split by concern: `articles.py` (crawl writes/dedup), `classification.py` (AI labels),
-  `comments.py`, `analysis.py` (polarity results), `browse.py` (read-only queries backing the API).
+  `comments.py`, `analysis.py` (polarity results), `summary.py` / `bias.py` (cached AI enrichment),
+  `trending.py`, `events.py`, `alerts.py`, `ingestion_runs.py` (per-source crawl observability), `browse.py`
+  (read-only queries backing the rest of the API).
 
 ### Key invariants to preserve
 - `article_id = sha256(canonical_url)` is the dedup/idempotency key everywhere — don't introduce a second notion
@@ -132,6 +144,8 @@ The system also runs 24/7 in the cloud, decoupling ingestion scheduling from API
   category/lexicon logic in the same build-once-then-lookup style.
 - Concurrency (where it exists/is planned) is scoped to the article level only — no concurrency within a single
   article's windows or comments, to preserve determinism.
+- AI summary/bias/assistant (step 6 above) are optional enrichment generated on demand and cached — never make
+  the deterministic pipeline (classify/analyze) depend on them, and never treat their absence as an error state.
 
 ## Reference docs
 `docs/architecture/overview.md` explains the *why* behind the design (determinism, batch-over-streaming,
