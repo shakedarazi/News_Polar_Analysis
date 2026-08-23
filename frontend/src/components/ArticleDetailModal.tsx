@@ -12,6 +12,7 @@ import { CommentsList } from "./CommentsList";
 import { LoadingSkeleton } from "./LoadingSkeleton";
 import { ErrorState } from "./ErrorState";
 import { CompactBiasBadge } from "./PoliticalBiasMeter";
+import { AnalysisStatusBar } from "./AnalysisStatusBar";
 
 export function ArticleDetailModal({
   articleId,
@@ -150,7 +151,13 @@ export function ArticleDetailModal({
                 </p>
               </div>
 
-              {agg ? (
+              <AnalysisStatusBar
+                hasWindows={article.windows.length > 0}
+                hasAudienceAnalysis={!!agg}
+                firstSeenAt={article.first_seen_at}
+              />
+
+              {agg && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                     <PolarScore value={agg.audience_mean} label="קיטוב ממוצע" />
@@ -172,10 +179,6 @@ export function ArticleDetailModal({
                       {formatNumber(agg.num_comments)}
                     </p>
                   </div>
-                </div>
-              ) : (
-                <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-4 text-center text-sm text-slate-500 dark:text-slate-400">
-                  טרם בוצע ניתוח פולריות לכתבה זו
                 </div>
               )}
 
