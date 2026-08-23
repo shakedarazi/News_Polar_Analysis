@@ -23,10 +23,10 @@ from src.db.config import get_database_url, require_database_url
 from src.db.ingestion_runs import record_ingestion_run
 from src.lexicon.load_lexicon import load_article_lexicon
 
-# Child of the "ingestion" logger configured in src/scheduler/ingestion_scheduler.py
-# (rotating file + console handlers attached there). When this module is run
-# directly as a CLI (not via the scheduler), __main__ below attaches its own
-# basicConfig so output still shows up in the terminal as before.
+# Child of the "ingestion" logger namespace shared with the other pipeline
+# steps run back-to-back by scripts/run_ingestion.sh. When this module is run
+# directly as a CLI, __main__ below attaches its own basicConfig so output
+# still shows up in the terminal as before.
 logger = logging.getLogger("ingestion.crawl")
 
 
@@ -195,8 +195,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # Standalone CLI usage (not via the scheduler, which configures its own
-    # handlers on the "ingestion" logger) — make output visible in the terminal.
+    # Standalone CLI usage — make output visible in the terminal if nothing
+    # else has already attached handlers to the "ingestion" logger.
     if not logging.getLogger("ingestion").handlers:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
     raise SystemExit(main())

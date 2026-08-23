@@ -1,0 +1,47 @@
+name: Scheduled ingestion
+
+# Runs the full crawl -> classify -> comments -> analyze pipeline against the
+# hosted Neon database on a timer. This is the only scheduling mechanism for
+# ingestion — it replaced both an OS-cron setup (unreliable on developer
+# machines) and an in-process APScheduler (which required the API host to
+# stay running 24/7 just to fire a timer). Decoupling the schedule from the
+# API host means the backend (Render) is free to spin down when idle without
+# affecting data freshness.
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements.txt
+
+      - name: Install Playwright Chromium (haaretz comments)
+        run: .venv/bin/playwright install --with-deps chromium
+
+      - name: Run ingestion
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: bash scripts/run_ingestion.sh
+
+      - name: Upload ingestion logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ingestion-logs
+          path: logs/ingestion/*.log
+          retention-days: 14

@@ -30,7 +30,6 @@ from src.db.summary import generate_and_save_summary, get_article_for_summary, g
 from src.db.trending import DEFAULT_LIMIT as TRENDING_DEFAULT_LIMIT
 from src.db.trending import get_trending_topics
 from src.nlp.qa import answer_question
-from src.scheduler.ingestion_scheduler import start_scheduler, stop_scheduler
 
 ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = ROOT / "web" / "static"
@@ -58,12 +57,6 @@ if STATIC_DIR.is_dir():
 def startup() -> None:
     require_database_url()
     apply_migrations()
-    start_scheduler()
-
-
-@app.on_event("shutdown")
-def shutdown() -> None:
-    stop_scheduler()
 
 
 @app.get("/api/health")

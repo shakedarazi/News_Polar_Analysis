@@ -1,3 +1,66 @@
+# News Polar Analysis
+
+## 🚀 Deployment & Operations (current implementation)
+
+This section is the source of truth for how the system actually runs today. Everything below it
+("📘 RFC – News Analysis Pipeline" onward) is the *original design document* — an aspirational target
+architecture (Airflow, GCS, BigQuery) that was never built. The live system substitutes Postgres for BigQuery
+and has no Airflow/GCS in the loop. For local dev commands (running the app, tests, lint), see `CLAUDE.md`.
+
+### The stack
+
+| Piece | Service | Role |
+|---|---|---|
+| Database | **Neon** (hosted Postgres) | Single source of truth, `DATABASE_URL` everywhere |
+| Ingestion scheduling | **GitHub Actions** (`.github/workflows/ingestion.yml`) | Cron every 6h + manual `workflow_dispatch`. Runs `scripts/run_ingestion.sh` (crawl → windows backfill → classify → comments → lexicon build → analyze) against Neon |
+| Backend API | **Render** (`render.yaml` blueprint) | Free web service running `uvicorn src.api.app:app`. Read-only endpoints for the frontend/legacy UI. Never runs ingestion itself |
+| Frontend | **Vercel** | Next.js app, lives in `frontend/` (not the repo root) |
+
+Browser requests never hit Render directly — `frontend/src/app/api/*/route.ts` route handlers proxy
+server-side to the Render API via `NEXT_PUBLIC_API_URL`, so the browser only ever talks same-origin to Vercel.
+`CORS_ORIGINS` on Render is defense-in-depth, not load-bearing.
+
+### Why not cron / an in-process scheduler
+
+- **OS `cron`** (`scripts/setup_cron.sh` / `scripts/remove_cron.sh`) is unreliable on developer machines — e.g.
+  macOS's TCC privacy layer silently blocks cron jobs under some paths. Still usable for a self-hosted Linux
+  box, but it's not what the deployed system relies on.
+- An **in-process `APScheduler`** (previously started from FastAPI's startup hook) was removed. It required the
+  API host to stay running 24/7 just to fire a timer, coupling ingestion uptime to API uptime for no reason —
+  GitHub Actions schedules for free, independent of whether Render is currently awake or cold-started.
+
+### Secrets / env vars
+
+- **GitHub Actions repo secrets** (Settings → Secrets and variables → Actions): `DATABASE_URL`, `OPENAI_API_KEY`
+  — consumed only by the ingestion workflow.
+- **Render service env vars**: `DATABASE_URL`, `OPENAI_API_KEY`, `CORS_ORIGINS` — all marked `sync: false` in
+  `render.yaml`, so they must be filled in by hand in the Render dashboard (not auto-provisioned).
+- **Vercel project env var**: `NEXT_PUBLIC_API_URL` — the Render service's public URL.
+
+### One-time provisioning
+
+1. **Neon** — create a project, copy the connection string. It goes into local `.env`, the GitHub secret, and
+   the Render env var below.
+2. **GitHub** — `gh secret set DATABASE_URL` and `gh secret set OPENAI_API_KEY` on this repo (or do it via the
+   Settings UI).
+3. **Render** — dashboard.render.com → New → Blueprint → select this repo (it reads `render.yaml`
+   automatically) → Apply. Then open the `news-polar-api` service → Environment and fill in the three vars
+   above. Note the resulting `https://*.onrender.com` URL.
+4. **Vercel** — vercel.com/new → Import this repo → set **Root Directory to `frontend`** (required — the repo
+   root isn't the Next.js app) → add `NEXT_PUBLIC_API_URL` = the Render URL from step 3 → Deploy.
+5. Back on Render, optionally set `CORS_ORIGINS` to the Vercel URL from step 4.
+
+### Operating it
+
+- Trigger an ingestion run manually: `gh workflow run ingestion.yml` (or Actions tab → "Scheduled ingestion" →
+  Run workflow).
+- Check ingestion logs: the workflow run's "Upload ingestion logs" artifact, or the run log directly.
+- Check API health: `curl https://<render-url>/api/health`.
+- Redeploy backend: push to the branch Render tracks (auto-deploy), or "Manual Deploy" in the Render dashboard.
+- Redeploy frontend: push to the branch Vercel tracks (auto-deploy).
+
+---
+
 📘 RFC – News Analysis Pipeline
 
 Deterministic, Research-Grade, Batch-Oriented (Up to BigQuery)

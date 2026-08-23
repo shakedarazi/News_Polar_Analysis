@@ -53,8 +53,10 @@ python pipeline/build_lexicon.py    # expands data/lexicon_base/* and data/comme
 python pipeline/analyze_articles.py [--limit N] [--force]              # lexicon polarity scoring
 python pipeline/import_json_to_db.py  # one-time legacy JSON import
 ```
-`scripts/run_ingestion.sh` wraps crawl + comment fetch + analysis for cron; `scripts/setup_cron.sh` /
-`scripts/remove_cron.sh` manage a 6-hour cron schedule.
+`scripts/run_ingestion.sh` wraps crawl + comment fetch + analysis and is what `.github/workflows/ingestion.yml`
+calls on a 6-hour schedule in the cloud (see "Cloud deployment" below). `scripts/setup_cron.sh` /
+`scripts/remove_cron.sh` are an alternate local-machine OS-cron path for self-hosting outside GitHub Actions —
+not used by the deployed system.
 
 ## Architecture
 
@@ -96,6 +98,21 @@ python pipeline/import_json_to_db.py  # one-time legacy JSON import
    `frontend/src/lib/api.ts`; pages live under `frontend/src/app/` (`/`, `/articles`, `/articles/[id]`, `/about`),
    shared UI in `frontend/src/components/`. `web/` is a legacy static HTML/JS UI, served as a fallback by
    `src/api/app.py` if `frontend` isn't running — not actively developed.
+
+### Cloud deployment
+The system also runs 24/7 in the cloud, decoupling ingestion scheduling from API uptime:
+- **Neon** — hosted PostgreSQL, same `DATABASE_URL` contract as local Docker Postgres (see below).
+- **GitHub Actions** (`.github/workflows/ingestion.yml`) — the *only* ingestion scheduler. Runs
+  `scripts/run_ingestion.sh` (crawl → windows backfill → classify → comments → lexicon → analyze) every 6 hours via
+  `cron`, plus `workflow_dispatch` for manual runs. Secrets `DATABASE_URL` / `OPENAI_API_KEY` point it at Neon.
+  This replaced two earlier mechanisms: OS `cron` (unreliable — macOS TCC blocked it silently) and an in-process
+  `APScheduler` started from FastAPI's startup hook (required the API host to stay running continuously just to
+  fire a timer). Because scheduling no longer lives inside the API process, the API host is free to idle/sleep
+  without affecting data freshness.
+- **Render** (`render.yaml`) — hosts `src/api/app.py` (`uvicorn`, free web service, may spin down when idle).
+- **Vercel** — hosts `frontend/` (Next.js). Client code never calls the backend directly; browser requests hit
+  same-origin Next.js route handlers (`frontend/src/app/api/*/route.ts`) which proxy server-side to Render via
+  `NEXT_PUBLIC_API_URL`, so the browser has no CORS dependency on the backend.
 
 ### Database
 - Single source of truth: PostgreSQL, connection via `DATABASE_URL` (`src/db/config.py`, `src/db/connection.py`).
