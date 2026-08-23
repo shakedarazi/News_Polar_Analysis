@@ -7,6 +7,7 @@ import re
 import requests
 
 from src.crawling.comments.models import RawComment
+from src.crawling.retry import fetch_with_retry
 from src.crawling.rss_utils import BROWSER_HEADERS
 
 API_URL = "https://www.c14.co.il/wp-json/now14-api/v1/comments"
@@ -21,13 +22,18 @@ def channel14_post_id(url: str) -> int:
 
 def fetch_comments(article_url: str) -> list[RawComment]:
     post_id = channel14_post_id(article_url)
-    response = requests.get(
-        API_URL,
-        params={"article_id": post_id},
-        headers=BROWSER_HEADERS,
-        timeout=20,
-    )
-    response.raise_for_status()
+
+    def _do_fetch() -> requests.Response:
+        response = requests.get(
+            API_URL,
+            params={"article_id": post_id},
+            headers=BROWSER_HEADERS,
+            timeout=20,
+        )
+        response.raise_for_status()
+        return response
+
+    response = fetch_with_retry(_do_fetch)
     payload = response.json()
     if not isinstance(payload, list):
         return []

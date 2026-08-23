@@ -9,6 +9,7 @@ from datetime import datetime
 import requests
 
 from src.crawling.comments.models import RawComment
+from src.crawling.retry import fetch_with_retry
 from src.crawling.rss_utils import BROWSER_HEADERS
 
 COMMENTS_API = "https://comments.mako.co.il/api/rest/comments"
@@ -43,8 +44,13 @@ def fetch_comments(article_url: str, *, html: str | None = None) -> list[RawComm
         params: dict = {"originId": vcm_id, "limit": 20}
         if cursor:
             params["cursor"] = cursor
-        response = requests.get(COMMENTS_API, headers=headers, params=params, timeout=20)
-        response.raise_for_status()
+
+        def _do_fetch() -> requests.Response:
+            response = requests.get(COMMENTS_API, headers=headers, params=params, timeout=20)
+            response.raise_for_status()
+            return response
+
+        response = fetch_with_retry(_do_fetch)
         payload = response.json()
         batch = payload.get("comments") or []
 

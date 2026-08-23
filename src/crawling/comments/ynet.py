@@ -7,6 +7,7 @@ from datetime import datetime
 import requests
 
 from src.crawling.comments.models import RawComment
+from src.crawling.retry import fetch_with_retry
 from src.crawling.rss_utils import BROWSER_HEADERS
 
 API_BASE = "https://www.ynet.co.il/iphone/json/api/talkbacks/list/v2"
@@ -32,12 +33,17 @@ def fetch_comments(article_url: str) -> list[RawComment]:
     page = 1
 
     while True:
-        response = requests.get(
-            f"{API_BASE}/{article_id}/end_to_start/{page}",
-            headers=headers,
-            timeout=20,
-        )
-        response.raise_for_status()
+
+        def _do_fetch() -> requests.Response:
+            response = requests.get(
+                f"{API_BASE}/{article_id}/end_to_start/{page}",
+                headers=headers,
+                timeout=20,
+            )
+            response.raise_for_status()
+            return response
+
+        response = fetch_with_retry(_do_fetch)
         channel = response.json()["rss"]["channel"]
         items = channel.get("item") or []
         if not isinstance(items, list):

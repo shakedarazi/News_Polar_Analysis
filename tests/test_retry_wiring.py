@@ -1,6 +1,7 @@
 """Confirms retry-with-backoff is actually wired into the network fetch points:
-extract_article.fetch_html, rss_utils.fetch_feed_xml, and reshet13's custom
-feed fetch — not just that the wrapper itself works in isolation.
+extract_article.fetch_html, rss_utils.fetch_feed_xml, reshet13's custom feed
+fetch, and the ynet/mako/channel14 comment fetchers — not just that the
+wrapper itself works in isolation.
 """
 
 import json
@@ -10,6 +11,7 @@ import requests
 from src.crawling import base, extract_article, rss_utils
 from src.crawling import retry as retry_module
 from src.crawling.base import BaseCrawler
+from src.crawling.comments import channel14, mako, ynet
 from src.crawling.known_ids import KnownIds
 from src.crawling.sources import reshet13
 
@@ -130,3 +132,174 @@ def test_reshet13_discover_retries_transient_failure(monkeypatch):
         "https://13tv.co.il/item/news/newsfeed/article-1/",
         "https://13tv.co.il/item/news/newsfeed/article-2/",
     ]
+
+
+def _ynet_payload(has_more: bool = False) -> dict:
+    return {
+        "rss": {
+            "channel": {
+                "item": [
+                    {
+                        "id": "1",
+                        "text": "comment text",
+                        "author": "someone",
+                        "likes": "2",
+                        "pubDate": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "hasMore": has_more,
+            }
+        }
+    }
+
+
+def test_ynet_fetch_comments_retries_transient_failure(monkeypatch):
+    monkeypatch.setattr(retry_module.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def fake_get(url, headers=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise requests.exceptions.ConnectionError("boom")
+        return _fake_response(json.dumps(_ynet_payload()))
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    comments = ynet.fetch_comments("https://www.ynet.co.il/article/abc123")
+
+    assert calls["n"] == 3
+    assert len(comments) == 1
+    assert comments[0].text == "comment text"
+
+
+def test_ynet_fetch_comments_permanent_404_no_retry(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(retry_module.time, "sleep", lambda s: sleeps.append(s))
+    calls = {"n": 0}
+
+    def fake_get(url, headers=None, timeout=None):
+        calls["n"] += 1
+        return _fake_response("", status_code=404)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    try:
+        ynet.fetch_comments("https://www.ynet.co.il/article/abc123")
+        assert False, "expected HTTPError to propagate"
+    except requests.exceptions.HTTPError:
+        pass
+
+    assert calls["n"] == 1
+    assert sleeps == []
+
+
+_MAKO_HTML = (
+    '<script id="__NEXT_DATA__" type="application/json">'
+    '{"props": {"pageProps": {"pageData": {"vcmId": "vcm-1"}}}}'
+    "</script>"
+)
+
+
+def _mako_payload() -> dict:
+    return {
+        "comments": [
+            {
+                "id": "1",
+                "content": "comment text",
+                "responder_name": "someone",
+                "created_at": "2024-01-01 00:00:00",
+            }
+        ],
+        "cursor": None,
+    }
+
+
+def test_mako_fetch_comments_retries_transient_failure(monkeypatch):
+    monkeypatch.setattr(retry_module.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def fake_get(url, headers=None, timeout=None, params=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise requests.exceptions.ConnectionError("boom")
+        return _fake_response(json.dumps(_mako_payload()))
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    comments = mako.fetch_comments("https://www.mako.co.il/news-x/article,1", html=_MAKO_HTML)
+
+    assert calls["n"] == 3
+    assert len(comments) == 1
+    assert comments[0].text == "comment text"
+
+
+def test_mako_fetch_comments_permanent_404_no_retry(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(retry_module.time, "sleep", lambda s: sleeps.append(s))
+    calls = {"n": 0}
+
+    def fake_get(url, headers=None, timeout=None, params=None):
+        calls["n"] += 1
+        return _fake_response("", status_code=404)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    try:
+        mako.fetch_comments("https://www.mako.co.il/news-x/article,1", html=_MAKO_HTML)
+        assert False, "expected HTTPError to propagate"
+    except requests.exceptions.HTTPError:
+        pass
+
+    assert calls["n"] == 1
+    assert sleeps == []
+
+
+def _channel14_payload() -> list[dict]:
+    return [
+        {
+            "id": "1",
+            "content": "comment text",
+            "author": "someone",
+            "likes": "2",
+        }
+    ]
+
+
+def test_channel14_fetch_comments_retries_transient_failure(monkeypatch):
+    monkeypatch.setattr(retry_module.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise requests.exceptions.ConnectionError("boom")
+        return _fake_response(json.dumps(_channel14_payload()))
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    comments = channel14.fetch_comments("https://www.c14.co.il/article/123456")
+
+    assert calls["n"] == 3
+    assert len(comments) == 1
+    assert comments[0].text == "comment text"
+
+
+def test_channel14_fetch_comments_permanent_404_no_retry(monkeypatch):
+    sleeps = []
+    monkeypatch.setattr(retry_module.time, "sleep", lambda s: sleeps.append(s))
+    calls = {"n": 0}
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        calls["n"] += 1
+        return _fake_response("", status_code=404)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+
+    try:
+        channel14.fetch_comments("https://www.c14.co.il/article/123456")
+        assert False, "expected HTTPError to propagate"
+    except requests.exceptions.HTTPError:
+        pass
+
+    assert calls["n"] == 1
+    assert sleeps == []
