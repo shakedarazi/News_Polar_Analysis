@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.crawling.base import CrawlSummary
+from src.crawling.known_ids import KnownIds
 from src.crawling.registry import ALL_SOURCES, get_crawler
 from src.crawling.rss_utils import NO_LIMIT
 from src.db.articles import load_known_ids
@@ -34,55 +37,90 @@ class RunAllSourcesResult:
     sources_crashed: list[str]
 
 
+def _crawl_one_source(
+    source: str,
+    *,
+    run_id: str,
+    limit: int,
+    delay_seconds: float,
+    known_ids: KnownIds,
+) -> tuple[str, CrawlSummary | None, Exception | None]:
+    """Crawl a single source and record its own ingestion_runs row.
+
+    Runs inside a worker thread when called via run_all_sources' pool, so
+    the ingestion_runs write happens from the worker that produced it.
+    """
+    started_at = datetime.now(timezone.utc)
+    # Fault tolerance: a single source raising (feed timeout, parser bug,
+    # site markup change, ...) must never stop the remaining sources —
+    # this loop previously had no protection here, so one bad source
+    # silently killed the whole scheduled run.
+    try:
+        summary = get_crawler(source).crawl(
+            limit=limit,
+            run_id=run_id,
+            delay_seconds=delay_seconds,
+            known_ids=known_ids,
+        )
+    except Exception as exc:
+        logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)
+        record_ingestion_run(
+            run_id=run_id,
+            source=source,
+            started_at=started_at,
+            finished_at=datetime.now(timezone.utc),
+            crashed=True,
+            error_message=str(exc),
+        )
+        return source, None, exc
+
+    record_ingestion_run(
+        run_id=run_id,
+        source=source,
+        started_at=started_at,
+        finished_at=datetime.now(timezone.utc),
+        saved=summary.saved,
+        skipped=summary.skipped,
+        failed=summary.failed,
+    )
+    return source, summary, None
+
+
 def run_all_sources(
     sources: list[str],
     *,
     run_id: str,
     limit: int,
     delay_seconds: float,
-    known_ids: set[str],
+    known_ids: KnownIds,
 ) -> RunAllSourcesResult:
-    """Crawl each source in turn, recording one ingestion_runs row per source."""
+    """Crawl all sources concurrently (one worker per source), recording one
+    ingestion_runs row per source. Article-by-article fetching stays
+    sequential within each source - only the sources themselves overlap.
+    """
     total_saved = total_skipped = total_failed = 0
     sources_crashed: list[str] = []
-    for source in sources:
-        started_at = datetime.now(timezone.utc)
-        # Fault tolerance: a single source raising (feed timeout, parser bug,
-        # site markup change, ...) must never stop the remaining sources —
-        # this loop previously had no protection here, so one bad source
-        # silently killed the whole scheduled run.
-        try:
-            summary = get_crawler(source).crawl(
-                limit=limit,
+
+    with ThreadPoolExecutor(max_workers=len(sources)) as pool:
+        futures = [
+            pool.submit(
+                _crawl_one_source,
+                source,
                 run_id=run_id,
+                limit=limit,
                 delay_seconds=delay_seconds,
                 known_ids=known_ids,
             )
-        except Exception as exc:
-            logger.error("Source %s crashed and was skipped: %s", source, exc, exc_info=True)
-            sources_crashed.append(source)
-            record_ingestion_run(
-                run_id=run_id,
-                source=source,
-                started_at=started_at,
-                finished_at=datetime.now(timezone.utc),
-                crashed=True,
-                error_message=str(exc),
-            )
-            continue
-
-        record_ingestion_run(
-            run_id=run_id,
-            source=source,
-            started_at=started_at,
-            finished_at=datetime.now(timezone.utc),
-            saved=summary.saved,
-            skipped=summary.skipped,
-            failed=summary.failed,
-        )
-        total_saved += summary.saved
-        total_skipped += summary.skipped
-        total_failed += summary.failed
+            for source in sources
+        ]
+        for future in futures:
+            source, summary, exc = future.result()
+            if exc is not None:
+                sources_crashed.append(source)
+                continue
+            total_saved += summary.saved
+            total_skipped += summary.skipped
+            total_failed += summary.failed
 
     return RunAllSourcesResult(total_saved, total_skipped, total_failed, sources_crashed)
 
@@ -114,7 +152,7 @@ def main() -> int:
         get_crawler(name)
 
     run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
-    known_ids = load_known_ids()
+    known_ids = KnownIds(load_known_ids())
 
     limit_label = "unlimited (all feed entries)" if args.limit <= 0 else str(args.limit)
 

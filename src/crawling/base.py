@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from src.common.hashing import article_id_from_url
 from src.crawling.extract_article import build_article_record
+from src.crawling.known_ids import KnownIds
 from src.db.articles import load_known_ids, save_article
 
 logger = logging.getLogger("ingestion.crawl")
@@ -68,9 +69,9 @@ class BaseCrawler(ABC):
         limit: int = 10,
         run_id: str,
         delay_seconds: float = 2.0,
-        known_ids: set[str] | None = None,
+        known_ids: KnownIds | None = None,
     ) -> CrawlSummary:
-        known_ids = known_ids if known_ids is not None else load_known_ids()
+        known_ids = known_ids if known_ids is not None else KnownIds(load_known_ids())
 
         urls = self.discover_urls(limit)
         summary = CrawlSummary(source=self.source_name, discovered=len(urls))
@@ -78,7 +79,13 @@ class BaseCrawler(ABC):
 
         for index, url in enumerate(urls, start=1):
             aid = article_id_from_url(url)
-            if aid in known_ids:
+            # Reserve the ID as part of the atomic check (not only after a
+            # successful save) - that's what makes this safe when multiple
+            # source workers share one KnownIds concurrently. A later
+            # extract/save failure leaves the ID reserved rather than
+            # retried within this run, which matters only in the edge case
+            # of the same URL being discovered twice in one run.
+            if not known_ids.check_and_add(aid):
                 logger.debug("[%d/%d] SKIP (duplicate): %s", index, len(urls), url)
                 summary.skipped += 1
                 continue
@@ -101,7 +108,6 @@ class BaseCrawler(ABC):
                     record["article_id"][:16],
                 )
                 summary.saved += 1
-                known_ids.add(aid)
             except Exception as exc:
                 logger.error("  FAILED to fetch/save %s: %s", url, exc, exc_info=True)
                 summary.failed += 1
