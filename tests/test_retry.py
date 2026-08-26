@@ -4,7 +4,7 @@ import pytest
 import requests
 
 from src.crawling import retry as retry_module
-from src.crawling.retry import fetch_with_retry
+from src.crawling.retry import fetch_with_retry, is_transient_failure
 
 
 def _http_error(status_code: int) -> requests.exceptions.HTTPError:
@@ -73,3 +73,11 @@ def test_transient_failure_exhausts_retries_and_raises(monkeypatch):
 
     assert calls["n"] == 3
     assert sleeps == [2.0, 4.0]
+
+
+def test_is_transient_failure_matches_retry_policy():
+    assert is_transient_failure(requests.exceptions.Timeout("slow"))
+    assert is_transient_failure(requests.exceptions.ConnectionError("down"))
+    assert is_transient_failure(_http_error(502))
+    assert not is_transient_failure(_http_error(404))
+    assert not is_transient_failure(ValueError("bad payload"))

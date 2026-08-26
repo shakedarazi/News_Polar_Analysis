@@ -57,7 +57,7 @@ def _run_windows_only(article_lexicon: dict, lexicon_version: str, limit: int | 
     print("Done.")
     print(f"  Processed: {processed}")
     print(f"  Failed:    {failed}")
-    return 0 if failed == 0 else 1
+    return 0 if failed == 0 or processed > 0 else 1
 
 
 def main() -> int:
@@ -170,7 +170,7 @@ def main() -> int:
     print(f"  Windows:   {total_windows}")
     print(f"  Comments:  {total_comments}")
     print(f"  Failed:    {failed}")
-    return 0 if failed == 0 else 1
+    return 0 if failed == 0 or processed > 0 else 1
 
 
 if __name__ == "__main__":

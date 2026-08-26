@@ -34,6 +34,12 @@ def main() -> int:
     )
     parser.add_argument("--limit", type=int, default=0, help="Max articles (0 = all)")
     parser.add_argument("--delay", type=float, default=1.0, help="Seconds between API calls")
+    parser.add_argument(
+        "--max-minutes",
+        type=float,
+        default=0,
+        help="Stop starting new API calls after this many minutes (0 = no cap)",
+    )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="OpenAI model name")
     parser.add_argument("--dry-run", action="store_true", help="List articles, do not call API")
     args = parser.parse_args()
@@ -56,7 +62,10 @@ def main() -> int:
     print(f"Categories: {', '.join(CATEGORIES)}")
     print(f"Model:      {args.model}")
     print(f"Mode:       {mode}")
-    print(f"Articles:   {len(articles)}\n")
+    print(f"Articles:   {len(articles)}")
+    if args.max_minutes > 0:
+        print(f"Time budget: {args.max_minutes:g} min")
+    print()
 
     if not articles:
         print("Nothing to classify.")
@@ -68,7 +77,15 @@ def main() -> int:
         return 0
 
     classified = failed = 0
+    started = time.monotonic()
     for index, article in enumerate(articles, start=1):
+        if args.max_minutes > 0 and (time.monotonic() - started) >= args.max_minutes * 60:
+            leftover = len(articles) - index + 1
+            print(
+                f"Reached --max-minutes={args.max_minutes:g}; "
+                f"{leftover} article(s) left for a later run."
+            )
+            break
         title_preview = (article["title"] or "")[:60]
         print(f"[{index}/{len(articles)}] {article['source']}: {title_preview}")
         try:

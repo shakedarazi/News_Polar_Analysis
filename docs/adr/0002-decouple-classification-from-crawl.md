@@ -11,8 +11,10 @@ independent backfill script, but wasn't wired into `scripts/run_ingestion.sh` at
 articles only got categorized if someone ran the backfill manually.
 
 We decided to stop classifying inline during crawl (crawl now only saves articles) and instead run
-`classify_articles.py --missing-only --limit 200` as its own step in `run_ingestion.sh`, right after crawl. The
-`--limit 200` cap exists so that a backlog built up during downtime (pipeline not running for a while) doesn't
-turn a single run into an unbounded burst of OpenAI calls — any remainder is picked up by the next run 6 hours
-later. Total classification cost is the same either way; this only changes when the cost is paid and decouples
-crawl speed from OpenAI latency.
+`classify_articles.py` as its own step in `scripts/run_ingestion.sh`. The `--limit` cap exists so that
+a backlog built up during downtime doesn't turn a single run into an unbounded burst of OpenAI
+calls — any remainder is picked up by the next run 6 hours later.
+
+Later we moved that step to *after* polarity analysis and made it best-effort, because classify
+sitting before comments/analyze could starve the product path. See
+[[0003-protect-analyze-from-classify-and-comment-backlog]].

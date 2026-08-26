@@ -33,19 +33,22 @@ lexicon-based numbers.
 2. **Article windows** (`src/analysis/article_windows.py`) — splits each new article into sentence "windows" and
    scores lexicon-category hits immediately after crawl (`--windows-only` backfill in `run_ingestion.sh` is a
    safety net, not the primary path).
-3. **Classify** (optional, AI) — `src/nlp/classify.py` sends title + truncated body to an OpenAI-compatible model
-   and labels one of 9 fixed Hebrew categories (`src/nlp/categories.py`: פוליטיקה, ביטחון, בידור, כלכלה, ספורט,
-   חברה, טכנולוגיה, בינלאומי, אחר). Decoupled from crawl — run via `pipeline/classify_articles.py`
-   (see `docs/adr/0002-decouple-classification-from-crawl.md`).
-4. **Comments** — `pipeline/fetch_comments.py` + `src/crawling/comments/{source}.py`, one fetcher per supported
+3. **Comments** — `pipeline/fetch_comments.py` + `src/crawling/comments/{source}.py`, one fetcher per supported
    source (not reshet13). Only fetched once an article is ≥24h old, so comments have time to accumulate.
-5. **Lexicon build** (`pipeline/build_lexicon.py`) — expands `data/lexicon_base/category{1..7}.txt` (7 polarity
-   categories, distinct from the 9 AI classification categories above) and `data/comment_lexicon_base/` into
+   The scheduled job caps the batch (`--limit 80`, `--max-minutes 25`, `--haaretz-limit 10`) so a comment
+   backlog cannot starve polarity analysis.
+4. **Lexicon build** (`pipeline/build_lexicon.py`) — expands `data/lexicon_base/category{1..7}.txt` (7 polarity
+   categories, distinct from the 9 AI classification categories below) and `data/comment_lexicon_base/` into
    versioned expanded dictionaries via deterministic Hebrew prefix generation. No runtime stemming — matching is
    a static lookup against the pre-expanded set.
-6. **Analyze** (`pipeline/analyze_articles.py` → `src/analysis/`) — per-window category dominance, per-comment
+5. **Analyze** (`pipeline/analyze_articles.py` → `src/analysis/`) — per-window category dominance, per-comment
    `polar_ratio` (like-weighted), and per-article weighted aggregates (`audience_mean`, `audience_p85`). Fully
    explainable, no ML. Exact formulas: `docs/algorithms/`.
+6. **Classify** (optional, AI, last in the scheduled job) — `src/nlp/classify.py` sends title + truncated body
+   to an OpenAI-compatible model and labels one of 9 fixed Hebrew categories (`src/nlp/categories.py`:
+   פוליטיקה, ביטחון, בידור, כלכלה, ספורט, חברה, טכנולוגיה, בינלאומי, אחר). Decoupled from crawl and from
+   analyze — a classify failure never fails the ingestion run (see `docs/adr/0002-decouple-classification-from-crawl.md`
+   and `docs/adr/0003-protect-analyze-from-classify-and-comment-backlog.md`).
 7. **AI enrichment** (optional, all off the critical path) — per-article summary (`src/nlp/summarize.py`),
    political bias/framing estimate (`src/nlp/bias.py`), and a RAG-style assistant that answers only from what's
    in the database (`src/nlp/qa.py`). Generated on demand from the frontend, cached in `articles.summary_*` /
@@ -56,8 +59,8 @@ lexicon-based numbers.
 9. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only; `frontend/` (Next.js) consumes it. See
    [API reference](#api-reference) and [Product tour](#product-tour) below.
 
-`scripts/run_ingestion.sh` runs steps 1–6 in order (crawl → windows backfill → classify → comments → lexicon
-build → analyze) and is what the GitHub Actions workflow calls every 6 hours.
+`scripts/run_ingestion.sh` runs crawl → windows backfill → comments → lexicon build → analyze, then classify
+as a best-effort bonus, and is what the GitHub Actions workflow calls every 6 hours.
 
 ### Key invariants
 

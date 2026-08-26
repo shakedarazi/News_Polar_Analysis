@@ -13,7 +13,8 @@ MAX_ATTEMPTS = 3
 INITIAL_BACKOFF_SECONDS = 2.0
 
 
-def _is_transient(exc: Exception) -> bool:
+def is_transient_failure(exc: Exception) -> bool:
+    """True when the failure is worth retrying (timeout, connection, HTTP 5xx)."""
     if isinstance(exc, (requests.exceptions.Timeout, requests.exceptions.ConnectionError)):
         return True
     if isinstance(exc, requests.exceptions.HTTPError):
@@ -37,7 +38,7 @@ def fetch_with_retry(fetch_fn: Callable[[], T]) -> T:
         try:
             return fetch_fn()
         except Exception as exc:
-            if attempt >= MAX_ATTEMPTS or not _is_transient(exc):
+            if attempt >= MAX_ATTEMPTS or not is_transient_failure(exc):
                 raise
             time.sleep(backoff)
             backoff *= 2

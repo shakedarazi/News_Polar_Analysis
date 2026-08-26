@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scheduled ingestion wrapper — called by cron or Airflow every 6 hours.
+# Scheduled ingestion wrapper — called by GitHub Actions every 6 hours.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -34,6 +34,14 @@ run_step() {
   fi
 }
 
+# Display-only enrichment. Failure is logged and never fails the ingestion run,
+# so OpenAI/OpenRouter latency or errors cannot block polarity analysis.
+run_bonus_step() {
+  if ! "$@"; then
+    echo "BONUS STEP FAILED (ignored): $*"
+  fi
+}
+
 # The block below runs in a subshell (it's the left side of a pipe), so its
 # own exit status - not any variable it sets - is what reaches the parent
 # script; it exits with STEP_FAILED explicitly so that status survives.
@@ -42,7 +50,7 @@ STEP_FAILED=0
 {
   echo "=== Ingestion run started: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   run_step python "$ROOT/pipeline/crawl.py" --source all --delay 2.0
-  echo "=== Ingestion run finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo "=== Crawl finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
   echo "=== Article-text analysis backfill (no age/comments gate): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   # Safety net, not the primary path: new crawls already get this immediately
@@ -52,18 +60,20 @@ STEP_FAILED=0
   run_step python "$ROOT/pipeline/analyze_articles.py" --windows-only
   echo "=== Article-text analysis backfill finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
-  echo "=== Classification started: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-  run_step python "$ROOT/pipeline/classify_articles.py" --limit 200
-  echo "=== Classification finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-  echo ""
   echo "=== Comment fetch started (articles >= 24h old, once per article): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
-  run_step python "$ROOT/pipeline/fetch_comments.py" --min-age-hours 24 --delay 1.5
+  # Caps keep Playwright-heavy Haaretz (and a comment backlog) from eating the
+  # GitHub Actions time budget before polarity analysis can run.
+  run_step python "$ROOT/pipeline/fetch_comments.py" --min-age-hours 24 --delay 1.5 --limit 80 --max-minutes 25 --haaretz-limit 10
   echo "=== Comment fetch finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
   echo "=== Polarity analysis started (articles >= 24h, pending/stale): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   run_step python "$ROOT/pipeline/build_lexicon.py"
   run_step python "$ROOT/pipeline/analyze_articles.py" --min-age-hours 24 --include-stale --require-comments-fetched
   echo "=== Polarity analysis finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo ""
+  echo "=== Classification started (bonus, leftover time only): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  run_bonus_step python "$ROOT/pipeline/classify_articles.py" --limit 80 --max-minutes 10
+  echo "=== Classification finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   exit "$STEP_FAILED"
 } 2>&1 | tee -a "$LOG_FILE" || INGESTION_STATUS=1
 

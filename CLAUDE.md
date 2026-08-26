@@ -47,13 +47,13 @@ cd frontend && npm run build        # production build
 ### Pipeline scripts (all under `pipeline/`, run from repo root with venv active)
 ```bash
 python pipeline/crawl.py --source all|ynet|haaretz|mako|news12|reshet13|channel14 [--limit N]
-python pipeline/classify_articles.py [--all] [--limit N] [--dry-run]   # OpenAI category labeling, run after crawl
+python pipeline/classify_articles.py [--all] [--limit N] [--dry-run]   # OpenAI category labeling (bonus; last in scheduled run)
 python pipeline/fetch_comments.py [--source X] [--min-age-hours 0] [--force]
 python pipeline/build_lexicon.py    # expands data/lexicon_base/* and data/comment_lexicon_base/* -> data/*_expanded
 python pipeline/analyze_articles.py [--limit N] [--force]              # lexicon polarity scoring
 python pipeline/import_json_to_db.py  # one-time legacy JSON import
 ```
-`scripts/run_ingestion.sh` wraps crawl + comment fetch + analysis and is what `.github/workflows/ingestion.yml`
+`scripts/run_ingestion.sh` wraps crawl + comment fetch + analysis (then classify as a best-effort bonus) and is what `.github/workflows/ingestion.yml`
 calls on a 6-hour schedule in the cloud (see "Cloud deployment" below). `scripts/setup_cron.sh` /
 `scripts/remove_cron.sh` are an alternate local-machine OS-cron path for self-hosting outside GitHub Actions —
 not used by the deployed system.
@@ -68,20 +68,17 @@ not used by the deployed system.
    `src/crawling/extract_article.py` / `extractors.py`). `article_id = sha256(canonical_url)`
    (`src/common/canonical_url.py`, `src/common/hashing.py`) — this is the dedup key checked against
    `load_known_ids()` before fetching, so re-running crawl is idempotent.
-2. **Classify** (optional, OpenAI) — `src/nlp/classify.py` sends only title + first ~1,200 chars
-   (`src/nlp/truncate.py`) to `gpt-4o-mini`, parses a JSON response into one of 9 fixed Hebrew categories
-   (`src/nlp/categories.py`). Decoupled from crawl — run explicitly as a separate step via
-   `pipeline/classify_articles.py`, which `scripts/run_ingestion.sh` invokes right after crawl.
-3. **Comments** — `pipeline/fetch_comments.py` + `src/crawling/comments/{source}.py`, one fetcher per supported
+2. **Comments** — `pipeline/fetch_comments.py` + `src/crawling/comments/{source}.py`, one fetcher per supported
    source (ynet, haaretz, mako, news12, channel14 — not reshet13). Only run for articles ≥24h old (comments need
-   time to accumulate); haaretz needs Playwright/Chromium for headless rendering.
-4. **Lexicon build** (`pipeline/build_lexicon.py`) — expands `data/lexicon_base/category{1..7}.txt` and
+   time to accumulate); haaretz needs Playwright/Chromium for headless rendering. The scheduled job caps the
+   batch so a backlog cannot starve analyze.
+3. **Lexicon build** (`pipeline/build_lexicon.py`) — expands `data/lexicon_base/category{1..7}.txt` and
    `data/comment_lexicon_base/polar_words.txt` into `data/lexicon_expanded/lexicon_expanded.json` and
    `data/comment_lexicon_expanded/comment_lexicon_expanded.json` by generating Hebrew prefix variants
    (ה, ו, ב, ל, מ, כ, ש, and the conservative two-prefix case). Word matching at analysis time is a direct lookup
    against this expanded set — tokens are never modified/stemmed at runtime. Versioned by
    `sha256(lexicon_expanded.json)`, stored alongside the JSON.
-5. **Analyze** (`pipeline/analyze_articles.py` → `src/analysis/`) — deterministic, no ML:
+4. **Analyze** (`pipeline/analyze_articles.py` → `src/analysis/`) — deterministic, no ML:
    - `article_windows.py`: splits article text into sentence "windows" (rule-based sentence splitter, long
      sentences chunked at 60 tokens), counts lexicon category hits per window, computes `dominance = max(counts) /
      cat_words` (NULL if no lexicon words present).
@@ -91,6 +88,10 @@ not used by the deployed system.
    This whole layer is intentionally simple/explainable — see `docs/algorithms/` for the exact formulas and
    `docs/contracts/data_quality.md` for invariants (`window_len > 0`, `dominance ∈ [0,1] ∪ {NULL}`,
    `polar_ratio ∈ [0,1]`, etc.).
+5. **Classify** (optional, OpenAI, last in the scheduled job) — `src/nlp/classify.py` sends only title + first ~1,200 chars
+   (`src/nlp/truncate.py`) to `gpt-4o-mini`, parses a JSON response into one of 9 fixed Hebrew categories
+   (`src/nlp/categories.py`). Decoupled from crawl and from analyze — `pipeline/classify_articles.py` runs after
+   analyze via `run_bonus_step`, so a classify failure never fails the ingestion run.
 6. **AI enrichment** (optional, off the critical path) — per-article summary (`src/nlp/summarize.py`), political
    bias/framing estimate (`src/nlp/bias.py`), and a Q&A assistant that answers only from what's in the DB
    (`src/nlp/qa.py`). No pipeline script: generated on demand by `POST /api/articles/{id}/summary/generate` and
@@ -113,7 +114,7 @@ not used by the deployed system.
 The system also runs 24/7 in the cloud, decoupling ingestion scheduling from API uptime:
 - **Neon** — hosted PostgreSQL, same `DATABASE_URL` contract as local Docker Postgres (see below).
 - **GitHub Actions** (`.github/workflows/ingestion.yml`) — the *only* ingestion scheduler. Runs
-  `scripts/run_ingestion.sh` (crawl → windows backfill → classify → comments → lexicon → analyze) every 6 hours via
+  `scripts/run_ingestion.sh` (crawl → windows backfill → comments → lexicon → analyze, then classify as a bonus) every 6 hours via
   `cron`, plus `workflow_dispatch` for manual runs. Secrets `DATABASE_URL` / `OPENAI_API_KEY` point it at Neon.
   This replaced two earlier mechanisms: OS `cron` (unreliable — macOS TCC blocked it silently) and an in-process
   `APScheduler` started from FastAPI's startup hook (required the API host to stay running continuously just to

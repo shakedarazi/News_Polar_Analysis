@@ -21,6 +21,10 @@ _USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
+GOTO_TIMEOUT_MS = 25_000
+COMMENTS_BTN_TIMEOUT_MS = 8_000
+MAX_LOAD_MORE_CLICKS = 15
+
 _EXTRACT_JS = """
 () => {
   const articles = document.querySelectorAll('#comments-section article[data-testid="comment"]');
@@ -77,18 +81,34 @@ def _ensure_playwright_browsers_path() -> None:
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(default)
 
 
-def _load_all_comments(page) -> list[dict]:
-    page.locator('[data-testid="comments-btn"]').first.click(timeout=15_000)
-    page.wait_for_timeout(4_000)
+def _is_playwright_timeout(exc: Exception) -> bool:
+    module = getattr(type(exc), "__module__", "") or ""
+    return type(exc).__name__ == "TimeoutError" and "playwright" in module
 
-    while True:
+
+def _load_all_comments(page) -> list[dict]:
+    """Open the comments panel and paginate. Missing UI is an empty list, not an error.
+
+    A loaded page with no comments button (paywall, closed thread, layout change)
+    must not raise — otherwise the article is retried forever and blocks analyze.
+    A timeout loading the page itself still propagates so the caller can retry.
+    """
+    try:
+        page.locator('[data-testid="comments-btn"]').first.click(timeout=COMMENTS_BTN_TIMEOUT_MS)
+    except Exception as exc:
+        if _is_playwright_timeout(exc):
+            return []
+        raise
+    page.wait_for_timeout(2_000)
+
+    for _ in range(MAX_LOAD_MORE_CLICKS):
         articles = page.locator('#comments-section article[data-testid="comment"]')
         count = articles.count()
         more = page.locator('button:has-text("הצג עוד")')
         if more.count() == 0:
             break
         more.first.click()
-        page.wait_for_timeout(2_000)
+        page.wait_for_timeout(1_500)
         if articles.count() <= count:
             break
 
@@ -114,8 +134,8 @@ def fetch_comments(article_url: str) -> list[RawComment]:
         browser = playwright.chromium.launch(headless=True)
         try:
             page = browser.new_page(user_agent=_USER_AGENT, locale="he-IL")
-            page.goto(url, wait_until="domcontentloaded", timeout=90_000)
-            page.wait_for_timeout(3_000)
+            page.goto(url, wait_until="domcontentloaded", timeout=GOTO_TIMEOUT_MS)
+            page.wait_for_timeout(2_000)
             raw_items = _load_all_comments(page)
         finally:
             browser.close()

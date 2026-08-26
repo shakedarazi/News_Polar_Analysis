@@ -1,12 +1,12 @@
 name: Scheduled ingestion
 
-# Runs the full crawl -> classify -> comments -> analyze pipeline against the
-# hosted Neon database on a timer. This is the only scheduling mechanism for
-# ingestion — it replaced both an OS-cron setup (unreliable on developer
-# machines) and an in-process APScheduler (which required the API host to
-# stay running 24/7 just to fire a timer). Decoupling the schedule from the
-# API host means the backend (Render) is free to spin down when idle without
-# affecting data freshness.
+# Runs crawl -> comments -> analyze against the hosted Neon database on a
+# timer, with AI classification as a best-effort bonus at the end. This is the
+# only scheduling mechanism for ingestion — it replaced both an OS-cron setup
+# (unreliable on developer machines) and an in-process APScheduler (which
+# required the API host to stay running 24/7 just to fire a timer). Decoupling
+# the schedule from the API host means the backend (Render) is free to spin
+# down when idle without affecting data freshness.
 on:
   schedule:
     - cron: "0 */6 * * *"
@@ -15,7 +15,7 @@ on:
 jobs:
   ingest:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 

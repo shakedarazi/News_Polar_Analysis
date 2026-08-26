@@ -12,6 +12,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from src.crawling.comments.fetch_policy import (
+    is_permanent_comment_failure,
+    select_comment_fetch_batch,
+)
 from src.crawling.comments.registry import (
     ALL_COMMENT_SOURCES,
     UNSUPPORTED_SOURCES,
@@ -43,6 +47,18 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="Max articles (0 = all)")
     parser.add_argument("--delay", type=float, default=1.5)
     parser.add_argument(
+        "--max-minutes",
+        type=float,
+        default=0,
+        help="Stop starting new fetches after this many minutes (0 = no cap)",
+    )
+    parser.add_argument(
+        "--haaretz-limit",
+        type=int,
+        default=0,
+        help="Max Haaretz articles this run (0 = no extra cap). Playwright is slow.",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Re-fetch even if comments_fetched_at is set",
@@ -69,19 +85,31 @@ def main() -> int:
             return 1
         sources = [source]
 
-    limit = None if args.limit <= 0 else args.limit
-    articles = iter_articles_for_comment_fetch(
+    pending = iter_articles_for_comment_fetch(
         sources=sources,
         min_age_hours=args.min_age_hours,
         missing_only=not args.force,
-        limit=limit,
+        limit=None,
     )
+    per_source_caps = {"haaretz": args.haaretz_limit} if args.haaretz_limit > 0 else None
+    overall_limit = None if args.limit <= 0 else args.limit
+    articles = select_comment_fetch_batch(
+        pending,
+        limit=overall_limit,
+        per_source_caps=per_source_caps,
+    )
+    deferred = len(pending) - len(articles)
 
     run_id = datetime.now(timezone.utc).strftime("comments_%Y%m%d_%H%M%S")
     print(f"Comment fetch run: {run_id}")
     print(f"Sources:           {', '.join(sources)}")
     print(f"Min article age:   {args.min_age_hours}h")
-    print(f"Articles to fetch: {len(articles)}")
+    print(f"Pending:           {len(pending)}")
+    print(f"This run:          {len(articles)}")
+    if deferred:
+        print(f"Deferred:          {deferred} (limit/source cap; next run)")
+    if args.max_minutes > 0:
+        print(f"Time budget:       {args.max_minutes:g} min")
     if UNSUPPORTED_SOURCES:
         print(f"Not supported:     {', '.join(sorted(UNSUPPORTED_SOURCES))}")
     print()
@@ -93,10 +121,22 @@ def main() -> int:
         print("Nothing to fetch.")
         return 0
 
-    fetched = skipped = failed = 0
+    fetched = skipped = failed = gave_up = 0
     total_inserted = 0
+    started = time.monotonic()
+    stopped_for_time = False
 
     for index, article in enumerate(articles, start=1):
+        if args.max_minutes > 0 and (time.monotonic() - started) >= args.max_minutes * 60:
+            leftover = len(articles) - index + 1
+            print(
+                f"Reached --max-minutes={args.max_minutes:g}; "
+                f"{leftover} article(s) left for a later run."
+            )
+            skipped += leftover
+            stopped_for_time = True
+            break
+
         source = article["source"]
         url = article["canonical_url"]
         title = (article.get("title") or "")[:60]
@@ -120,23 +160,36 @@ def main() -> int:
             fetched += 1
             total_inserted += inserted
         except Exception as exc:
-            print(f"  FAILED: {exc}\n")
-            failed += 1
+            if is_permanent_comment_failure(exc):
+                save_comments(
+                    article["article_id"],
+                    source,
+                    [],
+                    fetch_run_id=run_id,
+                )
+                print(f"  GAVE UP (permanent, marked fetched with 0 comments): {exc}\n")
+                gave_up += 1
+            else:
+                print(f"  FAILED (transient, will retry): {exc}\n")
+                failed += 1
 
-        if index < len(articles):
+        if index < len(articles) and not stopped_for_time:
             time.sleep(args.delay)
 
     print("Done.")
     print(f"  Articles processed: {fetched}")
     print(f"  Comments inserted:  {total_inserted}")
+    print(f"  Gave up (permanent): {gave_up}")
     print(f"  Skipped:            {skipped}")
-    print(f"  Failed:             {failed}")
+    print(f"  Failed (transient): {failed}")
 
     marked = mark_unsupported_sources_fetched(min_age_hours=args.min_age_hours)
     if marked:
         print(f"  Unsupported marked: {marked} (reshet13 — no public comment system)")
 
-    return 0 if failed == 0 else 1
+    # Same rule as crawl: partial per-article failure is not a step failure
+    # when anything progressed (fetched or permanently closed out).
+    return 0 if failed == 0 or (fetched + gave_up) > 0 else 1
 
 
 if __name__ == "__main__":

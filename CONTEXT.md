@@ -5,7 +5,7 @@ Batch pipeline that crawls Israeli news sites and analyzes audience comment pola
 ## Language
 
 **Ingestion run**:
-One execution of the scheduled batch pipeline (crawl → classify → fetch comments → analyze), identified by a single `run_id`. A run is composed of one sub-execution per source, which may execute in parallel; each sub-execution is tracked as its own row keyed by `(run_id, source)`.
+One execution of the scheduled batch pipeline (crawl → fetch comments → analyze, then optional classify), identified by a single `run_id`. A run is composed of one sub-execution per source, which may execute in parallel; each sub-execution is tracked as its own row keyed by `(run_id, source)`.
 _Avoid_: Batch, job (too generic — use "ingestion run" for the whole pipeline execution)
 
 **Source crash**:
