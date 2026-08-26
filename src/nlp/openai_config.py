@@ -26,5 +26,11 @@ def get_openai_client():
     differ (OpenRouter wants "openai/gpt-4o-mini", not "gpt-4o-mini")."""
     from openai import OpenAI
 
+    # Bound every chat completion so a hung provider cannot block a Render
+    # worker (and the assistant spinner) for the SDK default of 10 minutes.
+    timeout = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "25"))
     base_url = os.environ.get("OPENAI_BASE_URL")
-    return OpenAI(base_url=base_url) if base_url else OpenAI()
+    kwargs: dict = {"timeout": timeout}
+    if base_url:
+        kwargs["base_url"] = base_url
+    return OpenAI(**kwargs)

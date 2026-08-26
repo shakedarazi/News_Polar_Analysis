@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Send, Sparkles, AlertTriangle } from "lucide-react";
 import { askAssistant } from "@/lib/api";
@@ -25,6 +25,11 @@ export function AiAssistant() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Wake the API host (Render may be asleep) before the first question.
+    void fetch("/api/health").catch(() => undefined);
+  }, []);
 
   const send = async (question: string) => {
     const trimmed = question.trim();
@@ -135,6 +140,9 @@ export function AiAssistant() {
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 dark:bg-slate-600 [animation-delay:-0.15s]" />
                 <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400 dark:bg-slate-600" />
               </span>
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                שולחים את השאלה — אם השרת היה ישן זה יכול לקחת עד חצי דקה
+              </p>
             </div>
           </div>
         )}
