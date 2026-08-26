@@ -1,4 +1,4 @@
-import { formatNumber, sourceLabel } from "@/lib/format";
+import { formatNumber, POLAR_MEAN_METRIC, sourceLabel } from "@/lib/format";
 import { PolarScore } from "./PolarScore";
 import { EmptyState } from "./EmptyState";
 import { SourceLogo } from "./SourceLogo";
@@ -35,7 +35,7 @@ export function SourcesGrid({ sources }: { sources: Row[] }) {
               </div>
             </div>
             <div className="shrink-0">
-              <PolarScore value={s.avg_audience_mean} label="קיטוב ממוצע" />
+              <PolarScore value={s.avg_audience_mean} label={POLAR_MEAN_METRIC} />
             </div>
           </div>
         );

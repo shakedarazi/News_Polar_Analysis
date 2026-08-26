@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, ArrowRight } from "lucide-react";
 import { getArticle } from "@/lib/api";
-import { formatDate, formatNumber, sourceLabel } from "@/lib/format";
+import { formatDate, formatNumber, POLAR_MEAN_METRIC, POLAR_PEAK_METRIC, sourceLabel } from "@/lib/format";
 import { SourceBadge } from "@/components/SourceBadge";
 import { PolarScore } from "@/components/PolarScore";
 import { DominanceChart } from "@/components/DominanceChart";
@@ -80,10 +80,10 @@ export default async function ArticlePage({
       {agg && (
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="card p-4">
-            <PolarScore value={agg.audience_mean} label="פולריות ממוצעת בקהל" large />
+            <PolarScore value={agg.audience_mean} label={POLAR_MEAN_METRIC} large />
           </div>
           <div className="card p-4">
-            <PolarScore value={agg.audience_p85} label="פולריות גבוהה (85%)" large />
+            <PolarScore value={agg.audience_p85} label={POLAR_PEAK_METRIC} variant="peak" large />
           </div>
           <div className="card p-4">
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">מחלוקת בקהל</p>

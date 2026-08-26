@@ -69,6 +69,15 @@ export function polarLevelLabel(value: number | null | undefined): string {
   ];
 }
 
+/** Labels for audience_p85 — same bands as polarLevel, different words so it is not confused with mean. */
+export function polarPeakLabel(value: number | null | undefined): string {
+  const level = polarLevel(value);
+  return { high: "שיא חריף", mid: "שיא בינוני", low: "שיא מתון", none: "אין נתונים" }[level];
+}
+
+export const POLAR_MEAN_METRIC = "קיטוב ממוצע";
+export const POLAR_PEAK_METRIC = "קיטוב בשיא התגובות";
+
 export function formatShortDate(value: string | null | undefined): string {
   if (!value) return "—";
   return new Intl.DateTimeFormat("he-IL", { day: "2-digit", month: "2-digit" }).format(

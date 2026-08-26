@@ -124,7 +124,7 @@ export function ArticleFilters({
         />
       </label>
       <label className="flex min-w-[130px] flex-col gap-1 text-sm">
-        <span className="font-medium text-slate-600 dark:text-slate-300">קיטוב מינימלי</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">קיטוב ממוצע מינימלי</span>
         <input
           type="number"
           min={0}

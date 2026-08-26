@@ -156,7 +156,8 @@ export default async function DashboardPage({
                 </Link>
               </div>
               <p className="mb-4 -mt-2 text-xs text-slate-400 dark:text-slate-500">
-                כתבות מדורגות לפי רמת הקיטוב הגבוהה ביותר בתגובות הקהל שלהן (אחוזון 85).
+                מדורגות לפי קיטוב בשיא התגובות (אחוזון 85).
+                שיא חריף אומר שזנב התגובות חם, גם אם רוב הקהל רגוע.
               </p>
               <LeadingArticles articles={stats.hottest_articles} />
             </section>

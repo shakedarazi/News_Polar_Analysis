@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X, ExternalLink, Maximize2 } from "lucide-react";
 import { getArticleBiasClient, getArticleClient } from "@/lib/api";
-import { formatDate, formatNumber, sourceLabel } from "@/lib/format";
+import { formatDate, formatNumber, POLAR_MEAN_METRIC, POLAR_PEAK_METRIC, sourceLabel } from "@/lib/format";
 import type { ArticleBias, ArticleDetail } from "@/lib/types";
 import { SourceBadge } from "./SourceBadge";
 import { PolarScore } from "./PolarScore";
@@ -160,10 +160,10 @@ export function ArticleDetailModal({
               {agg && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
-                    <PolarScore value={agg.audience_mean} label="קיטוב ממוצע" />
+                    <PolarScore value={agg.audience_mean} label={POLAR_MEAN_METRIC} />
                   </div>
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
-                    <PolarScore value={agg.audience_p85} label="קיטוב גבוה (85%)" />
+                    <PolarScore value={agg.audience_p85} label={POLAR_PEAK_METRIC} variant="peak" />
                   </div>
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400">מחלוקת בקהל</p>

@@ -22,17 +22,17 @@ export default function AboutPage() {
         <h2 className="text-lg font-semibold">מדדי פולריות</h2>
         <dl className="space-y-3 text-sm">
           <div>
-            <dt className="font-semibold text-slate-800 dark:text-slate-200">פולריות ממוצעת בקהל</dt>
+            <dt className="font-semibold text-slate-800 dark:text-slate-200">קיטוב ממוצע</dt>
             <dd className="text-slate-600 dark:text-slate-300">
               ממוצע משוקלל של עוצמת התגובות (לפי מילון), כאשר משקל כל תגובה גדל
-              לוגריתמית עם מספר הלייקים.
+              לוגריתמית עם מספר הלייקים. זה המדד של הגרף הראשי ושל כרטיסי המקורות.
             </dd>
           </div>
           <div>
-            <dt className="font-semibold text-slate-800 dark:text-slate-200">פולריות גבוהה (85%)</dt>
+            <dt className="font-semibold text-slate-800 dark:text-slate-200">קיטוב בשיא התגובות</dt>
             <dd className="text-slate-600 dark:text-slate-300">
-              קוונטיל משוקלל: רמת הפולריות שבה 85% ממשקל הקהל נמצאים מתחתיה — מדד
-              לתגובות חזקות בלי להיות רגיש לחריג בודד.
+              אחוזון 85 משוקלל: 85% ממשקל הקהל מתחת לסף הזה. מודד זנב חריף בלי
+              תגובה בודדת. משמש לדירוג כתבות בולטות, לא להשוואת אתרים.
             </dd>
           </div>
           <div>

@@ -88,7 +88,9 @@ export default function ArticlesPage({
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6">
       <section>
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">כתבות</h1>
-        <p className="mt-1 text-slate-600 dark:text-slate-300">חיפוש וסינון לפי מקור, קטגוריה ומדד פולריות</p>
+        <p className="mt-1 text-slate-600 dark:text-slate-300">
+          חיפוש וסינון לפי מקור, קטגוריה וקיטוב ממוצע
+        </p>
       </section>
       <Suspense fallback={<div className="card p-8 text-center text-slate-500 dark:text-slate-400">טוען...</div>}>
         <ArticlesContent searchParams={searchParams} />

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ArticleSummary } from "@/lib/types";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatDate, formatNumber, POLAR_MEAN_METRIC, POLAR_PEAK_METRIC } from "@/lib/format";
 import { PolarScore } from "./PolarScore";
 import { SourceBadge } from "./SourceBadge";
 import { EmptyState } from "./EmptyState";
@@ -32,8 +32,8 @@ export function ArticlesTable({ articles }: { articles: ArticleSummary[] }) {
                 <th className="px-4 py-3 text-right font-semibold">קטגוריה</th>
                 <th className="px-4 py-3 text-right font-semibold">נטייה</th>
                 <th className="px-4 py-3 text-right font-semibold">תגובות</th>
-                <th className="px-4 py-3 text-right font-semibold">פולריות ממוצעת</th>
-                <th className="px-4 py-3 text-right font-semibold">פולריות גבוהה (85%)</th>
+                <th className="px-4 py-3 text-right font-semibold">{POLAR_MEAN_METRIC}</th>
+                <th className="px-4 py-3 text-right font-semibold">{POLAR_PEAK_METRIC}</th>
                 <th className="px-4 py-3 text-right font-semibold">תאריך</th>
               </tr>
             </thead>
@@ -69,7 +69,7 @@ export function ArticlesTable({ articles }: { articles: ArticleSummary[] }) {
                     <PolarScore value={a.audience_mean} />
                   </td>
                   <td className="px-4 py-3">
-                    <PolarScore value={a.audience_p85} />
+                    <PolarScore value={a.audience_p85} variant="peak" />
                   </td>
                   <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                     {formatDate(a.first_seen_at)}
@@ -93,8 +93,8 @@ export function ArticlesTable({ articles }: { articles: ArticleSummary[] }) {
               </div>
               <h3 className="font-semibold text-slate-900 dark:text-slate-100 line-clamp-2">{a.title}</h3>
               <div className="mt-3 flex flex-wrap items-center gap-3">
-                <PolarScore value={a.audience_mean} label="ממוצע" />
-                <PolarScore value={a.audience_p85} label="85%" />
+                <PolarScore value={a.audience_mean} label={POLAR_MEAN_METRIC} />
+                <PolarScore value={a.audience_p85} label={POLAR_PEAK_METRIC} variant="peak" />
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   {formatNumber(a.num_comments ?? 0)} תגובות
                 </span>

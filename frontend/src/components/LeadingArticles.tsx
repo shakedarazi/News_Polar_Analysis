@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LeadingArticle } from "@/lib/types";
-import { formatDate, polarLevel, polarLevelLabel, sourceLabel } from "@/lib/format";
+import { formatDate, formatPercent, polarLevel, polarPeakLabel, sourceLabel } from "@/lib/format";
 import { SourceBadge } from "./SourceBadge";
 import { ArticleThumbnail } from "./ArticleThumbnail";
 import { EmptyState } from "./EmptyState";
@@ -78,7 +78,8 @@ export function LeadingArticles({ articles }: { articles: LeadingArticle[] }) {
                   <span
                     className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${LEVEL_CLASS[level]}`}
                   >
-                    {polarLevelLabel(article.audience_p85)}
+                    {polarPeakLabel(article.audience_p85)}
+                    {article.audience_p85 != null ? ` · ${formatPercent(article.audience_p85)}` : ""}
                   </span>
                   <span>{sourceLabel(article.source)}</span>
                   <span aria-hidden>·</span>
