@@ -33,6 +33,28 @@ export function formatNumber(value: number): string {
   return new Intl.NumberFormat("he-IL").format(value);
 }
 
+/** Round low/mid/high shares so a stacked bar never exceeds 100% (Recharts axis bug). */
+export function polarityStackPercents(
+  lowCount: number,
+  midCount: number,
+  highCount: number,
+  total: number,
+): { low: number; mid: number; high: number } {
+  if (total <= 0) return { low: 0, mid: 0, high: 0 };
+  const raw = [
+    (lowCount / total) * 100,
+    (midCount / total) * 100,
+    (highCount / total) * 100,
+  ];
+  const rounded = raw.map((value) => Math.round(value * 10) / 10);
+  const drift = Math.round((100 - rounded.reduce((sum, value) => sum + value, 0)) * 10) / 10;
+  if (drift !== 0) {
+    const largest = raw.indexOf(Math.max(...raw));
+    rounded[largest] = Math.round((rounded[largest] + drift) * 10) / 10;
+  }
+  return { low: rounded[0], mid: rounded[1], high: rounded[2] };
+}
+
 export function polarLevel(value: number | null | undefined): "low" | "mid" | "high" | "none" {
   if (value === null || value === undefined) return "none";
   if (value >= 0.15) return "high";

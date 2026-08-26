@@ -99,7 +99,12 @@ export type DashboardStats = {
   total_comments: number;
   avg_audience_mean: number | null;
   top_source: string | null;
-  by_source: { source: string; article_count: number; avg_audience_mean: number | null }[];
+  by_source: {
+    source: string;
+    article_count: number;
+    analyzed_count: number;
+    avg_audience_mean: number | null;
+  }[];
   by_category: { category: string; article_count: number; avg_audience_mean: number | null }[];
   active_events_count: number;
   hottest_articles: LeadingArticle[];
@@ -117,6 +122,7 @@ export type PolarityTrendPoint = {
 
 export type SourcePolarityBreakdown = {
   source: string;
+  article_count: number;
   analyzed_count: number;
   high_count: number;
   mid_count: number;

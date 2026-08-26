@@ -295,6 +295,7 @@ def get_dashboard_stats(
                 f"""
                 SELECT a.source,
                        COUNT(*) AS article_count,
+                       COUNT(*) FILTER (WHERE agg.audience_mean IS NOT NULL) AS analyzed_count,
                        AVG(agg.audience_mean) AS avg_audience_mean
                 FROM articles a
                 LEFT JOIN LATERAL (
@@ -312,6 +313,11 @@ def get_dashboard_stats(
             )
             source_cols = [d[0] for d in cur.description]
             by_source = [dict(zip(source_cols, r)) for r in cur.fetchall()]
+            for row in by_source:
+                row["article_count"] = int(row["article_count"])
+                row["analyzed_count"] = int(row["analyzed_count"])
+                if row["avg_audience_mean"] is not None:
+                    row["avg_audience_mean"] = float(row["avg_audience_mean"])
 
             cur.execute(
                 f"""
@@ -432,6 +438,7 @@ def get_polarity_by_source(
     query = f"""
         SELECT
             a.source,
+            COUNT(*) AS article_count,
             COUNT(*) FILTER (WHERE agg.audience_mean IS NOT NULL) AS analyzed_count,
             COUNT(*) FILTER (WHERE agg.audience_mean >= {POLARITY_HIGH}) AS high_count,
             COUNT(*) FILTER (
@@ -457,6 +464,11 @@ def get_polarity_by_source(
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
             for row in rows:
+                row["article_count"] = int(row["article_count"])
+                row["analyzed_count"] = int(row["analyzed_count"])
+                row["high_count"] = int(row["high_count"])
+                row["mid_count"] = int(row["mid_count"])
+                row["low_count"] = int(row["low_count"])
                 if row["avg_polarity"] is not None:
                     row["avg_polarity"] = float(row["avg_polarity"])
             return rows

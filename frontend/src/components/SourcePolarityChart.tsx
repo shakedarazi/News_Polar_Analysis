@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 import type { SourcePolarityBreakdown } from "@/lib/types";
-import { sourceLabel } from "@/lib/format";
+import { polarityStackPercents, sourceLabel } from "@/lib/format";
 import { EmptyState } from "./EmptyState";
 import { LOGO_COLOR, LOGO_TEXT } from "./SourceLogo";
 
@@ -41,24 +41,24 @@ function SourceAxisTick(props: AxisTickProps) {
 }
 
 export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] }) {
-  const withData = data.filter((d) => d.analyzed_count > 0);
-
-  if (withData.length === 0) {
+  if (data.length === 0) {
     return (
       <EmptyState message="לא קיימים נתוני קיטוב עבור המקורות בתקופה שנבחרה." />
     );
   }
 
-  const rows = withData.map((d) => ({
-    name: d.source,
-    total: d.analyzed_count,
-    low: Number(((d.low_count / d.analyzed_count) * 100).toFixed(1)),
-    mid: Number(((d.mid_count / d.analyzed_count) * 100).toFixed(1)),
-    high: Number(((d.high_count / d.analyzed_count) * 100).toFixed(1)),
-    lowCount: d.low_count,
-    midCount: d.mid_count,
-    highCount: d.high_count,
-  }));
+  const rows = data.map((d) => {
+    const shares = polarityStackPercents(d.low_count, d.mid_count, d.high_count, d.analyzed_count);
+    return {
+      name: d.source,
+      total: d.article_count,
+      analyzed: d.analyzed_count,
+      ...shares,
+      lowCount: d.low_count,
+      midCount: d.mid_count,
+      highCount: d.high_count,
+    };
+  });
 
   const height = Math.max(160, rows.length * 64);
 
@@ -77,7 +77,9 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
             <XAxis
               type="number"
               domain={[0, 100]}
-              unit="%"
+              ticks={[0, 25, 50, 75, 100]}
+              tickFormatter={(value) => `${value}%`}
+              allowDecimals={false}
               tick={{ fontSize: 12, fill: "var(--text-secondary)" }}
             />
             <YAxis
@@ -98,12 +100,22 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
               labelStyle={{ color: "var(--text-primary)" }}
               labelFormatter={(value) => sourceLabel(String(value))}
               formatter={(value, name, item) => {
+                const payload = item.payload as {
+                  analyzed: number;
+                  total: number;
+                  lowCount: number;
+                  midCount: number;
+                  highCount: number;
+                };
+                if (payload.analyzed === 0) {
+                  return ["אין ניתוח תגובות עדיין", "קיטוב"];
+                }
                 const countKey =
                   name === "low" ? "lowCount" : name === "mid" ? "midCount" : "highCount";
                 const label =
                   name === "low" ? "קיטוב נמוך" : name === "mid" ? "קיטוב בינוני" : "קיטוב גבוה";
-                const count = (item.payload as Record<string, number>)[countKey];
-                return [`${value}% (${count} כתבות)`, label];
+                const count = payload[countKey];
+                return [`${value}% (${count} מתוך ${payload.analyzed} שנותחו)`, label];
               }}
             />
             <Legend
@@ -120,7 +132,8 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
       </div>
       <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
         לכל מקור, אחוז הכתבות שתגובותיהן סווגו לרמת קיטוב נמוכה (מתחת ל-5%), בינונית (5%–15%)
-        או גבוהה (מעל 15%), על בסיס מדד הקיטוב הממוצע בתגובות.
+        או גבוהה (מעל 15%). הפילוח הוא רק מתוך כתבות שכבר יש להן ניתוח תגובות — לא מכל
+        הכתבות שנמשכו. מקור בלי ניתוח מופיע כשורה ריקה.
       </p>
     </div>
   );
