@@ -61,13 +61,13 @@ class Scout(Agent):
         steps = self.STEPS[scenario]
         if scenario != "ok" and not quick:
             self.say(f"קישור בעייתי — מפעיל עץ החלטות ({len(steps)} שלבים)", "warn")
-        pace = 0.3 if quick else 1.0
+        pace = 0.15 if quick else 1.0
         ok = False
         for i, (strategy, status, note) in enumerate(steps):
             BROKER.emit("scrape_step", url=article["canonical_url"],
                         article_title=title, step_idx=i, strategy=strategy,
                         status="trying", note_he="")
-            await nap((1.1 if scenario != "ok" else 0.5) * pace)
+            await nap((2.6 if scenario != "ok" else 1.6) * pace)
             BROKER.emit("scrape_step", url=article["canonical_url"],
                         article_title=title, step_idx=i, strategy=strategy,
                         status=status, note_he=note)
@@ -91,7 +91,7 @@ class Librarian(Agent):
 
     async def retrieve(self, title: str, vec: np.ndarray) -> list[dict[str, Any]]:
         self.status("working", f"מאחזרת הקשר: {title[:35]}…")
-        await nap(1.5)
+        await nap(2.5)
         neighbors = self.index.query(vec, k=6)
         top = neighbors[0] if neighbors else None
         if top:
@@ -114,7 +114,7 @@ class Lexi(Agent):
         """verbose=False — quiet quick pass (rounds 2–3 and the bulk of the
         lexicon scene), so only one focus point talks at a time."""
         self.status("working", f"מריץ לקסיקון: {article['title'][:35]}…")
-        await nap(1.6 if verbose else 0.5)
+        await nap(3.5 if verbose else 1.3)
         counts = store.lexicon_counts(self.conn, article["article_id"])
         stats = store.polarity_stats(self.conn, article["article_id"])
         top_i = int(np.argmax(counts)) if any(counts) else None
@@ -147,7 +147,7 @@ class Nova(Agent):
                        neighbors: list[dict[str, Any]]) -> dict[str, Any]:
         title = article["title"]
         self.status("working", f"מסווגת: {title[:35]}…")
-        await nap(2.6)
+        await nap(4.5)
         # Capability ladder, one rung per round: rules → retrieval-only →
         # retrieval + LLM + accumulated memory. (Keeps the improvement arc
         # honest in live mode too — the LLM only enters at round 3.)
@@ -242,14 +242,14 @@ class Amit(Agent):
                                          top_i, nb, reason_he,
                                          result.get("confidence", 0.0))
         for agent_id, text in turns:
-            await nap(3.4)
+            await nap(5.5)
             BROKER.emit("debate_turn", debate_id=debate_id, agent=agent_id,
                         text_he=text)
 
         changed = final != pred
         verdict = (f"מאמצים את אות הלקסיקון: {final}" if changed
                    else f"הסיווג {pred} אושר, בהסתייגות")
-        await nap(2.5)
+        await nap(4)
         BROKER.emit("debate_end", debate_id=debate_id, verdict_he=verdict,
                     final_category=final, changed=changed)
         if changed:

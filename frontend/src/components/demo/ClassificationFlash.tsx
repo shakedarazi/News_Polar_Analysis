@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { METHOD_LABELS_HE } from "./roster";
 import type { ClassificationEvent } from "./types";
 
-const SHOW_MS = 6_500;
+const SHOW_MS = 9_500;
 
 function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;

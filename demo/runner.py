@@ -95,12 +95,12 @@ class DemoLoop:
 
     async def _scene_arch(self) -> None:
         self._scene(0)
-        await nap(2)
+        await nap(4)
         for i, step in enumerate(config.ARCH_STEPS):
             BROKER.emit("arch_step", step=step["step"], idx=i,
                         label_he=step["label_he"], detail_he=step["detail_he"],
                         status="active")
-            await nap(3.2 if step["step"] == "agents" else 2.4)
+            await nap(9 if step["step"] == "agents" else 7)
             BROKER.emit("arch_step", step=step["step"], idx=i,
                         label_he=step["label_he"], detail_he=step["detail_he"],
                         status="done")
@@ -115,7 +115,7 @@ class DemoLoop:
                     round=1, total_rounds=config.TOTAL_ROUNDS,
                     round_label_he=f"סבב 1 — {round_spec['label_he']}")
         scout.say("נחיל הסוכנים מתעורר — מתחילים סבב עיבוד חדש")
-        await nap(2)
+        await nap(4)
         fetched: list[dict[str, Any]] = []
         for art in round_spec["articles"]:
             ok = await scout.fetch(art, art["scenario"])
@@ -123,7 +123,7 @@ class DemoLoop:
                 fetched.append(art)
                 if art["scenario"] != "ok":
                     self.links_recovered += 1
-            await nap(0.5)
+            await nap(1.5)
         scout.say(f"נאספו {len(fetched)}/{len(round_spec['articles'])} כתבות — "
                   "מוכנות לניתוח", "decision")
         await self._gate(1, "אל הליבה הדטרמיניסטית — הלקסיקון")
@@ -145,7 +145,9 @@ class DemoLoop:
             cache[art["article_id"]] = await lexi.analyze(art, verbose=verbose)
             if verbose:
                 self._emit_showcase(art, cache[art["article_id"]])
-                await nap(6)
+                # The product-fields panel is the heart of the scene — leave
+                # it front and center long enough to walk through every field.
+                await nap(18)
         lexi.say(f"נותחו {len(fetched)} כתבות — ספירה דטרמיניסטית, "
                  "אפס קריאות למודל שפה", "decision")
         await self._gate(2, "ומאיפה מגיע ההקשר? — אחזור")
@@ -186,11 +188,11 @@ class DemoLoop:
             return
         librarian.say(f"במאגר {self.index.base_size:,} כתבות שכבר תויגו בעבר — "
                       "הן ישמשו תקדימים לכתבות החדשות")
-        await nap(4)
+        await nap(8)
         librarian.say("הרעיון: לא מנחשים על כתבה חדשה — בודקים איך תויגו "
                       "הכתבות הכי דומות לה, כמו שופט שמצטט פסיקה קודמת",
                       "decision")
-        await nap(4)
+        await nap(8)
         neighbors = await librarian.retrieve(art["title"], self.vecs[art["article_id"]])
         text = self.texts[art["article_id"]]
         # Rough token estimates for the on-screen comparison (Hebrew ≈ 3 chars
@@ -203,7 +205,7 @@ class DemoLoop:
                                for n in neighbors[:5]],
                     tokens_full_est=full_est, tokens_context_est=ctx_est,
                     note_he="אומדן טוקנים להמחשה — כותרת + שכנים במקום הכתבה המלאה")
-        await nap(4)
+        await nap(14)
         librarian.say("זה כל הרעיון: הקשר קטן ומדויק במקום להזרים את הכתבה "
                       "המלאה למודל — פחות טוקנים, פחות רעש", "decision")
         await self._gate(3, "אל שלושת הסבבים — הקשת עולה")
@@ -237,7 +239,7 @@ class DemoLoop:
                         fetched.append(art)
                         if art["scenario"] != "ok":
                             self.links_recovered += 1
-                    await nap(0.15)
+                    await nap(0.4)
 
             BROKER.emit("phase", phase="classify", label_he="אחזור · סיווג · ביקורת",
                         round=round_no, total_rounds=config.TOTAL_ROUNDS,
@@ -276,8 +278,9 @@ class DemoLoop:
                                          "source": art["source"]})
                 round_results.append({**result, "reference": art["reference"]})
                 # Breathing room: the classification card must finish its
-                # on-screen life before the next one opens (presenter feedback).
-                await nap(2.4)
+                # on-screen life before the next one opens (presenter feedback:
+                # slow and flowing — the presenter narrates over this).
+                await nap(4.5)
 
             BROKER.emit("phase", phase="learn", label_he="למידה ומדידה",
                         round=round_no, total_rounds=config.TOTAL_ROUNDS,
@@ -297,7 +300,7 @@ class DemoLoop:
                 grown = len(self.index.meta) - self.index.base_size
                 librarian.say(f"המאגר גדל ב־{grown} כתבות מאומתות — "
                               "הסבב הבא יידע יותר")
-            await nap(2)
+            await nap(5)
             await self._insight(round_results, lexi_results)
             hint = ("אל סבב 2 — מדליקים את ה־RAG" if round_no == 1 else
                     "אל סבב 3 — מוסיפים זיכרון" if round_no == 2 else
@@ -313,10 +316,10 @@ class DemoLoop:
         last = self.metrics[-1]["accuracy"] if self.metrics else 0
         nova.say(f"בזיכרון שלי {len(learnings)} דוגמאות מתוקנות מהדיבייטים — "
                  "הן נשלפות בכל סיווג חדש", "decision")
-        await nap(3)
+        await nap(7)
         grown = len(self.index.meta) - self.index.base_size
         librarian.say(f"והאינדקס גדל ב־{grown} כתבות מאומתות בתוך הריצה הזו")
-        await nap(3)
+        await nap(7)
         amit.say(f"בלי לאמן אף מודל: {first:.0%} ← {last:.0%}. "
                  "זו למידה מהצטברות ראיות, לא backprop", "decision")
         await self._gate(5, "וכמה כל זה עלה? — כלכלת טוקנים")
@@ -340,7 +343,7 @@ class DemoLoop:
                     allllm_tokens_est=prompt_est + completion_est,
                     allllm_cost_est=round(allllm_cost, 4),
                     note_he="אומדן: אותן 24 כתבות אילו כל שלב היה קריאת LLM על הטקסט המלא")
-        await nap(3)
+        await nap(8)
         if BROKER.llm_calls == 0:
             amit.say("הריצה הזו עלתה 0$ — הליבה דטרמיניסטית, וה־LLM נכנס רק "
                      "כשבאמת צריך אותו", "decision")
@@ -348,7 +351,7 @@ class DemoLoop:
             amit.say(f"{BROKER.llm_calls} קריאות מודל בלבד, "
                      f"‏${BROKER.total_cost_usd:.4f} — כי הדטרמיניסטי עשה את רוב העבודה",
                      "decision")
-        await nap(2)
+        await nap(5)
         amit.say("אותו בנצ'מרק רץ חינם ב־CI על כל שינוי — אם הקשת נשברת, הבנייה נכשלת")
         await self._gate(6, "לסיכום")
 

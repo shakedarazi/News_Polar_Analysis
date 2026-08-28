@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import type { InsightEvent } from "./types";
 
-const SHOW_MS = 8_000;
+const SHOW_MS = 10_000;
 
 interface InsightToastProps {
   insight: { id: number; ev: InsightEvent };

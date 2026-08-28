@@ -310,7 +310,7 @@
   }
 }
 .dk-toast {
-  animation: dk-toast 8s ease-in-out both;
+  animation: dk-toast 10s ease-in-out both;
 }
 
 /* architecture scene — the currently explained pipeline step */
