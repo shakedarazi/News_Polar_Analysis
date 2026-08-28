@@ -313,6 +313,36 @@
   animation: dk-toast 8s ease-in-out both;
 }
 
+/* architecture scene — the currently explained pipeline step */
+@keyframes dk-arch-active {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 26px 4px rgba(34, 211, 238, 0.25);
+  }
+}
+.dk-arch-active {
+  animation: dk-arch-active 1.6s ease-in-out infinite;
+}
+
+/* HITL gate button — gently begs for the spacebar */
+@keyframes dk-gate-pulse {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.2);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 0 34px rgba(34, 211, 238, 0.4);
+  }
+}
+.dk-gate-pulse {
+  animation: dk-gate-pulse 1.8s ease-in-out infinite;
+}
+
 .dk-truncate {
   overflow: hidden;
   white-space: nowrap;

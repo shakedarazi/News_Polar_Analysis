@@ -4,10 +4,6 @@ import { useMemo } from "react";
 import { agentColor } from "./roster";
 import type { AgentInfo } from "./types";
 
-function truncate(s: string, n: number): string {
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
-}
-
 interface TierLeaderboardProps {
   agents: AgentInfo[];
   activeAgent: string | null;
@@ -54,8 +50,8 @@ export function TierLeaderboard({ agents, activeAgent }: TierLeaderboardProps) {
                   />
                 ))}
               </span>
-              <span className="w-20 shrink-0 text-left text-[13px] text-[var(--dk-ink-2)]">
-                {truncate(agent.tier_label_he, 12)}
+              <span className="dk-clamp-2 w-32 shrink-0 text-left text-[12px] leading-tight text-[var(--dk-ink-2)]">
+                {agent.tier_label_he}
               </span>
             </li>
           );

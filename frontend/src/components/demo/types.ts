@@ -13,6 +13,108 @@ export interface AgentInfo {
   persona_he: string;
 }
 
+export type SceneId =
+  | "arch"
+  | "intake"
+  | "lexicon"
+  | "rag"
+  | "rounds"
+  | "learning"
+  | "economy"
+  | "summary";
+
+export interface SceneEvent {
+  type: "scene";
+  ts: number;
+  scene: SceneId;
+  idx: number;
+  total: number;
+  title_he: string;
+  subtitle_he: string;
+}
+
+export interface GateEvent {
+  type: "gate";
+  ts: number;
+  gate_id: string;
+  hint_he: string;
+  /** null in presenter mode — the gate waits for /control/advance */
+  autoplay_ms: number | null;
+}
+
+export interface GateClearedEvent {
+  type: "gate_cleared";
+  ts: number;
+  gate_id: string;
+}
+
+export type ArchStepId =
+  | "crawl"
+  | "windows"
+  | "comments"
+  | "lexicon"
+  | "analyze"
+  | "db"
+  | "agents";
+
+export interface ArchStepEvent {
+  type: "arch_step";
+  ts: number;
+  step: ArchStepId;
+  idx: number;
+  label_he: string;
+  detail_he: string;
+  status: "active" | "done";
+}
+
+export interface ShowcaseEvent {
+  type: "showcase";
+  ts: number;
+  article_id: string;
+  title: string;
+  source: string;
+  url: string;
+  published_at: string;
+  excerpt: string;
+  windows: number;
+  mean_dominance: number | null;
+  max_dominance: number | null;
+  comments: number;
+  audience_mean: number | null;
+  audience_p85: number | null;
+  top_category_he: string | null;
+  top_count: number;
+  reference: string | null;
+}
+
+export interface RetrievalEvent {
+  type: "retrieval";
+  ts: number;
+  title: string;
+  neighbors: NeighborInfo[];
+  tokens_full_est: number;
+  tokens_context_est: number;
+  note_he: string;
+}
+
+export interface EconomyEvent {
+  type: "economy";
+  ts: number;
+  total_tokens: number;
+  total_cost_usd: number;
+  llm_calls: number;
+  allllm_tokens_est: number;
+  allllm_cost_est: number;
+  note_he: string;
+}
+
+export interface LlmModeEvent {
+  type: "llm_mode";
+  ts: number;
+  mode: "live" | "offline";
+  label_he: string;
+}
+
 export type PhaseId =
   | "intake"
   | "retrieve"
@@ -193,6 +295,14 @@ export interface ResetEvent {
 }
 
 export type DemoEvent =
+  | SceneEvent
+  | GateEvent
+  | GateClearedEvent
+  | ArchStepEvent
+  | ShowcaseEvent
+  | RetrievalEvent
+  | EconomyEvent
+  | LlmModeEvent
   | PhaseEvent
   | AgentStatusEvent
   | AgentMessageEvent
@@ -223,6 +333,15 @@ export interface StateSnapshot {
   agent_states?: Record<string, AgentStatusEvent>;
   metrics?: MetricEvent[];
   feed?: ReasoningEvent[];
+  scene?: SceneEvent | null;
+  gate?: GateEvent | null;
+  arch_steps?: ArchStepEvent[];
+  showcase?: ShowcaseEvent | null;
+  retrieval?: RetrievalEvent | null;
+  economy?: EconomyEvent | null;
+  learned?: LearnEvent[];
+  llm_mode?: LlmModeEvent | null;
+  autoplay?: boolean;
   tokens?: TokensTotals | null;
 }
 
@@ -269,10 +388,20 @@ export interface DebateSession {
 
 export interface DemoState {
   mode: StreamMode;
+  /** backend pacing mode (from /state): false = presenter-controlled (HITL) */
+  autoplay: boolean;
   agents: AgentInfo[];
   agentStatus: Record<string, AgentLiveStatus>;
   /** id of the most recently active (working/debating) agent */
   activeAgent: string | null;
+  scene: SceneEvent | null;
+  gate: GateEvent | null;
+  archSteps: ArchStepEvent[];
+  showcase: ShowcaseEvent | null;
+  retrieval: RetrievalEvent | null;
+  economy: EconomyEvent | null;
+  learnedItems: LearnEvent[];
+  llmMode: LlmModeEvent | null;
   phase: PhaseEvent | null;
   feed: FeedItem[];
   beams: Beam[];

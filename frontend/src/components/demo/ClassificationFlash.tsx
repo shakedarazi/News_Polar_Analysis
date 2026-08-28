@@ -61,6 +61,9 @@ export function ClassificationFlash({ item, onDone }: ClassificationFlashProps) 
 
       {/* confidence meter — accent fill on a lighter same-hue track */}
       <div className="mb-1 flex items-center gap-2">
+        <span className="shrink-0 text-[11px] font-semibold text-[var(--dk-ink-3)]">
+          ביטחון הסיווג
+        </span>
         <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--dk-accent-dim)]">
           <div
             className="dk-bar-fill h-full rounded-full bg-[var(--dk-accent)]"
@@ -75,7 +78,7 @@ export function ClassificationFlash({ item, onDone }: ClassificationFlashProps) 
       {neighbors.length > 0 && (
         <div className="mt-2 border-t border-[var(--dk-border)] pt-1.5">
           <div className="mb-1 text-[11px] font-semibold text-[var(--dk-ink-3)]">
-            שכנים שאוחזרו (RAG)
+            תקדימים שאוחזרו (RAG) · תיוג היסטורי · דמיון 0–1
           </div>
           {neighbors.map((n, i) => (
             <div

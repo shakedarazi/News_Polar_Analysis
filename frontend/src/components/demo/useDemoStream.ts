@@ -52,9 +52,18 @@ function uid(): number {
 export function initialDemoState(): DemoState {
   return {
     mode: "connecting",
+    autoplay: true,
     agents: DEFAULT_AGENTS,
     agentStatus: {},
     activeAgent: null,
+    scene: null,
+    gate: null,
+    archSteps: [],
+    showcase: null,
+    retrieval: null,
+    economy: null,
+    learnedItems: [],
+    llmMode: null,
     phase: null,
     feed: [],
     beams: [],
@@ -69,17 +78,62 @@ export function initialDemoState(): DemoState {
   };
 }
 
-/** transient state cleared on `reset` (roster, mode survive) */
+/** transient state cleared on `reset` (roster, mode, autoplay survive) */
 function clearedRun(state: DemoState): DemoState {
   return {
     ...initialDemoState(),
     mode: state.mode,
+    autoplay: state.autoplay,
     agents: state.agents,
   };
 }
 
 function applyEvent(state: DemoState, ev: DemoEvent): DemoState {
   switch (ev.type) {
+    case "scene":
+      // one focus per scene: entering a scene clears the previous scene's
+      // payloads and transient overlays
+      return {
+        ...state,
+        scene: ev,
+        archSteps: [],
+        showcase: null,
+        retrieval: null,
+        classification: null,
+        insight: null,
+        debate: state.debate?.end ? null : state.debate,
+        summary: ev.scene === "summary" ? state.summary : null,
+      };
+
+    case "gate":
+      return { ...state, gate: ev };
+
+    case "gate_cleared":
+      return state.gate?.gate_id === ev.gate_id
+        ? { ...state, gate: null }
+        : state;
+
+    case "arch_step":
+      return {
+        ...state,
+        archSteps: [
+          ...state.archSteps.filter((s) => s.step !== ev.step),
+          ev,
+        ],
+      };
+
+    case "showcase":
+      return { ...state, showcase: ev };
+
+    case "retrieval":
+      return { ...state, retrieval: ev };
+
+    case "economy":
+      return { ...state, economy: ev };
+
+    case "llm_mode":
+      return { ...state, llmMode: ev };
+
     case "phase":
       return { ...state, phase: ev, summary: null };
 
@@ -202,7 +256,11 @@ function applyEvent(state: DemoState, ev: DemoEvent): DemoState {
       };
 
     case "learn":
-      return { ...state, learned: ev.memory_size ?? state.learned };
+      return {
+        ...state,
+        learned: ev.memory_size ?? state.learned,
+        learnedItems: [...state.learnedItems, ev].slice(-10),
+      };
 
     case "insight":
       return { ...state, insight: { id: uid(), ev } };
@@ -244,6 +302,20 @@ function reducer(state: DemoState, action: Action): DemoState {
             ? snap.agents
             : state.agents,
         agentStatus,
+        autoplay:
+          typeof snap.autoplay === "boolean" ? snap.autoplay : state.autoplay,
+        scene: snap.scene ?? state.scene,
+        gate: snap.gate !== undefined ? snap.gate : state.gate,
+        archSteps: Array.isArray(snap.arch_steps)
+          ? snap.arch_steps
+          : state.archSteps,
+        showcase: snap.showcase ?? state.showcase,
+        retrieval: snap.retrieval ?? state.retrieval,
+        economy: snap.economy ?? state.economy,
+        learnedItems: Array.isArray(snap.learned)
+          ? snap.learned
+          : state.learnedItems,
+        llmMode: snap.llm_mode ?? state.llmMode,
         phase: snap.phase ?? state.phase,
         metrics: Array.isArray(snap.metrics) ? snap.metrics : state.metrics,
         tokens: snap.tokens
@@ -306,6 +378,8 @@ function reducer(state: DemoState, action: Action): DemoState {
 
 export interface DemoStreamApi {
   state: DemoState;
+  /** HITL: clear the currently open gate (space / on-screen button) */
+  advance: () => void;
   dismissDebate: () => void;
   dismissInsight: (id: number) => void;
   dismissSummary: () => void;
@@ -339,6 +413,11 @@ function parseEvent(raw: string): DemoEvent | null {
 export function useDemoStream(forceMock: boolean): DemoStreamApi {
   const [state, dispatch] = useReducer(reducer, undefined, initialDemoState);
   const apiRef = useRef<Omit<DemoStreamApi, "state">>({
+    advance: () => {
+      void fetch(`${demoApiBase()}/control/advance`, { method: "POST" }).catch(
+        () => undefined,
+      );
+    },
     dismissDebate: () => dispatch({ type: "dismiss_debate" }),
     dismissInsight: (id) => dispatch({ type: "dismiss_insight", id }),
     dismissSummary: () => dispatch({ type: "dismiss_summary" }),
@@ -346,11 +425,15 @@ export function useDemoStream(forceMock: boolean): DemoStreamApi {
       dispatch({ type: "dismiss_classification", id }),
     expireBeam: (id) => dispatch({ type: "expire_beam", id }),
   });
+  // Latest state for timer callbacks (stall check must see open gates).
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     let disposed = false;
     let es: EventSource | null = null;
     let mock: { stop: () => void } | null = null;
+    let cleanupDom: (() => void) | null = null;
     let sawLive = false;
     let attempts = 0;
     let lastEventAt = Date.now();
@@ -408,6 +491,7 @@ export function useDemoStream(forceMock: boolean): DemoStreamApi {
         if (disposed) return;
         attempts = 0;
         sawLive = true;
+        lastEventAt = Date.now(); // a fresh connection is never a stall
         stopMock();
         dispatch({ type: "mode", mode: "live" });
         // refresh the snapshot on every (re)connect for recovery
@@ -457,10 +541,19 @@ export function useDemoStream(forceMock: boolean): DemoStreamApi {
         later(probe, LIVE_PROBE_MS);
       };
       later(probe, LIVE_PROBE_MS);
-      // kiosk auto-restart: a live but stalled backend gets a restart poke
+      // kiosk auto-restart: a live but stalled backend gets a restart poke.
+      // ONLY in autoplay (unattended kiosk) mode — in presenter mode (HITL)
+      // a long silence is the presenter talking, never a stall. Open gates
+      // also reset the clock, whatever the mode.
       const stallCheck = () => {
-        if (es && Date.now() - lastEventAt > STALL_RESTART_MS) {
+        const st = stateRef.current;
+        if (st.gate !== null || !st.autoplay || st.mode !== "live") {
           lastEventAt = Date.now();
+        } else if (es && Date.now() - lastEventAt > STALL_RESTART_MS) {
+          lastEventAt = Date.now();
+          console.warn(
+            `[demo] stall restart: mode=${st.mode} autoplay=${st.autoplay} gate=${st.gate}`,
+          );
           void fetch(`${base}/control/restart`, { method: "POST" }).catch(
             () => undefined,
           );
@@ -468,6 +561,16 @@ export function useDemoStream(forceMock: boolean): DemoStreamApi {
         later(stallCheck, 30_000);
       };
       later(stallCheck, 30_000);
+      // recover instantly when the kiosk tab regains focus/visibility
+      const onVisible = () => {
+        if (!document.hidden) void fetchSnapshot();
+      };
+      document.addEventListener("visibilitychange", onVisible);
+      window.addEventListener("focus", onVisible);
+      cleanupDom = () => {
+        document.removeEventListener("visibilitychange", onVisible);
+        window.removeEventListener("focus", onVisible);
+      };
     }
 
     return () => {
@@ -475,6 +578,7 @@ export function useDemoStream(forceMock: boolean): DemoStreamApi {
       es?.close();
       es = null;
       stopMock();
+      cleanupDom?.();
       for (const t of timers) clearTimeout(t);
       timers.clear();
     };

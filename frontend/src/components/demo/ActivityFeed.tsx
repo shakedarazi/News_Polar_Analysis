@@ -29,7 +29,7 @@ export function ActivityFeed({ feed, agents }: ActivityFeedProps) {
         זרם חשיבה חי
       </h2>
       <ol className="flex flex-1 flex-col gap-2 overflow-hidden">
-        {feed.slice(0, MAX_VISIBLE).map((item) => {
+        {feed.slice(0, MAX_VISIBLE).map((item, idx) => {
           const agent = findAgent(agents, item.agent);
           return (
             <li
@@ -40,7 +40,7 @@ export function ActivityFeed({ feed, agents }: ActivityFeedProps) {
                 {agent?.emoji ?? "🤖"}
               </span>
               <span
-                className={`dk-clamp-2 text-[15px] leading-snug ${
+                className={`${idx === 0 ? "" : "dk-clamp-2 "}text-[15px] leading-snug ${
                   item.level === "decision"
                     ? "font-semibold text-[var(--dk-ink)]"
                     : item.level === "warn"

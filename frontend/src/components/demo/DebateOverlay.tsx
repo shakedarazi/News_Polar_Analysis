@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { agentColor, findAgent } from "./roster";
 import type { AgentInfo, DebateSession } from "./types";
 
-const CLOSE_AFTER_END_MS = 4_000;
+const CLOSE_AFTER_END_MS = 6_500;
 /** safety: never let a stuck debate cover the screen forever */
 const MAX_OPEN_MS = 90_000;
 
-/** progressive text reveal, ~2 chars per frame tick */
+/** progressive text reveal — fast enough to always finish before the next
+ * turn arrives, so the last message is never left half-shown */
 function TypewriterText({ text }: { text: string }) {
   const [shown, setShown] = useState(0);
   useEffect(() => {
@@ -19,9 +20,9 @@ function TypewriterText({ text }: { text: string }) {
           clearInterval(interval);
           return n;
         }
-        return n + 2;
+        return n + 3;
       });
-    }, 28);
+    }, 20);
     return () => clearInterval(interval);
   }, [text]);
   return <>{text.slice(0, shown)}</>;

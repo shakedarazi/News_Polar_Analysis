@@ -1,9 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
 import type { RunSummaryEvent } from "./types";
-
-const SHOW_MS = 10_000;
 
 function pct(v: number): string {
   return `${Math.round(v * 100)}%`;
@@ -28,15 +25,10 @@ function StatTile({ label, value, dir = "rtl" }: StatTileProps) {
 
 interface SummaryOverlayProps {
   summary: RunSummaryEvent;
-  onDone: () => void;
 }
 
-export function SummaryOverlay({ summary, onDone }: SummaryOverlayProps) {
-  useEffect(() => {
-    const t = setTimeout(onDone, SHOW_MS);
-    return () => clearTimeout(t);
-  }, [onDone]);
-
+/** Stays on screen until the presenter advances (reset clears it). */
+export function SummaryOverlay({ summary }: SummaryOverlayProps) {
   const rounds = Array.isArray(summary.rounds) ? summary.rounds : [];
   const trajectory = rounds.map((r) => pct(r.accuracy ?? 0)).join(" ← ");
 
@@ -72,7 +64,7 @@ export function SummaryOverlay({ summary, onDone }: SummaryOverlayProps) {
       </div>
 
       <div className="dk-breathe text-[var(--dk-ink-3)]">
-        הריצה הבאה תתחיל מיד…
+        רווח / ⏎ — ריצה חדשה מההתחלה
       </div>
     </div>
   );
