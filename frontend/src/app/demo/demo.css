@@ -1,0 +1,327 @@
+/* Kiosk-only styles for the /demo agent-swarm wall screen.
+   Scoped under .demo-kiosk — never leaks into the main app. */
+
+.demo-kiosk {
+  --dk-bg-0: #05080f;
+  --dk-bg-1: #0a1120;
+  --dk-surface: #0d1424;
+  --dk-surface-2: #111b30;
+  --dk-border: rgba(148, 163, 184, 0.14);
+  --dk-accent: #22d3ee;
+  --dk-accent-dim: rgba(34, 211, 238, 0.14);
+  --dk-ink: #e6edf7;
+  --dk-ink-2: #93a7c4;
+  --dk-ink-3: #5b6b85;
+  --dk-good: #34d399;
+  --dk-bad: #f87171;
+  --dk-warn: #fbbf24;
+
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  direction: rtl;
+  overflow: hidden;
+  color: var(--dk-ink);
+  background:
+    radial-gradient(1100px 700px at 78% -10%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(900px 600px at 12% 110%, rgba(108, 99, 255, 0.08), transparent 55%),
+    linear-gradient(160deg, var(--dk-bg-1), var(--dk-bg-0));
+  font-family: var(--font-heebo), system-ui, sans-serif;
+}
+
+.dk-card {
+  background: color-mix(in srgb, var(--dk-surface) 88%, transparent);
+  border: 1px solid var(--dk-border);
+  border-radius: 18px;
+  backdrop-filter: blur(6px);
+}
+
+/* ── generic motion ─────────────────────────────────────────────── */
+
+@keyframes dk-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.dk-fade-up {
+  animation: dk-fade-up 0.4s ease-out both;
+}
+
+@keyframes dk-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.dk-scale-in {
+  animation: dk-scale-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes dk-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.dk-breathe {
+  animation: dk-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes dk-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.dk-pop {
+  animation: dk-pop 0.45s ease-out;
+}
+
+@keyframes dk-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+.dk-shake {
+  animation: dk-shake 0.5s ease-in-out 1;
+}
+
+@keyframes dk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.dk-spinner {
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 9999px;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  border-top-color: var(--dk-accent);
+  animation: dk-spin 0.8s linear infinite;
+}
+
+@keyframes dk-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(2.1) rotate(-14deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.94) rotate(-8deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(-8deg);
+  }
+}
+.dk-stamp {
+  animation: dk-stamp 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+/* phase chip swap */
+@keyframes dk-chip-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.9);
+    filter: blur(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+.dk-chip-in {
+  animation: dk-chip-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+/* confidence / meter fill */
+@keyframes dk-bar-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.dk-bar-fill {
+  transform-origin: right center;
+  animation: dk-bar-fill 0.7s ease-out both;
+}
+
+/* ── agent map ──────────────────────────────────────────────────── */
+
+@keyframes dk-node-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    r: 66;
+  }
+  50% {
+    opacity: 0.9;
+    r: 74;
+  }
+}
+.dk-node-glow-working {
+  animation: dk-node-pulse 1.4s ease-in-out infinite;
+}
+.dk-node-glow-debating {
+  animation: dk-node-pulse 0.8s ease-in-out infinite;
+}
+.dk-node-glow-error {
+  animation: dk-node-pulse 0.6s ease-in-out infinite;
+}
+
+/* beam dot travels from (--bx0,--by0) to (--bx1,--by1) */
+@keyframes dk-beam-move {
+  0% {
+    transform: translate(var(--bx0), var(--by0));
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--bx1), var(--by1));
+    opacity: 0;
+  }
+}
+.dk-beam-dot {
+  animation: dk-beam-move 1.5s cubic-bezier(0.45, 0, 0.55, 1) both;
+}
+
+@keyframes dk-beam-line {
+  0% {
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.5;
+  }
+  75% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.dk-beam-line {
+  animation: dk-beam-line 1.8s ease-out both;
+}
+
+@keyframes dk-beam-label {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+.dk-beam-label {
+  animation: dk-beam-label 1.9s ease-out both;
+}
+
+/* waiting-for-next-run pulse */
+@keyframes dk-idle-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+}
+.dk-idle-pulse {
+  animation: dk-idle-pulse 3s ease-in-out infinite;
+}
+
+/* overlay backdrop */
+@keyframes dk-dim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.dk-dim-in {
+  animation: dk-dim-in 0.35s ease-out both;
+}
+
+/* insight toast */
+@keyframes dk-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  6% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+.dk-toast {
+  animation: dk-toast 8s ease-in-out both;
+}
+
+.dk-truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dk-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
