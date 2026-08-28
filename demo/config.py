@@ -24,11 +24,57 @@ DEMO_MODE = os.environ.get("DEMO_MODE", "auto")
 DEMO_SPEED = float(os.environ.get("DEMO_SPEED", "1.0"))
 SERVER_PORT = int(os.environ.get("DEMO_PORT", "8010"))
 
+# HITL pacing: 0 = wait at every scene gate for POST /control/advance
+# (presenter mode; run_demo.sh default). 1 = gates auto-clear after
+# AUTOPLAY_GATE_S * DEMO_SPEED (unattended kiosk loop, CI benchmark).
+DEMO_AUTOPLAY = os.environ.get("DEMO_AUTOPLAY", "1") == "1"
+AUTOPLAY_GATE_S = 12.0
+
 TOTAL_ROUNDS = 3
 ARTICLES_PER_ROUND = 8
 LLM_TIMEOUT_S = 8.0
 
 ROUND_LABELS_HE = {1: "בלי RAG", 2: "עם RAG", 3: "עם RAG + למידה"}
+
+# The scene waterfall — the full story in focused, gated steps. The frontend
+# switches its layout on the scene id; the runner emits them in this order.
+SCENES = [
+    {"id": "arch", "title_he": "הארכיטקטורה",
+     "subtitle_he": "פייפליין דטרמיניסטי אוסף ומנתח — עוד לפני ששכבת הסוכנים נכנסת"},
+    {"id": "intake", "title_he": "איסוף — עוד בלי AI",
+     "subtitle_he": "קרולרים דטרמיניסטיים אוספים את חומר הגלם; קישור שבור מפעיל עץ החלטות, לא קריסה"},
+    {"id": "lexicon", "title_he": "האלגוריתם — עדיין בלי AI",
+     "subtitle_he": "לקסיקון הקיטוב של אלמוג בן שמחון: חלונות, ספירה, דומיננטיות — כך נולדים השדות שבאתר"},
+    {"id": "rag", "title_he": "כאן נכנס ה־AI: אחזור (RAG)",
+     "subtitle_he": "כתבות דומות שכבר תויגו בעבר משמשות תקדימים לכתבה החדשה — עוגן במקום ניחוש"},
+    {"id": "rounds", "title_he": "סיווג · ביקורת · שיפור",
+     "subtitle_he": "שלושה סבבים: חוקי אצבע ← RAG ← RAG + זיכרון, עם מבקר שמערער"},
+    {"id": "learning", "title_he": "למידה",
+     "subtitle_he": "זיכרון מצטבר, לא אימון מודל — מה נצבר ואיך הדיוק טיפס"},
+    {"id": "economy", "title_he": "כלכלת טוקנים",
+     "subtitle_he": "דטרמיניסטי כשאפשר, מודל שפה רק כשצריך — וכמה זה חוסך"},
+    {"id": "summary", "title_he": "סיכום", "subtitle_he": ""},
+]
+
+# Architecture scene steps — the deterministic pipeline in the exact
+# chronological order of the scheduled cloud run (scripts/run_ingestion.sh,
+# GitHub Actions, every 6 hours), then the agent layer on top of it.
+ARCH_STEPS = [
+    {"step": "crawl", "label_he": "Crawl", "detail_he":
+        "קרולרים לכל מקור (ynet, הארץ, מאקו…) — זיהוי כפילויות לפי sha256 של הכתובת"},
+    {"step": "windows", "label_he": "Windows", "detail_he":
+        "כל כתבה נחתכת לחלונות משפטים — היחידה הבסיסית של הניתוח"},
+    {"step": "comments", "label_he": "Comments", "detail_he":
+        "איסוף תגובות גולשים לכתבות בנות 24+ שעות — אות הקהל של המערכת"},
+    {"step": "lexicon", "label_he": "Lexicon", "detail_he":
+        "מילון קיטוב שנבנה פעם אחת אופליין (מחקר בן שמחון) — בלי NLP בזמן ריצה"},
+    {"step": "analyze", "label_he": "Analyze", "detail_he":
+        "ספירת מופעים ודומיננטיות לכל חלון + שקלול התגובות — דטרמיניסטי"},
+    {"step": "db", "label_he": "Postgres", "detail_he":
+        "התוצאות נשמרות ומוגשות לאתר — בדיוק בסדר הזה רץ הכל ב־GitHub Actions כל 6 שעות"},
+    {"step": "agents", "label_he": "שכבת הסוכנים", "detail_he":
+        "ומעל הכל: חמישה סוכנים שמדגימים איסוף, אחזור, סיווג, ביקורת ולמידה"},
+]
 
 AGENTS = [
     {

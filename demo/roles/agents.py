@@ -11,6 +11,7 @@ Honesty ledger (also in demo/README.md):
 
 from __future__ import annotations
 
+import hashlib
 import sqlite3
 from typing import Any
 
@@ -51,18 +52,22 @@ class Scout(Agent):
         ],
     }
 
-    async def fetch(self, article: dict[str, Any], scenario: str) -> bool:
+    async def fetch(self, article: dict[str, Any], scenario: str,
+                    quick: bool = False) -> bool:
+        """quick=True — compressed pacing for rounds 2–3, after the intake
+        scene already told the decision-tree story at human pace."""
         title = article["title"]
         self.status("working", f"מושך: {title[:40]}…")
         steps = self.STEPS[scenario]
-        if scenario != "ok":
+        if scenario != "ok" and not quick:
             self.say(f"קישור בעייתי — מפעיל עץ החלטות ({len(steps)} שלבים)", "warn")
+        pace = 0.3 if quick else 1.0
         ok = False
         for i, (strategy, status, note) in enumerate(steps):
             BROKER.emit("scrape_step", url=article["canonical_url"],
                         article_title=title, step_idx=i, strategy=strategy,
                         status="trying", note_he="")
-            await nap(1.1 if scenario != "ok" else 0.5)
+            await nap((1.1 if scenario != "ok" else 0.5) * pace)
             BROKER.emit("scrape_step", url=article["canonical_url"],
                         article_title=title, step_idx=i, strategy=strategy,
                         status=status, note_he=note)
@@ -86,7 +91,7 @@ class Librarian(Agent):
 
     async def retrieve(self, title: str, vec: np.ndarray) -> list[dict[str, Any]]:
         self.status("working", f"מאחזרת הקשר: {title[:35]}…")
-        await nap(1.2)
+        await nap(1.5)
         neighbors = self.index.query(vec, k=6)
         top = neighbors[0] if neighbors else None
         if top:
@@ -104,9 +109,12 @@ class Lexi(Agent):
         super().__init__()
         self.conn = conn
 
-    async def analyze(self, article: dict[str, Any]) -> dict[str, Any]:
+    async def analyze(self, article: dict[str, Any],
+                      verbose: bool = True) -> dict[str, Any]:
+        """verbose=False — quiet quick pass (rounds 2–3 and the bulk of the
+        lexicon scene), so only one focus point talks at a time."""
         self.status("working", f"מריץ לקסיקון: {article['title'][:35]}…")
-        await nap(1.0)
+        await nap(1.6 if verbose else 0.5)
         counts = store.lexicon_counts(self.conn, article["article_id"])
         stats = store.polarity_stats(self.conn, article["article_id"])
         top_i = int(np.argmax(counts)) if any(counts) else None
@@ -115,11 +123,13 @@ class Lexi(Agent):
                                   if top_i is not None else None),
                   "top_i": top_i}
         dom = stats["mean_dominance"]
-        self.say(f"‏{stats['windows']} חלונות, דומיננטיות ממוצעת "
-                 f"{dom:.2f}" if dom is not None else "אין מילות לקסיקון בכתבה")
-        if top_i is not None and counts[top_i] >= 3:
-            self.say(f"הלקסיקון (מחקר בן שמחון) מצביע חזק על "
-                     f"{result['top_lexicon']} ({counts[top_i]} מופעים)", "decision")
+        if verbose:
+            self.say(f"‏{stats['windows']} חלונות, דומיננטיות ממוצעת "
+                     f"{dom:.2f}" if dom is not None else "אין מילות לקסיקון בכתבה")
+            if top_i is not None and counts[top_i] >= 3:
+                self.say(f"הלקסיקון (מחקר בן שמחון) מצביע חזק על "
+                         f"{result['top_lexicon']} ({counts[top_i]} מופעים)",
+                         "decision")
         self.status("idle")
         return result
 
@@ -137,7 +147,7 @@ class Nova(Agent):
                        neighbors: list[dict[str, Any]]) -> dict[str, Any]:
         title = article["title"]
         self.status("working", f"מסווגת: {title[:35]}…")
-        await nap(1.4)
+        await nap(2.6)
         # Capability ladder, one rung per round: rules → retrieval-only →
         # retrieval + LLM + accumulated memory. (Keeps the improvement arc
         # honest in live mode too — the LLM only enters at round 3.)
@@ -228,26 +238,18 @@ class Amit(Agent):
 
         turns = await self._llm_turns(title, pred, mapped, counts, top_i, nb, reason_he)
         if turns is None:
-            # Offline: templated turns, but every number in them is real.
-            nb_txt = (f'למשל "{nb[0]["title"][:35]}…" (דמיון {nb[0]["score"]:.2f})'
-                      if nb else "אין לי שכנים חזקים")
-            turns = [
-                ("amit", f"נובה, סיווגת \"{title[:35]}…\" כ־{pred}, אבל {reason_he}."),
-                ("nova", f"השכנים הסמנטיים תומכים בי — {nb_txt}."),
-                ("amit", (f"הלקסיקון הדטרמיניסטי מצא {counts[top_i]} מופעי "
-                          f"{mapped} — ראיה קשה, לא ניחוש.") if mapped else
-                         "רמת הביטחון שלך פשוט לא מספיקה לפרסום."),
-                ("nova", "מקבלת — עדיף לתקן עכשיו מאשר לטעות במאגר."),
-            ]
+            turns = self._template_turns(article, title, pred, mapped, counts,
+                                         top_i, nb, reason_he,
+                                         result.get("confidence", 0.0))
         for agent_id, text in turns:
-            await nap(2.2)
+            await nap(3.4)
             BROKER.emit("debate_turn", debate_id=debate_id, agent=agent_id,
                         text_he=text)
 
         changed = final != pred
         verdict = (f"מאמצים את אות הלקסיקון: {final}" if changed
                    else f"הסיווג {pred} אושר, בהסתייגות")
-        await nap(1.5)
+        await nap(2.5)
         BROKER.emit("debate_end", debate_id=debate_id, verdict_he=verdict,
                     final_category=final, changed=changed)
         if changed:
@@ -260,6 +262,47 @@ class Amit(Agent):
             BROKER.emit("agent_status", agent=aid, state="idle", task_he="")
         return {**result, "predicted": final, "confidence": max(result["confidence"], 0.7)}
 
+    def _template_turns(self, article, title, pred, mapped, counts, top_i, nb,
+                        reason_he, conf):
+        """Offline debate: several phrasings per turn, chosen deterministically
+        per article, and every number/title in them is real data."""
+        variant = int(hashlib.sha256(article["article_id"].encode()).hexdigest(), 16) % 3
+        short = title[:35]
+        nb_txt = (f'"{nb[0]["title"][:35]}…" (דמיון {nb[0]["score"]:.2f})'
+                  if nb else "אף שכן חזק")
+        nb2_txt = (f'וגם "{nb[1]["title"][:30]}…" ({nb[1]["category"]})'
+                   if len(nb) > 1 else "ואין תמיכה נוספת")
+        lex_txt = (f"{counts[top_i]} מופעי {mapped} בלקסיקון" if mapped
+                   else "בלי אות לקסיקון ברור")
+        openers = [
+            f'נובה, על "{short}…" נתת {pred} בביטחון {conf:.0%} — {reason_he}.',
+            f'רגע לפני שזה נכנס למאגר: "{short}…" סווגה {pred}, אבל {reason_he}.',
+            f'אני עוצר את "{short}…". הסיווג {pred} לא משכנע אותי: {reason_he}.',
+        ]
+        defenses = [
+            f"השכן הקרוב ביותר שלי הוא {nb_txt}, {nb2_txt}.",
+            f"אני נשענת על אחזור אמיתי: {nb_txt} — זה לא ניחוש.",
+            f"תסתכל על ההקשר ששלפה הספרנית — {nb_txt}.",
+        ]
+        rebuttals = [
+            (f"מולם עומד {lex_txt} — ספירה דטרמיניסטית, לא הסתברות."
+             if mapped else
+             f"אבל ביטחון של {conf:.0%} לא מספיק לפרסום, גם עם שכנים."),
+            (f"הלקסיקון של בן שמחון מצא {lex_txt}. ראיה קשה מנצחת דמיון וקטורי."
+             if mapped else
+             f"{conf:.0%} זה מתחת לרף שלנו. עדיף להסתייג מלטעות."),
+            (f"כשהחוקים והווקטורים חלוקים — {lex_txt} מכריע."
+             if mapped else
+             "כשאין ראיה קשה ואין ביטחון, לא מפרסמים."),
+        ]
+        closers = [
+            "מקבלת — עדיף לתקן עכשיו מאשר לזהם את המאגר.",
+            "משכנע. מעדכנת את הסיווג ושומרת את הדוגמה לזיכרון.",
+            "בסדר, ההכרעה שלך. שתיכנס גם לסט הלמידה שלי.",
+        ]
+        return [("amit", openers[variant]), ("nova", defenses[variant]),
+                ("amit", rebuttals[variant]), ("nova", closers[variant])]
+
     async def _llm_turns(self, title, pred, mapped, counts, top_i, nb, reason_he):
         if not GATEWAY.available:
             return None
@@ -271,7 +314,7 @@ class Amit(Agent):
                 "כתוב דיון קצר של 4 תורות בין עמית (מבקר) לנובה (מסווגת), "
                 "כל תורה משפט אחד בעברית. פורמט: כל שורה 'amit: ...' או 'nova: ...'")
         out = await GATEWAY.chat("amit", "אתה כותב דיון ענייני קצר בין שני סוכני AI.",
-                                 user, max_tokens=260)
+                                 user, max_tokens=420)
         if not out:
             return None
         turns = []
@@ -280,6 +323,8 @@ class Amit(Agent):
             if line.lower().startswith(("amit:", "nova:")):
                 aid, _, text = line.partition(":")
                 turns.append((aid.strip().lower(), text.strip()))
+        if GATEWAY.last_finish_reason == "length" and len(turns) > 2:
+            turns = turns[:-1]  # the cut-off turn never reaches the screen
         return turns[:4] if len(turns) >= 2 else None
 
     async def review(self, article: dict[str, Any], result: dict[str, Any],

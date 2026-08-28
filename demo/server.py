@@ -9,17 +9,19 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from fastapi import FastAPI  # noqa: E402
+from fastapi import FastAPI, Request  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import StreamingResponse  # noqa: E402
 
 from demo import config  # noqa: E402
+from demo.core.control import CONTROLLER  # noqa: E402
 from demo.core.events import BROKER  # noqa: E402
 from demo.runner import DemoLoop  # noqa: E402
 
@@ -70,12 +72,33 @@ async def events() -> StreamingResponse:
 
 @app.get("/state")
 async def state() -> dict:
-    return BROKER.state(config.AGENTS)
+    snapshot = BROKER.state(config.AGENTS)
+    snapshot["autoplay"] = CONTROLLER.autoplay
+    return snapshot
+
+
+@app.post("/control/advance")
+async def advance() -> dict:
+    """HITL: presenter's spacebar/click — clears the currently open gate."""
+    gate = CONTROLLER.current_gate
+    advanced = CONTROLLER.advance()
+    print(f"[control] advance gate={gate} advanced={advanced}", flush=True)
+    return {"ok": True, "advanced": advanced, "gate_id": gate}
 
 
 @app.post("/control/restart")
-async def restart() -> dict:
+async def restart(request: Request) -> dict:
     global _loop_task
+    print(f"[control] restart requested at {time.strftime('%H:%M:%S')} "
+          f"from {request.client.host if request.client else '?'} "
+          f"referer={request.headers.get('referer')} "
+          f"ua={request.headers.get('user-agent', '')[:60]}", flush=True)
+    # Presenter mode: auto-restart pokes (e.g. a stale kiosk tab from an old
+    # session interpreting a held HITL gate as a stall) must never kill a live
+    # presentation. Restarting in HITL is done by restarting the process.
+    if not CONTROLLER.autoplay:
+        print("[control] restart IGNORED (presenter mode)", flush=True)
+        return {"ok": False, "ignored": "presenter_mode"}
     if _loop_task:
         _loop_task.cancel()
         try:
