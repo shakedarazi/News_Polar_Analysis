@@ -9,3 +9,7 @@ pytest-cache-files-*/
 dist/
 build/
 logs/
+
+# demo layer local artifacts
+demo/data/
+demo/benchmark.json
