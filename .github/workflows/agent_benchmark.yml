@@ -1,0 +1,38 @@
+name: Agent-layer benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ["demo/**"]
+    branches: [main]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r demo/requirements.txt
+      - name: Build snapshot + index (from Neon, read-only)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          PYTHONPATH=. python demo/snapshot/export_snapshot.py
+          PYTHONPATH=. python demo/snapshot/prepare_demo.py
+      - name: Run benchmark (offline mode, deterministic)
+        env:
+          DEMO_MODE: offline
+          DEMO_SPEED: "0.02"
+        run: PYTHONPATH=. python demo/benchmark.py
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-benchmark
+          path: demo/benchmark.json
