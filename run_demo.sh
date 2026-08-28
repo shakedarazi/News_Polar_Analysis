@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Single entrypoint for the exhibition kiosk demo.
 #
-#   ./run_demo.sh              # build frontend once, start everything, open kiosk
-#   SKIP_BUILD=1 ./run_demo.sh # reuse the existing frontend build
+#   ./run_demo.sh                  # presenter mode (HITL): advances on space/click
+#   DEMO_AUTOPLAY=1 ./run_demo.sh  # unattended kiosk loop: auto-advances gates
+#   SKIP_BUILD=1 ./run_demo.sh     # reuse the existing frontend build
 #   DEMO_SPEED=0.3 ./run_demo.sh   # faster loop for rehearsals
 #
 # Both processes are wrapped in auto-restart loops: if anything crashes, it is
@@ -20,6 +21,8 @@ fi
 source .venv/bin/activate
 export DEMO_MODE="${DEMO_MODE:-auto}"
 export DEMO_SPEED="${DEMO_SPEED:-1.0}"
+# Presenter-controlled pacing by default (the show advances on space/click).
+export DEMO_AUTOPLAY="${DEMO_AUTOPLAY:-0}"
 
 if [ "${SKIP_BUILD:-}" != "1" ]; then
   echo "building frontend (SKIP_BUILD=1 to skip)..."
