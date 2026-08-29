@@ -38,11 +38,20 @@ LEX_CATEGORIES_HE = config.LEXICON_CATEGORY_NAMES_HE
 HEBREW_TOKEN = re.compile(r"[֐-׿']+")
 
 # Cluster membership threshold on cosine similarity between article embeddings.
-# 0.88 keeps 80 cross-source events in the snapshot; at 0.92 only near-verbatim
-# wire copies survive and the framing contrast disappears.
-CLUSTER_SIM = 0.88
+# Measured on this snapshot: 0.86 -> 88 events but clusters drift into whole
+# storylines; 0.90 -> 74 events that are recognisably ONE story; 0.92 -> 52
+# events and not a single one covered by three outlets, so the comparison dies.
+CLUSTER_SIM = 0.90
 # Jaccard threshold for the keyword baseline we compare retrieval against.
 KEYWORD_JACCARD = 0.25
+
+# How much of the article body the extractor is shown — and, necessarily, the
+# exact window the verifier checks its output against. ONE constant on purpose:
+# a wider verifier window lets an invented term pass because it happens to
+# appear deep in the body, and a narrower one rejects terms the model was
+# legitimately reading (checking the title alone scored 33% grounding instead
+# of the true 93% on the first measurement run).
+EXTRACT_LEAD_CHARS = 500
 
 
 @dataclass
@@ -205,13 +214,20 @@ class Snapshot:
         return counts
 
 
-def build_event_clusters(snap: Snapshot, min_sources: int = 2,
-                         min_versions: int = 2) -> list[Event]:
+def build_event_clusters(snap: Snapshot, min_sources: int = 2) -> list[Event]:
     """Group articles into cross-source events by embedding similarity.
 
     Greedy single-pass clustering: deterministic, and at snapshot scale a full
-    similarity matrix is cheaper than any index. Duplicate titles inside a
-    cluster are dropped — a few articles appear under two ids.
+    similarity matrix is cheaper than any index.
+
+    Each outlet contributes exactly ONE version — the most-discussed of its own
+    articles in the cluster. That is not cosmetic. An outlet that ran five
+    follow-ups on the same story would otherwise supply five of nine versions,
+    and since every comparison here is against the event MEDIAN, the median
+    would simply become that outlet: it would measure ~0 deviation by
+    construction and everyone else would be measured against it. Every version
+    that loses this selection is still consumed, so it cannot seed a duplicate
+    event of its own.
     """
     articles = snap.articles()
     feats = snap.window_features()
@@ -226,27 +242,34 @@ def build_event_clusters(snap: Snapshot, min_sources: int = 2,
         if article_id in used:
             continue
         members = [article_id]
-        for j in np.argsort(-sim[i])[:8]:
-            if sim[i][j] > CLUSTER_SIM and ids[j] not in used:
+        for j in np.argsort(-sim[i]):
+            if sim[i][j] <= CLUSTER_SIM:
+                break
+            if ids[j] not in used:
                 members.append(ids[j])
-        seen_titles: set[str] = set()
-        deduped: list[str] = []
-        for member in members:
-            title = articles[member]["title"]
-            if title in seen_titles:
-                continue
-            seen_titles.add(title)
-            deduped.append(member)
-        if len(deduped) < min_versions:
+        used.update(members)
+        chosen = _one_per_source(members, articles)
+        if len({articles[m]["source"] for m in chosen}) < min_sources:
             continue
-        if len({articles[m]["source"] for m in deduped}) < min_sources:
-            continue
-        used.update(deduped)
         events.append(Event(
-            event_id=deduped[0],
-            versions=[_to_version(articles[m], feats.get(m)) for m in deduped],
+            event_id=chosen[0],
+            versions=[_to_version(articles[m], feats.get(m)) for m in chosen],
         ))
     return events
+
+
+def _one_per_source(members: list[str], articles: dict[str, dict[str, Any]]
+                    ) -> list[str]:
+    """Keep each outlet's most-commented version, order preserved."""
+    best: dict[str, str] = {}
+    for member in members:
+        source = articles[member]["source"]
+        current = best.get(source)
+        if current is None or ((articles[member]["num_comments"] or 0)
+                               > (articles[current]["num_comments"] or 0)):
+            best[source] = member
+    keep = set(best.values())
+    return [m for m in members if m in keep]
 
 
 def _to_version(row: dict[str, Any], feat: dict[str, Any] | None) -> Version:
@@ -355,25 +378,35 @@ def bootstrap_ci(values: list[float], iterations: int = 4000,
 
 def sampling_curve(values: list[float],
                    checkpoints: Iterable[int] = (3, 5, 10, 20, 40, 80, 160),
+                   repeats: int = 20, seed: int = 20260828,
                    ) -> list[dict[str, float]]:
     """CI width as evidence accumulates — the honest replacement for the old
     staged accuracy arc. Nothing here is cast: the interval narrows because
     more events genuinely constrain the estimate.
+
+    Each checkpoint averages the interval width over `repeats` random
+    subsamples of that size rather than taking the first n in order. Taking a
+    prefix would confound sample size with which events happened to be crawled
+    first, and produced a curve that visibly widened from n=3 to n=5.
     """
+    rng = np.random.default_rng(seed)
+    arr = np.asarray(values, dtype=float)
     curve: list[dict[str, float]] = []
-    for n in checkpoints:
-        if n > len(values):
+    for n in list(checkpoints) + ([len(arr)] if len(arr) not in checkpoints else []):
+        if n > len(arr) or n < 3:
             continue
-        ci = bootstrap_ci(values[:n])
-        if ci is None:
+        draws = 1 if n == len(arr) else repeats
+        stats = []
+        for _ in range(draws):
+            sample = arr if n == len(arr) else rng.choice(arr, n, replace=False)
+            ci = bootstrap_ci(list(sample))
+            if ci is not None:
+                stats.append(ci)
+        if not stats:
             continue
-        curve.append({"n": n, "mean": ci[0], "lo": ci[1], "hi": ci[2],
-                      "width": ci[2] - ci[1]})
-    if len(values) not in [c["n"] for c in curve]:
-        ci = bootstrap_ci(values)
-        if ci is not None:
-            curve.append({"n": len(values), "mean": ci[0], "lo": ci[1],
-                          "hi": ci[2], "width": ci[2] - ci[1]})
+        mean, lo, hi = (float(np.mean([s[i] for s in stats])) for i in range(3))
+        curve.append({"n": n, "mean": mean, "lo": lo, "hi": hi,
+                      "width": hi - lo})
     return curve
 
 
@@ -585,7 +618,7 @@ def change_point_power(n: int, shift_in_sds: float, iterations: int = 300,
 
 
 # ---------------------------------------------------------------------------
-# LLM framing extraction — cached, so the kiosk never depends on the network.
+# The LLM layer — cached, so the kiosk never depends on the network.
 # ---------------------------------------------------------------------------
 
 FRAMING_SYSTEM = (
@@ -602,18 +635,50 @@ FRAMING_SYSTEM = (
 FRAMING_KEYS = ("actor", "responsibility", "loaded_terms", "voice", "lead_perspective")
 
 
-class FramingExtractor:
-    """LLM framing variables with an on-disk cache.
+def _json_object(raw: str) -> dict[str, Any] | None:
+    """Tolerate the ~10% of responses that arrive fenced or wrapped in prose."""
+    text = re.sub(r"^```(?:json)?|```$", "", (raw or "").strip(), flags=re.M).strip()
+    if not text.startswith("{"):
+        match = re.search(r"\{.*\}", text, flags=re.S)
+        if not match:
+            return None
+        text = match.group(0)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            data = json.loads(_repair_hebrew_quotes(text))
+        except json.JSONDecodeError:
+            return None
+    return data if isinstance(data, dict) else None
 
-    The cache is what makes this exhibition-safe: extraction runs once with
-    network at prepare time, and showtime replays real model output with no
-    live call. `extract` returns None on any failure — callers must degrade to
-    the lexicon-only view rather than showing a blank.
+
+# Hebrew acronyms are written with a quote mark inside the word (שב"כ, צה"ל,
+# ח"כ), and the model emits it unescaped, which breaks the JSON string it sits
+# in. This was a third of all extraction failures until it was handled. A quote
+# with a Hebrew letter on both sides is never a delimiter, so escaping it is
+# safe; the value keeps the acronym exactly as written.
+_ACRONYM_QUOTE = re.compile(r'(?<=[\u0590-\u05ff])"(?=[\u0590-\u05ff])')
+
+
+def _repair_hebrew_quotes(text: str) -> str:
+    return _ACRONYM_QUOTE.sub(r'\\"', text)
+
+
+class _CachedLLM:
+    """Shared plumbing for the two model-backed steps.
+
+    The on-disk cache is what makes this exhibition-safe: extraction runs once
+    with network at prepare time, and showtime replays real model output with
+    no live call. Every `extract` returns None on failure — callers must
+    degrade to the deterministic view rather than showing a blank.
     """
 
+    cache_name = "llm_cache.json"
+
     def __init__(self, cache_path: Path | None = None) -> None:
-        self.cache_path = cache_path or (config.DATA_DIR / "framing_cache.json")
-        self.cache: dict[str, dict[str, Any]] = {}
+        self.cache_path = cache_path or (config.DATA_DIR / self.cache_name)
+        self.cache: dict[str, Any] = {}
         if self.cache_path.exists():
             self.cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
         self.calls = 0
@@ -621,24 +686,10 @@ class FramingExtractor:
         self.completion_tokens = 0
         self.failures = 0
 
-    def cached(self, article_id: str) -> dict[str, Any] | None:
-        return self.cache.get(article_id)
+    def cached(self, key: str) -> Any | None:
+        return self.cache.get(key)
 
-    def extract(self, article_id: str, title: str, text: str,
-                allow_network: bool = True) -> dict[str, Any] | None:
-        hit = self.cache.get(article_id)
-        if hit is not None:
-            return hit
-        if not allow_network:
-            return None
-        parsed = self._call(title, text)
-        if parsed is None:
-            self.failures += 1
-            return None
-        self.cache[article_id] = parsed
-        return parsed
-
-    def _call(self, title: str, text: str) -> dict[str, Any] | None:
+    def _chat(self, system: str, user: str, max_tokens: int) -> str | None:
         import os
 
         import src.db.config  # noqa: F401  (loads .env as a side effect)
@@ -648,12 +699,9 @@ class FramingExtractor:
         model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
         try:
             resp = client.chat.completions.create(
-                model=model, temperature=0, max_tokens=260, timeout=30,
-                messages=[
-                    {"role": "system", "content": FRAMING_SYSTEM},
-                    {"role": "user",
-                     "content": f"כותרת: {title}\nפתיח: {(text or '')[:500]}"},
-                ],
+                model=model, temperature=0, max_tokens=max_tokens, timeout=30,
+                messages=[{"role": "system", "content": system},
+                          {"role": "user", "content": user}],
             )
         except Exception:
             return None
@@ -661,22 +709,43 @@ class FramingExtractor:
         if resp.usage:
             self.prompt_tokens += resp.usage.prompt_tokens
             self.completion_tokens += resp.usage.completion_tokens
-        return self._parse(resp.choices[0].message.content or "")
+        return resp.choices[0].message.content or ""
+
+    def cost_usd(self) -> float:
+        return (self.prompt_tokens * config.PRICE_PROMPT_PER_M
+                + self.completion_tokens * config.PRICE_COMPLETION_PER_M) / 1_000_000
+
+    def save(self) -> None:
+        self.cache_path.write_text(
+            json.dumps(self.cache, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+class FramingExtractor(_CachedLLM):
+    """LLM framing variables per article version, keyed by article_id."""
+
+    cache_name = "framing_cache.json"
+
+    def extract(self, article_id: str, title: str, text: str,
+                allow_network: bool = True) -> dict[str, Any] | None:
+        hit = self.cache.get(article_id)
+        if hit is not None:
+            return hit
+        if not allow_network:
+            return None
+        raw = self._chat(
+            FRAMING_SYSTEM,
+            f"כותרת: {title}\nפתיח: {(text or '')[:EXTRACT_LEAD_CHARS]}", 260)
+        parsed = self._parse(raw or "")
+        if parsed is None:
+            self.failures += 1
+            return None
+        self.cache[article_id] = parsed
+        return parsed
 
     @staticmethod
     def _parse(raw: str) -> dict[str, Any] | None:
-        """Tolerate the ~10% of responses that arrive fenced or with prose."""
-        text = re.sub(r"^```(?:json)?|```$", "", raw.strip(), flags=re.M).strip()
-        if not text.startswith("{"):
-            match = re.search(r"\{.*\}", text, flags=re.S)
-            if not match:
-                return None
-            text = match.group(0)
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError:
-            return None
-        if not isinstance(data, dict):
+        data = _json_object(raw)
+        if data is None:
             return None
         out = {k: data.get(k) for k in FRAMING_KEYS}
         # The model sometimes emits the string "null" instead of JSON null.
@@ -689,13 +758,44 @@ class FramingExtractor:
             out["voice"] = None
         return out
 
-    def cost_usd(self) -> float:
-        return (self.prompt_tokens * config.PRICE_PROMPT_PER_M
-                + self.completion_tokens * config.PRICE_COMPLETION_PER_M) / 1_000_000
 
-    def save(self) -> None:
-        self.cache_path.write_text(
-            json.dumps(self.cache, ensure_ascii=False, indent=1), encoding="utf-8")
+class ContrastExtractor(_CachedLLM):
+    """The contrastive step, keyed by event_id.
+
+    This is the one call that receives the retrieved siblings as context, which
+    is what makes the pipeline retrieval-AUGMENTED rather than retrieve-then-
+    generate: the model is asked what is distinctive about each version *given
+    the others*, a question that is unanswerable from a single article.
+    """
+
+    cache_name = "contrast_cache.json"
+
+    def extract(self, event_id: str, versions: list[tuple[str, str, str]],
+                allow_network: bool = True) -> dict[str, Any] | None:
+        hit = self.cache.get(event_id)
+        if hit is not None:
+            return hit
+        if not allow_network:
+            return None
+        raw = self._chat(CONTRAST_SYSTEM, build_contrast_prompt(versions), 700)
+        parsed = self._parse(raw or "")
+        if parsed is None:
+            self.failures += 1
+            return None
+        self.cache[event_id] = parsed
+        return parsed
+
+    @staticmethod
+    def _parse(raw: str) -> dict[str, Any] | None:
+        data = _json_object(raw)
+        if data is None or not isinstance(data.get("per_source"), list):
+            return None
+        items = [i for i in data["per_source"] if isinstance(i, dict) and i.get("source")]
+        if not items:
+            return None
+        shared = data.get("shared")
+        return {"per_source": items,
+                "shared": shared if isinstance(shared, str) else None}
 
 
 # ---------------------------------------------------------------------------
@@ -720,14 +820,6 @@ def _normalise(text: str) -> str:
     """Strip quote marks and collapse whitespace so a term lifted from a
     headline still matches the headline it came from."""
     return re.sub(r"\s+", " ", re.sub(r"[\"״“”'׳]", "", text or "")).strip()
-
-
-# The verifier must check against exactly the window the extractor was shown.
-# Checking a wider window would let an invented term pass because it happens to
-# appear deep in the body; checking a narrower one rejects terms the model was
-# legitimately reading (that mistake scored 33% grounding instead of the true
-# 93% on the first measurement run).
-EXTRACT_LEAD_CHARS = 600
 
 
 def verify_framing(framing: dict[str, Any], title: str, lead: str) -> Verdict:

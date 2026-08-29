@@ -107,6 +107,10 @@ def test_sampling_curve_narrows_with_more_evidence():
     curve = sampling_curve(values)
     assert curve[0]["width"] > curve[-1]["width"]
     assert curve[-1]["n"] == 160
+    # Averaging over subsamples rather than taking a prefix must make the
+    # narrowing monotone — that is the whole reason for the resampling.
+    widths = [c["width"] for c in curve]
+    assert widths == sorted(widths, reverse=True)
 
 
 def test_sampling_curve_skips_checkpoints_beyond_the_data():
