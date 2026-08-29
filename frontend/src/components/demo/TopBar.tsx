@@ -11,10 +11,9 @@ interface TopBarProps {
 
 /**
  * Always-on header: product mark · big scene title + one explanation line ·
- * scene progress dots · round pips (rounds scene only) · LIVE/local badge.
+ * scene progress dots · model-provenance badge.
  */
 export function TopBar({ scene, phase, mode, llmMode }: TopBarProps) {
-  const inRounds = scene?.scene === "rounds";
   return (
     <header className="flex h-full items-center gap-6 px-8">
       {/* product mark */}
@@ -38,11 +37,8 @@ export function TopBar({ scene, phase, mode, llmMode }: TopBarProps) {
           <div key={scene.scene} className="dk-chip-in min-w-0 text-center">
             <div className="text-[26px] font-black leading-tight tracking-tight text-[var(--dk-accent)]">
               {scene.title_he}
-              {inRounds && phase && (
-                <span className="text-[var(--dk-ink)]">
-                  {" "}
-                  · {phase.round_label_he}
-                </span>
+              {phase && (
+                <span className="text-[var(--dk-ink)]"> · {phase.label_he}</span>
               )}
             </div>
             {scene.subtitle_he && (
@@ -65,38 +61,11 @@ export function TopBar({ scene, phase, mode, llmMode }: TopBarProps) {
             מצב הדגמה
           </span>
         ) : llmMode ? (
-          <span
-            className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium ${
-              llmMode.mode === "live"
-                ? "border-[var(--dk-good)]/40 bg-[var(--dk-good)]/10 text-[var(--dk-good)]"
-                : "border-[var(--dk-border)] bg-[var(--dk-surface-2)] text-[var(--dk-ink-2)]"
-            }`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                llmMode.mode === "live"
-                  ? "animate-pulse bg-[var(--dk-good)]"
-                  : "bg-[var(--dk-ink-3)]"
-              }`}
-            />
+          <span className="flex items-center gap-1.5 rounded-full border border-[var(--dk-border)] bg-[var(--dk-surface-2)] px-3 py-1 text-sm font-medium text-[var(--dk-ink-2)]">
+            <span className="h-2 w-2 rounded-full bg-[var(--dk-ink-3)]" />
             {llmMode.label_he}
           </span>
         ) : null}
-
-        {inRounds && phase && (
-          <div className="flex gap-1.5" aria-hidden>
-            {Array.from({ length: phase.total_rounds }, (_, i) => (
-              <span
-                key={i}
-                className={`h-2.5 w-8 rounded-full transition-colors duration-500 ${
-                  i < phase.round
-                    ? "bg-[var(--dk-accent)]"
-                    : "bg-[var(--dk-border)]"
-                }`}
-              />
-            ))}
-          </div>
-        )}
 
         {/* scene progress dots */}
         {scene && (

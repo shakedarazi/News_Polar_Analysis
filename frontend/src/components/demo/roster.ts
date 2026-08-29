@@ -31,30 +31,30 @@ export const DEFAULT_AGENTS: AgentInfo[] = [
   },
   {
     id: "librarian",
-    name_he: "ליבי",
+    name_he: "הספרנית",
     role_he: "סוכנת אחזור RAG",
     emoji: "🗂️",
     tier: 3,
     tier_label_he: "אחזור",
-    persona_he: "מוצאת את המסמך הנכון בשנייה",
+    persona_he: "מוצאת את אותו סיפור גם בלי מילה משותפת",
   },
   {
     id: "nova",
     name_he: "נובה",
-    role_he: "סוכנת סיווג",
+    role_he: "סוכנת מסגור",
     emoji: "🤖",
     tier: 4,
-    tier_label_he: "זיכרון",
-    persona_he: "בטוחה בעצמה, אוהבת להסביר למה",
+    tier_label_he: "מודל שפה",
+    persona_he: "קוראת מי המבצע ולמי מיוחסת האחריות",
   },
   {
     id: "amit",
     name_he: "עמית",
-    role_he: "מבקר־על",
+    role_he: "המאמת",
     emoji: "🎓",
     tier: 5,
-    tier_label_he: "ביקורת",
-    persona_he: "מטיל ספק בכל סיווג",
+    tier_label_he: "אימות",
+    persona_he: "ביטוי שאינו בטקסט לא עולה למסך",
   },
 ];
 
@@ -98,19 +98,16 @@ export const STATE_LABELS_HE: Record<AgentStateId, string> = {
   idle: "ממתין",
   working: "עובד",
   waiting: "מחכה",
-  debating: "מתעמת",
   done: "סיים",
   error: "שגיאה",
 };
 
 export const PHASE_LABELS_HE: Record<PhaseId, string> = {
   intake: "איסוף כתבות",
-  retrieve: "אחזור RAG",
-  classify: "סיווג",
-  analyze: "ניתוח קיטוב",
-  critique: "ביקורת עמיתים",
-  learn: "למידה עצמית",
-  summary: "סיכום",
+  retrieve: "אחזור סמנטי",
+  framing: "חילוץ מסגור · אימות",
+  audience: "פערי קהל",
+  profile: "פרופיל מצטבר",
 };
 
 export const STRATEGY_LABELS_HE: Record<ScrapeStrategy, string> = {
@@ -129,12 +126,6 @@ export const STRATEGY_ORDER: ScrapeStrategy[] = [
   "rss",
   "skip",
 ];
-
-export const METHOD_LABELS_HE: Record<"baseline" | "knn" | "llm", string> = {
-  baseline: "חוקי אצבע",
-  knn: "שכנים (RAG)",
-  llm: "מודל שפה + RAG",
-};
 
 export function findAgent(
   agents: AgentInfo[],

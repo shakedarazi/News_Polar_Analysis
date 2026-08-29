@@ -6,17 +6,15 @@ import { TopBar } from "./TopBar";
 import { AgentMap } from "./AgentMap";
 import { ActivityFeed } from "./ActivityFeed";
 import { ScrapeTracker } from "./ScrapeTracker";
-import { MetricsChart } from "./MetricsChart";
 import { TierLeaderboard } from "./TierLeaderboard";
-import { TokenEconomy } from "./TokenEconomy";
-import { DebateOverlay } from "./DebateOverlay";
 import { InsightToast } from "./InsightToast";
 import { SummaryOverlay } from "./SummaryOverlay";
-import { ClassificationFlash } from "./ClassificationFlash";
 import { ArchScene } from "./ArchScene";
 import { ShowcaseScene } from "./ShowcaseScene";
-import { RetrievalScene } from "./RetrievalScene";
-import { LearningScene } from "./LearningScene";
+import { EventMapScene } from "./EventMapScene";
+import { FramingScene } from "./FramingScene";
+import { AudienceScene } from "./AudienceScene";
+import { ProfileScene } from "./ProfileScene";
 import { EconomyScene } from "./EconomyScene";
 import { GateBar } from "./GateBar";
 
@@ -30,14 +28,8 @@ interface DemoDashboardProps {
  * the on-screen gate button advance the demo (HITL).
  */
 export function DemoDashboard({ forceMock }: DemoDashboardProps) {
-  const {
-    state,
-    advance,
-    dismissDebate,
-    dismissInsight,
-    dismissClassification,
-    expireBeam,
-  } = useDemoStream(forceMock);
+  const { state, advance, dismissInsight, expireBeam } =
+    useDemoStream(forceMock);
 
   // presenter keyboard: any "next" key clears the current gate
   useEffect(() => {
@@ -57,10 +49,8 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
   }, [advance]);
 
   const scene = state.scene?.scene ?? null;
-  const showScrape =
-    state.phase?.phase === "intake" && state.scrape.length > 0;
 
-  /* the swarm stage — the rounds scene, and the idle/waiting screen */
+  /* the swarm stage — the opening/idle screen and the summary backdrop */
   const swarmStage = (
     <div className="grid h-full min-h-0 grid-rows-[1fr_22%] gap-3">
       <div className="grid min-h-0 grid-cols-[28%_1fr] gap-3">
@@ -73,33 +63,15 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
             idle={state.scene === null && state.phase === null}
             expireBeam={expireBeam}
           />
-          {scene === "rounds" && showScrape && (
-            <ScrapeTracker tracks={state.scrape} />
-          )}
-          {scene === "rounds" && state.classification && (
-            <ClassificationFlash
-              item={state.classification}
-              onDone={dismissClassification}
-            />
-          )}
-          {state.debate && (
-            <DebateOverlay
-              debate={state.debate}
-              agents={state.agents}
-              onClose={dismissDebate}
-            />
-          )}
         </div>
       </div>
-      <footer className="grid min-h-0 grid-cols-3 gap-3">
-        <MetricsChart metrics={state.metrics} learned={state.learned} />
+      <footer className="min-h-0">
         <TierLeaderboard agents={state.agents} activeAgent={state.activeAgent} />
-        <TokenEconomy tokens={state.tokens} agents={state.agents} />
       </footer>
     </div>
   );
 
-  /* focused side-feed layout used by the intake/lexicon/rag scenes */
+  /* focused side-feed layout: the agents narrate alongside the scene */
   const withFeed = (content: React.ReactNode) => (
     <div className="grid h-full min-h-0 grid-cols-[27%_1fr] gap-3">
       <ActivityFeed feed={state.feed} agents={state.agents} />
@@ -122,23 +94,29 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
     case "lexicon":
       stage = withFeed(<ShowcaseScene showcase={state.showcase} />);
       break;
-    case "rag":
-      stage = withFeed(<RetrievalScene retrieval={state.retrieval} />);
+    case "event_map":
+      stage = withFeed(<EventMapScene eventMap={state.eventMap} />);
       break;
-    case "learning":
-      stage = (
-        <LearningScene
-          metrics={state.metrics}
-          learned={state.learned}
-          learnedItems={state.learnedItems}
-        />
+    case "framing":
+      stage = withFeed(
+        <FramingScene
+          framings={state.framings}
+          contrast={state.contrast}
+          verifier={state.verifier}
+        />,
       );
       break;
+    case "audience":
+      stage = withFeed(<AudienceScene audience={state.audience} />);
+      break;
+    case "profile":
+      stage = <ProfileScene profile={state.profile} />;
+      break;
     case "economy":
-      stage = <EconomyScene economy={state.economy} tokens={state.tokens} />;
+      stage = <EconomyScene economy={state.economy} />;
       break;
     default:
-      // rounds, summary, and the waiting screen all live on the swarm stage
+      // summary and the waiting screen live on the swarm stage
       stage = swarmStage;
   }
 

@@ -10,13 +10,13 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   JSON object with a `type` field (schemas below). CORS is open (`*`).
 - `GET http://localhost:8010/state` — full JSON snapshot for initial render /
   recovery after refresh: `{agents: AgentInfo[], phase: PhaseEvent|null,
-  agent_states: {agentId: AgentStatusEvent}, metrics: MetricEvent[],
-  feed: ReasoningEvent[] (last 50), scene: SceneEvent|null, gate:
-  GateEvent|null, arch_steps: ArchStepEvent[], showcase: ShowcaseEvent|null,
-  retrieval: RetrievalEvent|null, economy: EconomyEvent|null,
-  learned: LearnEvent[] (last 10), llm_mode: LlmModeEvent|null,
-  autoplay: bool, tokens: {total_tokens, total_cost_usd}}`.
-  (`round`/`total_rounds` live inside the phase event.)
+  agent_states: {agentId: AgentStatusEvent}, feed: ReasoningEvent[] (last 50),
+  scene: SceneEvent|null, gate: GateEvent|null, arch_steps: ArchStepEvent[],
+  showcase: ShowcaseEvent|null, event_map: EventMapEvent|null,
+  framings: FramingEvent[], contrast: ContrastEvent|null,
+  verifier: VerifierEvent|null, audience: AudienceGapEvent[],
+  profile: ProfileEvent|null, economy: EconomyEvent|null,
+  llm_mode: LlmModeEvent|null, autoplay: bool}`.
 - `POST http://localhost:8010/control/advance` — HITL: clear the currently
   open gate (presenter pressed space / the on-screen button). Returns
   `{ok, advanced: bool}`; `advanced=false` means no gate was open.
@@ -27,12 +27,22 @@ Every event also carries `ts` (epoch milliseconds).
 
 ## The scene machine
 
-The runner is a linear waterfall of 8 scenes, each with a HITL gate at its
-end: `arch → intake → lexicon → rag → rounds → learning → economy → summary`.
-The dashboard switches its whole layout on the `scene` event; `phase` events
-(with `round`) are emitted only inside the `rounds` scene. With
-`DEMO_AUTOPLAY=1` gates auto-clear after `autoplay_ms`; with `DEMO_AUTOPLAY=0`
-they wait for `/control/advance`.
+The runner is a linear waterfall of 9 scenes, each with a HITL gate at its end:
+
+`arch → intake → lexicon → event_map → framing → audience → profile → economy → summary`
+
+Scenes 1–3 are the deterministic pipeline before any AI. Scenes 4–6 follow ONE
+story: which outlets covered it, how each framed it, what each audience did with
+it. Scene 7 zooms out to every event in the snapshot. The dashboard switches its
+whole layout on the `scene` event. With `DEMO_AUTOPLAY=1` gates auto-clear after
+`autoplay_ms`; with `DEMO_AUTOPLAY=0` they wait for `/control/advance`.
+
+Each loop runs one of the precomputed showcase events, rotating, so a kiosk
+running all day does not repeat the same story every five minutes.
+
+`showcase`, `event_map`, `framings`, `contrast`, `verifier` and `audience` are
+scene-scoped: a `scene` event clears them, so a mid-scene refresh never shows a
+card from the previous scene. `profile` and `economy` persist to the summary.
 
 ## AgentInfo (roster, served by /state)
 
@@ -40,22 +50,22 @@ they wait for `/control/advance`.
 {
   "id": "nova",
   "name_he": "נובה",
-  "role_he": "סוכנת סיווג",
+  "role_he": "סוכנת מסגור",
   "emoji": "🤖",
   "tier": 4,
-  "tier_label_he": "RAG + מודל שפה + זיכרון",
-  "persona_he": "בטוחה בעצמה, אוהבת להסביר למה"
+  "tier_label_he": "מודל שפה על גבי האחזור",
+  "persona_he": "קוראת מי המבצע ולמי מיוחסת האחריות"
 }
 ```
 
 Fixed roster (ids): `scout` (🛰️ סוכן איסוף, tier 2), `lexi` (📖 אנליסט
 לקסיקון, tier 1), `librarian` (🗂️ סוכנת אחזור RAG, tier 3), `nova` (🤖 סוכנת
-סיווג, tier 4), `amit` (🎓 מבקר־על, tier 5).
+מסגור, tier 4), `amit` (🎓 המאמת, tier 5).
 
 ## Event types
 
 ### scene  (top-level layout switch; see "The scene machine")
-`{"type":"scene","scene":"arch|intake|lexicon|rag|rounds|learning|economy|summary","idx":1,"total":8,"title_he":"...","subtitle_he":"..."}`
+`{"type":"scene","scene":"arch|intake|lexicon|event_map|framing|audience|profile|economy|summary","idx":1,"total":9,"title_he":"...","subtitle_he":"..."}`
 
 ### gate / gate_cleared  (HITL pause point between scenes)
 ```json
@@ -71,26 +81,89 @@ Steps follow the chronological order of the real scheduled ingestion run
 (`scripts/run_ingestion.sh` in GitHub Actions, every 6 hours).
 
 ### showcase  (lexicon scene — real raw material + the product's fields)
-`{"type":"showcase","article_id":"...","title":"...","source":"ynet","url":"...","published_at":"2026-08-20","excerpt":"...","windows":14,"mean_dominance":0.41,"max_dominance":0.8,"comments":52,"audience_mean":0.031,"audience_p85":0.07,"top_category_he":"ביטחון","top_count":9,"reference":"ביטחון"}`
+`{"type":"showcase","article_id":"...","title":"...","source":"ynet","source_he":"ynet","url":"...","published_at":"2026-08-20","excerpt":"...","windows":14,"mean_dominance":0.41,"max_dominance":0.8,"comments":52,"audience_mean":0.031,"audience_p85":0.07,"top_category_he":"ביטחון","top_count":9}`
 Numeric fields may be `null` (e.g. no comments / no lexicon words).
 
-### retrieval  (RAG scene — neighbors + token-savings comparison)
-`{"type":"retrieval","title":"...","neighbors":[{"title":"...","category":"...","score":0.91}],"tokens_full_est":1830,"tokens_context_est":140,"note_he":"אומדן..."}`
+### event_map  (retrieval scene — the same story at other outlets)
+```json
+{"type":"event_map","event_id":"...","seed_title":"...","seed_source":"mako",
+ "topic_he":"כלכלה","keyword_found":0,"semantic_found":2,"total":2,
+ "versions":[{"source":"ynet","source_he":"ynet","title":"...","score":0.93,"keyword_overlap":0.04}]}
+```
+`keyword_found` vs `semantic_found` is the load-bearing comparison of the whole
+demo: both are computed live, not replayed.
+
+### framing  (one per version — the LLM's variables, already verified)
+```json
+{"type":"framing","article_id":"...","source":"haaretz","source_he":"הארץ","title":"...","url":"...",
+ "actor":"נתניהו","responsibility":"יו\"ר ועד העובדים","voice":"active|passive|null",
+ "lead_perspective":"...","loaded_terms":["פרועה","לא חוקית"],"lex_top_he":"פוליטיקה"}
+```
+`loaded_terms` contains ONLY terms that passed grounding — a term the verifier
+rejected never appears in this event.
+
+### contrast  (the retrieval-augmented step — each version against the others)
+```json
+{"type":"contrast","event_id":"...","shared_he":"מה כל הגרסאות מסכימות עליו",
+ "per_source":[{"source":"mako","source_he":"mako","distinctive_he":"...","evidence_he":"ציטוט או null"}]}
+```
+`evidence_he` is `null` when the verifier rejected the quote as paraphrase.
+
+### verifier  (the grounding pass — the only agent that removes output)
+```json
+{"type":"verifier","checked_terms":9,"dropped_terms":[{"source_he":"mako","term":"..."}],
+ "rejected_quotes":[{"source_he":"ynet","quote":"..."}],
+ "terms_total":250,"terms_rejected":4,"actors_total":142,"actors_rejected":0,
+ "quotes_total":144,"quotes_rejected":33,"lead_chars":500}
+```
+`checked_terms`/`dropped_terms`/`rejected_quotes` are this event, computed live.
+The `*_total` fields are the rate across the whole snapshot. `lead_chars` is the
+window both the extractor and the verifier use — they must be the same number.
+
+### audience_gap  (one per version — what the readers made of it)
+```json
+{"type":"audience_gap","article_id":"...","source":"mako","source_he":"mako","title":"...",
+ "mean_dominance":0.68,"num_comments":511,"audience_mean":0.02,"audience_p85":0.055,
+ "article_topic_he":"כלכלה","comment_topic_he":"פוליטיקה","hijacked":true,
+ "top_comment":{"text":"...","like_count":94}}
+```
+`hijacked` = the readers' dominant lexicon topic differs from the article's.
+
+### profile  (aggregate scene — every event in the snapshot, not the showcase)
+```json
+{"type":"profile","events_total":69,"min_cell_events":10,
+ "outlets":[{"source":"ynet","n":66,"mean":0.0173,"lo":0.0045,"hi":0.0309,"significant":true,
+             "mix_top":[["ביטחון",0.008],["משפט",-0.006]]}],
+ "curve_source":"ynet","curve_source_he":"ynet",
+ "sampling_curve":[{"n":3,"mean":0.02,"lo":-0.02,"hi":0.06,"width":0.0852}],
+ "topic_cells":[{"source":"ynet","topic_he":"ביטחון","n":30,"mean":0.0071,"lo":-0.01,"hi":0.02,
+                 "usable":true,"significant":false,"top_mix":[["ביטחון",0.01]]}],
+ "change_scans":[{"source":"ynet","topic_he":"ביטחון","n":30,"at":"...","shift":-0.028,
+                  "p_value":0.107,"detected":false,"before_mean":0.0,"after_mean":0.0,"power_1sd":0.68}],
+ "power_table":[{"n":20,"power_1sd":0.47,"power_half_sd":0.17}],
+ "coverage":{"ynet":{"covered":66,"total_events":69,"share":0.95,"in_snapshot":624}}}
+```
+`mean`/`lo`/`hi` are `null` for an outlet with fewer than 3 events — the UI must
+render "not enough evidence", never a number. `covered` is only meaningful next
+to `in_snapshot`: it mixes editorial selection with how much of that outlet was
+crawled.
 
 ### economy  (token-economy scene)
-`{"type":"economy","total_tokens":9980,"total_cost_usd":0.0027,"llm_calls":6,"allllm_tokens_est":94000,"allllm_cost_est":0.021,"note_he":"אומדן..."}`
+`{"type":"economy","model_calls":214,"cached_outputs":214,"total_tokens":120698,"total_cost_usd":0.0289,"showtime_calls":0,"corpus_articles":752,"allllm_tokens_est":789600,"allllm_cost_est":0.1779,"note_he":"אומדן..."}`
+`total_cost_usd` is what building the whole AI layer cost, once, offline.
+`showtime_calls` is 0 by construction: the kiosk replays a cache.
 
-### llm_mode  (LIVE/local indicator; re-emitted on degrade)
-`{"type":"llm_mode","mode":"live|offline","label_he":"מודל ענן חי"}`
+### llm_mode  (model-provenance indicator)
+`{"type":"llm_mode","mode":"cached","label_he":"פלט מודל אמיתי, מוקלט מראש — הקיוסק לא תלוי רשת"}`
 
 ### phase
-`{"type":"phase","phase":"intake|retrieve|classify|analyze|critique|learn|summary","label_he":"...","round":1,"total_rounds":3,"round_label_he":"סבב 1 — בלי RAG"}`
+`{"type":"phase","phase":"intake|retrieve|framing|audience|profile","label_he":"..."}`
 
 ### agent_status
-`{"type":"agent_status","agent":"nova","state":"idle|working|waiting|debating|done|error","task_he":"מסווגת: <כותרת>..."}`
+`{"type":"agent_status","agent":"nova","state":"idle|working|waiting|done|error","task_he":"מנתחת מסגור: הארץ"}`
 
 ### message  (drives edge animation on the agent map)
-`{"type":"message","from":"librarian","to":"nova","kind":"data|request|response|challenge|help","summary_he":"5 שכנים דומים"}`
+`{"type":"message","from":"librarian","to":"nova","kind":"data|request|response|challenge|help","summary_he":"2 גרסאות של אותו אירוע"}`
 
 ### reasoning  (activity feed; `level` colors the row)
 `{"type":"reasoning","agent":"amit","level":"info|decision|warn","text_he":"..."}`
@@ -98,32 +171,17 @@ Numeric fields may be `null` (e.g. no comments / no lexicon words).
 ### scrape_step  (decision-tree tracker during intake)
 `{"type":"scrape_step","url":"...","article_title":"...","step_idx":0,"strategy":"direct|alt_selector|archive_org|rss|skip","status":"trying|failed|success|skipped","note_he":"..."}`
 
-### classification
-`{"type":"classification","article_id":"...","title":"...","predicted":"פוליטיקה","reference":"פוליטיקה","correct":true,"confidence":0.82,"method":"baseline|knn|llm","neighbors":[{"title":"...","category":"...","score":0.91}]}`
-Method badges (he): baseline=חוקי אצבע, knn=שכנים (RAG), llm=מודל שפה + RAG.
-`correct` is `null` when no reference label exists.
+### insight  (grounded Q&A moment at the end of a scene)
+`{"type":"insight","question_he":"על מה הקוראים בעצם דיברו?","text_he":"...","source_he":"ספירת לקסיקון על טקסט התגובות"}`
 
-### debate_start / debate_turn / debate_end
+### run_summary  (end of the loop → summary overlay, then reset)
 ```json
-{"type":"debate_start","debate_id":"d1","article_id":"...","title":"...","participants":["nova","amit"],"reason_he":"ביטחון נמוך (0.44)"}
-{"type":"debate_turn","debate_id":"d1","agent":"amit","text_he":"..."}
-{"type":"debate_end","debate_id":"d1","verdict_he":"...","final_category":"ביטחון","changed":true}
+{"type":"run_summary","headline_he":"אותו אירוע, 3 מערכות, 3 מסגורים שונים",
+ "event_headline":"...","topic_he":"כלכלה","keyword_found":0,"keyword_total":2,
+ "events_total":69,"outlets":[{"source_he":"ynet","n":66,"mean":0.0173,"significant":true}],
+ "terms_total":250,"terms_rejected":4,"quotes_total":144,"quotes_rejected":33,
+ "links_recovered":2,"dropped":1,"total_cost_usd":0.0289}
 ```
-
-### metric  (one per finished round → line chart)
-`{"type":"metric","round":1,"label_he":"בלי RAG","accuracy":0.62,"n":8,"learned":0,"duration_s":41.2}`
-
-### tokens  (after every LLM call; totals are cumulative for the whole demo)
-`{"type":"tokens","agent":"nova","prompt":812,"completion":64,"cost_usd":0.00021,"total_tokens":15230,"total_cost_usd":0.0041}`
-
-### learn  (self-improvement memory update)
-`{"type":"learn","agent":"nova","text_he":"נוספה דוגמה מתוקנת: ...","memory_size":7}`
-
-### insight  (grounded Q&A moment at end of round)
-`{"type":"insight","question_he":"מה הנושא המקטב ביותר בסבב?","text_he":"...","source_he":"מבוסס על נתוני הלקסיקון בלבד"}`
-
-### run_summary  (end of full 5-min loop → summary overlay, then reset)
-`{"type":"run_summary","rounds":[MetricEvent...],"total_articles":24,"debates":3,"links_recovered":2,"total_cost_usd":0.0093,"headline_he":"הדיוק עלה מ־62% ל־88% בשלושה סבבים"}`
 
 ### reset
 `{"type":"reset"}` — dashboard clears transient state and returns to opening screen.

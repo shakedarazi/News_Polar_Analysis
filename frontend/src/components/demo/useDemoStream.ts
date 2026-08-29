@@ -36,10 +36,8 @@ type Action =
   | { type: "event"; ev: DemoEvent }
   | { type: "snapshot"; snap: StateSnapshot }
   | { type: "mode"; mode: StreamMode }
-  | { type: "dismiss_debate" }
   | { type: "dismiss_insight"; id: number }
   | { type: "dismiss_summary" }
-  | { type: "dismiss_classification"; id: number }
   | { type: "expire_beam"; id: number };
 
 // seeded randomly so ids stay unique even if the module is re-evaluated
@@ -60,19 +58,18 @@ export function initialDemoState(): DemoState {
     gate: null,
     archSteps: [],
     showcase: null,
-    retrieval: null,
+    eventMap: null,
+    framings: [],
+    contrast: null,
+    verifier: null,
+    audience: [],
+    profile: null,
     economy: null,
-    learnedItems: [],
     llmMode: null,
     phase: null,
     feed: [],
     beams: [],
     scrape: [],
-    classification: null,
-    debate: null,
-    metrics: [],
-    learned: 0,
-    tokens: { totalTokens: 0, totalCostUsd: 0, lastAgent: null, pulse: 0 },
     insight: null,
     summary: null,
   };
@@ -98,10 +95,12 @@ function applyEvent(state: DemoState, ev: DemoEvent): DemoState {
         scene: ev,
         archSteps: [],
         showcase: null,
-        retrieval: null,
-        classification: null,
+        eventMap: null,
+        framings: [],
+        contrast: null,
+        verifier: null,
+        audience: [],
         insight: null,
-        debate: state.debate?.end ? null : state.debate,
         summary: ev.scene === "summary" ? state.summary : null,
       };
 
@@ -125,8 +124,23 @@ function applyEvent(state: DemoState, ev: DemoEvent): DemoState {
     case "showcase":
       return { ...state, showcase: ev };
 
-    case "retrieval":
-      return { ...state, retrieval: ev };
+    case "event_map":
+      return { ...state, eventMap: ev };
+
+    case "framing":
+      return { ...state, framings: [...state.framings, ev] };
+
+    case "contrast":
+      return { ...state, contrast: ev };
+
+    case "verifier":
+      return { ...state, verifier: ev };
+
+    case "audience_gap":
+      return { ...state, audience: [...state.audience, ev] };
+
+    case "profile":
+      return { ...state, profile: ev };
 
     case "economy":
       return { ...state, economy: ev };
@@ -140,7 +154,7 @@ function applyEvent(state: DemoState, ev: DemoEvent): DemoState {
     case "agent_status": {
       if (typeof ev.agent !== "string") return state;
       const active =
-        ev.state === "working" || ev.state === "debating"
+        ev.state === "working"
           ? ev.agent
           : state.activeAgent === ev.agent &&
               (ev.state === "idle" || ev.state === "done")
@@ -209,64 +223,11 @@ function applyEvent(state: DemoState, ev: DemoEvent): DemoState {
       return { ...state, scrape };
     }
 
-    case "classification":
-      return { ...state, classification: { id: uid(), ev } };
-
-    case "debate_start":
-      return { ...state, debate: { start: ev, turns: [], end: null } };
-
-    case "debate_turn": {
-      if (!state.debate || state.debate.start.debate_id !== ev.debate_id) {
-        return state;
-      }
-      return {
-        ...state,
-        debate: { ...state.debate, turns: [...state.debate.turns, ev] },
-      };
-    }
-
-    case "debate_end": {
-      if (!state.debate || state.debate.start.debate_id !== ev.debate_id) {
-        return state;
-      }
-      return { ...state, debate: { ...state.debate, end: ev } };
-    }
-
-    case "metric": {
-      const metrics = [
-        ...state.metrics.filter((m) => m.round !== ev.round),
-        ev,
-      ].sort((a, b) => a.round - b.round);
-      return {
-        ...state,
-        metrics,
-        learned: Math.max(state.learned, ev.learned ?? 0),
-      };
-    }
-
-    case "tokens":
-      return {
-        ...state,
-        tokens: {
-          totalTokens: ev.total_tokens ?? state.tokens.totalTokens,
-          totalCostUsd: ev.total_cost_usd ?? state.tokens.totalCostUsd,
-          lastAgent: ev.agent ?? state.tokens.lastAgent,
-          pulse: state.tokens.pulse + 1,
-        },
-      };
-
-    case "learn":
-      return {
-        ...state,
-        learned: ev.memory_size ?? state.learned,
-        learnedItems: [...state.learnedItems, ev].slice(-10),
-      };
-
     case "insight":
       return { ...state, insight: { id: uid(), ev } };
 
     case "run_summary":
-      return { ...state, summary: ev, debate: null, insight: null };
+      return { ...state, summary: ev, insight: null };
 
     case "reset":
       return clearedRun(state);
@@ -310,22 +271,15 @@ function reducer(state: DemoState, action: Action): DemoState {
           ? snap.arch_steps
           : state.archSteps,
         showcase: snap.showcase ?? state.showcase,
-        retrieval: snap.retrieval ?? state.retrieval,
+        eventMap: snap.event_map ?? state.eventMap,
+        framings: Array.isArray(snap.framings) ? snap.framings : state.framings,
+        contrast: snap.contrast ?? state.contrast,
+        verifier: snap.verifier ?? state.verifier,
+        audience: Array.isArray(snap.audience) ? snap.audience : state.audience,
+        profile: snap.profile ?? state.profile,
         economy: snap.economy ?? state.economy,
-        learnedItems: Array.isArray(snap.learned)
-          ? snap.learned
-          : state.learnedItems,
         llmMode: snap.llm_mode ?? state.llmMode,
         phase: snap.phase ?? state.phase,
-        metrics: Array.isArray(snap.metrics) ? snap.metrics : state.metrics,
-        tokens: snap.tokens
-          ? {
-              totalTokens: snap.tokens.total_tokens ?? 0,
-              totalCostUsd: snap.tokens.total_cost_usd ?? 0,
-              lastAgent: snap.tokens.agent ?? null,
-              pulse: state.tokens.pulse,
-            }
-          : state.tokens,
         feed: Array.isArray(snap.feed)
           ? snap.feed
               .slice(-MAX_FEED)
@@ -347,9 +301,6 @@ function reducer(state: DemoState, action: Action): DemoState {
           ? { ...clearedRun(state), mode: "mock", agents: DEFAULT_AGENTS }
           : { ...state, mode: action.mode };
 
-    case "dismiss_debate":
-      return { ...state, debate: null };
-
     case "dismiss_insight":
       return state.insight?.id === action.id
         ? { ...state, insight: null }
@@ -357,11 +308,6 @@ function reducer(state: DemoState, action: Action): DemoState {
 
     case "dismiss_summary":
       return { ...state, summary: null };
-
-    case "dismiss_classification":
-      return state.classification?.id === action.id
-        ? { ...state, classification: null }
-        : state;
 
     case "expire_beam":
       return {
@@ -380,10 +326,8 @@ export interface DemoStreamApi {
   state: DemoState;
   /** HITL: clear the currently open gate (space / on-screen button) */
   advance: () => void;
-  dismissDebate: () => void;
   dismissInsight: (id: number) => void;
   dismissSummary: () => void;
-  dismissClassification: (id: number) => void;
   expireBeam: (id: number) => void;
 }
 
@@ -418,11 +362,8 @@ export function useDemoStream(forceMock: boolean): DemoStreamApi {
         () => undefined,
       );
     },
-    dismissDebate: () => dispatch({ type: "dismiss_debate" }),
     dismissInsight: (id) => dispatch({ type: "dismiss_insight", id }),
     dismissSummary: () => dispatch({ type: "dismiss_summary" }),
-    dismissClassification: (id) =>
-      dispatch({ type: "dismiss_classification", id }),
     expireBeam: (id) => dispatch({ type: "expire_beam", id }),
   });
   // Latest state for timer callbacks (stall check must see open gates).

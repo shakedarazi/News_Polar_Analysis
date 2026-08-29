@@ -36,8 +36,6 @@ function glowClass(state: AgentStateId): string {
   switch (state) {
     case "working":
       return "dk-node-glow-working";
-    case "debating":
-      return "dk-node-glow-debating";
     case "error":
       return "dk-node-glow-error";
     default:
@@ -47,8 +45,6 @@ function glowClass(state: AgentStateId): string {
 
 function glowColor(state: AgentStateId, base: string): string {
   switch (state) {
-    case "debating":
-      return "#fb923c";
     case "error":
       return "#f87171";
     case "working":
@@ -295,11 +291,7 @@ export function AgentMap({
                 textAnchor="middle"
                 fontSize={14}
                 fill={
-                  status === "error"
-                    ? "var(--dk-bad)"
-                    : status === "debating"
-                      ? "#fb923c"
-                      : "var(--dk-ink-3)"
+                  status === "error" ? "var(--dk-bad)" : "var(--dk-ink-3)"
                 }
               >
                 {task ? truncate(task, 30) : STATE_LABELS_HE[status]}

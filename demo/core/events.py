@@ -33,9 +33,6 @@ class EventBroker:
         self._arch_steps: list[dict[str, Any]] = []
         self._llm_mode: dict[str, Any] | None = None
         self._payloads: dict[str, Any] = {}
-        self.total_tokens = 0
-        self.total_cost_usd = 0.0
-        self.llm_calls = 0
 
     def subscribe(self) -> asyncio.Queue[str]:
         q: asyncio.Queue[str] = asyncio.Queue(maxsize=500)
@@ -108,10 +105,6 @@ class EventBroker:
             "profile": self._payloads.get("profile"),
             "economy": self._payloads.get("economy"),
             "llm_mode": self._llm_mode,
-            "tokens": {
-                "total_tokens": self.total_tokens,
-                "total_cost_usd": round(self.total_cost_usd, 6),
-            },
         }
 
 

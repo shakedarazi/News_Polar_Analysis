@@ -17,9 +17,10 @@ export type SceneId =
   | "arch"
   | "intake"
   | "lexicon"
-  | "rag"
-  | "rounds"
-  | "learning"
+  | "event_map"
+  | "framing"
+  | "audience"
+  | "profile"
   | "economy"
   | "summary";
 
@@ -73,6 +74,7 @@ export interface ShowcaseEvent {
   article_id: string;
   title: string;
   source: string;
+  source_he: string;
   url: string;
   published_at: string;
   excerpt: string;
@@ -84,25 +86,186 @@ export interface ShowcaseEvent {
   audience_p85: number | null;
   top_category_he: string | null;
   top_count: number;
-  reference: string | null;
 }
 
-export interface RetrievalEvent {
-  type: "retrieval";
-  ts: number;
+export interface EventMapVersion {
+  source: string;
+  source_he: string;
   title: string;
-  neighbors: NeighborInfo[];
-  tokens_full_est: number;
-  tokens_context_est: number;
-  note_he: string;
+  /** cosine similarity to the seed version */
+  score: number;
+  /** Jaccard overlap of the two headlines — the baseline being beaten */
+  keyword_overlap: number;
+}
+
+export interface EventMapEvent {
+  type: "event_map";
+  ts: number;
+  event_id: string;
+  seed_title: string;
+  seed_source: string;
+  topic_he: string | null;
+  keyword_found: number;
+  semantic_found: number;
+  total: number;
+  versions: EventMapVersion[];
+}
+
+export type FramingVoice = "active" | "passive" | null;
+
+export interface FramingEvent {
+  type: "framing";
+  ts: number;
+  article_id: string;
+  source: string;
+  source_he: string;
+  title: string;
+  url: string;
+  actor: string | null;
+  responsibility: string | null;
+  voice: FramingVoice;
+  lead_perspective: string | null;
+  /** only terms that passed grounding — rejected ones never reach the client */
+  loaded_terms: string[];
+  lex_top_he: string | null;
+}
+
+export interface ContrastItem {
+  source: string;
+  source_he: string;
+  distinctive_he: string | null;
+  /** null when the verifier rejected the quote as paraphrase */
+  evidence_he: string | null;
+}
+
+export interface ContrastEvent {
+  type: "contrast";
+  ts: number;
+  event_id: string;
+  shared_he: string | null;
+  per_source: ContrastItem[];
+}
+
+export interface VerifierEvent {
+  type: "verifier";
+  ts: number;
+  /** this event, checked live */
+  checked_terms: number;
+  dropped_terms: Array<{ source_he: string; term: string }>;
+  rejected_quotes: Array<{ source_he: string; quote: string }>;
+  /** the rate across the whole snapshot */
+  terms_total: number;
+  terms_rejected: number;
+  actors_total: number;
+  actors_rejected: number;
+  quotes_total: number;
+  quotes_rejected: number;
+  /** the window both the extractor and the verifier use */
+  lead_chars: number;
+}
+
+export interface TopComment {
+  text: string;
+  like_count: number;
+}
+
+export interface AudienceGapEvent {
+  type: "audience_gap";
+  ts: number;
+  article_id: string;
+  source: string;
+  source_he: string;
+  title: string;
+  mean_dominance: number | null;
+  num_comments: number | null;
+  audience_mean: number | null;
+  audience_p85: number | null;
+  article_topic_he: string | null;
+  comment_topic_he: string | null;
+  /** the readers' dominant lexicon topic differs from the article's */
+  hijacked: boolean;
+  top_comment: TopComment | null;
+}
+
+export interface OutletProfile {
+  source: string;
+  n: number;
+  /** null below 3 events — render "not enough evidence", never a number */
+  mean: number | null;
+  lo: number | null;
+  hi: number | null;
+  significant: boolean;
+  mix_top: Array<[string, number]>;
+}
+
+export interface CurvePoint {
+  n: number;
+  mean: number;
+  lo: number;
+  hi: number;
+  width: number;
+}
+
+export interface TopicCell {
+  source: string;
+  topic_he: string;
+  n: number;
+  mean: number | null;
+  lo: number | null;
+  hi: number | null;
+  usable: boolean;
+  significant: boolean;
+  top_mix: Array<[string, number]>;
+}
+
+export interface ChangeScan {
+  source: string;
+  topic_he: string;
+  n: number;
+  at: string;
+  shift: number;
+  p_value: number;
+  detected: boolean;
+  before_mean: number;
+  after_mean: number;
+  /** share of 1-SD shifts this series length would actually catch */
+  power_1sd: number;
+}
+
+export interface CoverageRow {
+  covered: number;
+  total_events: number;
+  share: number;
+  /** read `covered` only next to this: coverage mixes editorial selection
+      with how much of that outlet was crawled */
+  in_snapshot: number;
+}
+
+export interface ProfileEvent {
+  type: "profile";
+  ts: number;
+  events_total: number;
+  min_cell_events: number;
+  outlets: OutletProfile[];
+  curve_source: string;
+  curve_source_he: string;
+  sampling_curve: CurvePoint[];
+  topic_cells: TopicCell[];
+  change_scans: ChangeScan[];
+  power_table: Array<{ n: number; power_1sd: number; power_half_sd: number }>;
+  coverage: Record<string, CoverageRow>;
 }
 
 export interface EconomyEvent {
   type: "economy";
   ts: number;
+  model_calls: number;
+  cached_outputs: number;
   total_tokens: number;
   total_cost_usd: number;
-  llm_calls: number;
+  /** 0 by construction: the kiosk replays a cache */
+  showtime_calls: number;
+  corpus_articles: number;
   allllm_tokens_est: number;
   allllm_cost_est: number;
   note_he: string;
@@ -111,36 +274,25 @@ export interface EconomyEvent {
 export interface LlmModeEvent {
   type: "llm_mode";
   ts: number;
-  mode: "live" | "offline";
+  mode: "cached";
   label_he: string;
 }
 
 export type PhaseId =
   | "intake"
   | "retrieve"
-  | "classify"
-  | "analyze"
-  | "critique"
-  | "learn"
-  | "summary";
+  | "framing"
+  | "audience"
+  | "profile";
 
 export interface PhaseEvent {
   type: "phase";
   ts: number;
   phase: PhaseId;
   label_he: string;
-  round: number;
-  total_rounds: number;
-  round_label_he: string;
 }
 
-export type AgentStateId =
-  | "idle"
-  | "working"
-  | "waiting"
-  | "debating"
-  | "done"
-  | "error";
+export type AgentStateId = "idle" | "working" | "waiting" | "done" | "error";
 
 export interface AgentStatusEvent {
   type: "agent_status";
@@ -191,85 +343,6 @@ export interface ScrapeStepEvent {
   note_he?: string;
 }
 
-export interface NeighborInfo {
-  title: string;
-  category: string;
-  score: number;
-}
-
-export type ClassificationMethod = "baseline" | "knn" | "llm";
-
-export interface ClassificationEvent {
-  type: "classification";
-  ts: number;
-  article_id: string;
-  title: string;
-  predicted: string;
-  reference: string | null;
-  /** null when no reference label exists */
-  correct: boolean | null;
-  confidence: number;
-  method: ClassificationMethod;
-  neighbors?: NeighborInfo[];
-}
-
-export interface DebateStartEvent {
-  type: "debate_start";
-  ts: number;
-  debate_id: string;
-  article_id: string;
-  title: string;
-  participants: string[];
-  reason_he: string;
-}
-
-export interface DebateTurnEvent {
-  type: "debate_turn";
-  ts: number;
-  debate_id: string;
-  agent: string;
-  text_he: string;
-}
-
-export interface DebateEndEvent {
-  type: "debate_end";
-  ts: number;
-  debate_id: string;
-  verdict_he: string;
-  final_category: string;
-  changed: boolean;
-}
-
-export interface MetricEvent {
-  type: "metric";
-  ts: number;
-  round: number;
-  label_he: string;
-  accuracy: number;
-  n: number;
-  learned: number;
-  duration_s: number;
-}
-
-export interface TokensEvent {
-  type: "tokens";
-  ts: number;
-  agent: string;
-  prompt: number;
-  completion: number;
-  cost_usd: number;
-  total_tokens: number;
-  total_cost_usd: number;
-}
-
-export interface LearnEvent {
-  type: "learn";
-  ts: number;
-  agent: string;
-  text_he: string;
-  memory_size: number;
-}
-
 export interface InsightEvent {
   type: "insight";
   ts: number;
@@ -281,12 +354,25 @@ export interface InsightEvent {
 export interface RunSummaryEvent {
   type: "run_summary";
   ts: number;
-  rounds: MetricEvent[];
-  total_articles: number;
-  debates: number;
-  links_recovered: number;
-  total_cost_usd: number;
   headline_he: string;
+  event_headline: string;
+  topic_he: string | null;
+  keyword_found: number;
+  keyword_total: number;
+  events_total: number;
+  outlets: Array<{
+    source_he: string;
+    n: number;
+    mean: number | null;
+    significant: boolean;
+  }>;
+  terms_total: number;
+  terms_rejected: number;
+  quotes_total: number;
+  quotes_rejected: number;
+  links_recovered: number;
+  dropped: number;
+  total_cost_usd: number;
 }
 
 export interface ResetEvent {
@@ -300,7 +386,12 @@ export type DemoEvent =
   | GateClearedEvent
   | ArchStepEvent
   | ShowcaseEvent
-  | RetrievalEvent
+  | EventMapEvent
+  | FramingEvent
+  | ContrastEvent
+  | VerifierEvent
+  | AudienceGapEvent
+  | ProfileEvent
   | EconomyEvent
   | LlmModeEvent
   | PhaseEvent
@@ -308,41 +399,29 @@ export type DemoEvent =
   | AgentMessageEvent
   | ReasoningEvent
   | ScrapeStepEvent
-  | ClassificationEvent
-  | DebateStartEvent
-  | DebateTurnEvent
-  | DebateEndEvent
-  | MetricEvent
-  | TokensEvent
-  | LearnEvent
   | InsightEvent
   | RunSummaryEvent
   | ResetEvent;
 
-/** Cumulative token totals (subset of TokensEvent served by /state). */
-export interface TokensTotals {
-  total_tokens: number;
-  total_cost_usd: number;
-  agent?: string;
-}
-
-/** GET /state snapshot shape (round/total_rounds live inside the phase event). */
+/** GET /state snapshot shape. */
 export interface StateSnapshot {
   agents?: AgentInfo[];
   phase?: PhaseEvent | null;
   agent_states?: Record<string, AgentStatusEvent>;
-  metrics?: MetricEvent[];
   feed?: ReasoningEvent[];
   scene?: SceneEvent | null;
   gate?: GateEvent | null;
   arch_steps?: ArchStepEvent[];
   showcase?: ShowcaseEvent | null;
-  retrieval?: RetrievalEvent | null;
+  event_map?: EventMapEvent | null;
+  framings?: FramingEvent[];
+  contrast?: ContrastEvent | null;
+  verifier?: VerifierEvent | null;
+  audience?: AudienceGapEvent[];
+  profile?: ProfileEvent | null;
   economy?: EconomyEvent | null;
-  learned?: LearnEvent[];
   llm_mode?: LlmModeEvent | null;
   autoplay?: boolean;
-  tokens?: TokensTotals | null;
 }
 
 /* ---------- reduced dashboard state ---------- */
@@ -380,43 +459,30 @@ export interface ScrapeUrlTrack {
   }>;
 }
 
-export interface DebateSession {
-  start: DebateStartEvent;
-  turns: DebateTurnEvent[];
-  end: DebateEndEvent | null;
-}
-
 export interface DemoState {
   mode: StreamMode;
   /** backend pacing mode (from /state): false = presenter-controlled (HITL) */
   autoplay: boolean;
   agents: AgentInfo[];
   agentStatus: Record<string, AgentLiveStatus>;
-  /** id of the most recently active (working/debating) agent */
+  /** id of the most recently active (working) agent */
   activeAgent: string | null;
   scene: SceneEvent | null;
   gate: GateEvent | null;
   archSteps: ArchStepEvent[];
   showcase: ShowcaseEvent | null;
-  retrieval: RetrievalEvent | null;
+  eventMap: EventMapEvent | null;
+  framings: FramingEvent[];
+  contrast: ContrastEvent | null;
+  verifier: VerifierEvent | null;
+  audience: AudienceGapEvent[];
+  profile: ProfileEvent | null;
   economy: EconomyEvent | null;
-  learnedItems: LearnEvent[];
   llmMode: LlmModeEvent | null;
   phase: PhaseEvent | null;
   feed: FeedItem[];
   beams: Beam[];
   scrape: ScrapeUrlTrack[];
-  classification: { id: number; ev: ClassificationEvent } | null;
-  debate: DebateSession | null;
-  metrics: MetricEvent[];
-  learned: number;
-  tokens: {
-    totalTokens: number;
-    totalCostUsd: number;
-    lastAgent: string | null;
-    /** bumps on every tokens event — drives the tick animation */
-    pulse: number;
-  };
   insight: { id: number; ev: InsightEvent } | null;
   summary: RunSummaryEvent | null;
 }
