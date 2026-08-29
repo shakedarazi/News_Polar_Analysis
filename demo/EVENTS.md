@@ -22,8 +22,29 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   `{ok, advanced: bool}`; `advanced=false` means no gate was open.
 - `POST http://localhost:8010/control/restart` — reset the demo loop to its
   opening state (used by the kiosk auto-restart).
+- `GET http://localhost:8010/facts` — static explainer facts, read from
+  `demo/data/explainer_facts.json` on every request. Returns
+  `{available: false}` when the file has not been built. This endpoint has
+  nothing to do with the SSE stream: it backs the deep-dive modules, which are
+  navigated by the presenter rather than driven by the runner. Shape:
+  `{corpus, constants, identity_example, worked_example, sources[], windows,
+  comments, lexicon}` — see `demo/snapshot/build_explainer_facts.py` for the
+  producer and `frontend/src/components/demo/explain/facts.ts` for the mirror.
 
 Every event also carries `ts` (epoch milliseconds).
+
+## Two ways in
+
+The dashboard opens on a **hub** (`HubScene`), not on the waterfall. From there
+the presenter can enter any module directly — digits `1..8`, click, `Esc` to go
+back. Two kinds of module exist:
+
+- **the narrated run** — the nine-scene waterfall below, driven by the backend
+  over SSE. Unchanged.
+- **explainer modules** (`frontend/src/components/demo/explain/`) — static
+  diagrams of one subsystem, fed by `GET /facts`. No SSE, no runner state, no
+  gates. They are readable while the run is mid-scene, and they still render
+  (diagrams only, measured strips omitted) when `/facts` is unavailable.
 
 ## The scene machine
 
