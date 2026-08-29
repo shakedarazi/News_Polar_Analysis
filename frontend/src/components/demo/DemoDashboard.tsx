@@ -129,7 +129,7 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
         llmMode={state.llmMode}
       />
 
-      <main className="relative min-h-0">
+      <main className="relative min-h-0 pb-[68px]">
         {stage}
 
         {/* transient overlays (any scene) */}

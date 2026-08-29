@@ -93,6 +93,7 @@ function applyEvent(state: DemoState, ev: DemoEvent): DemoState {
       return {
         ...state,
         scene: ev,
+        phase: null,
         archSteps: [],
         showcase: null,
         eventMap: null,
@@ -279,7 +280,7 @@ function reducer(state: DemoState, action: Action): DemoState {
         profile: snap.profile ?? state.profile,
         economy: snap.economy ?? state.economy,
         llmMode: snap.llm_mode ?? state.llmMode,
-        phase: snap.phase ?? state.phase,
+        phase: snap.phase !== undefined ? snap.phase : state.phase,
         feed: Array.isArray(snap.feed)
           ? snap.feed
               .slice(-MAX_FEED)

@@ -53,6 +53,8 @@ class EventBroker:
             self._agent_states[event.get("agent", "?")] = event
         elif type_ == "scene":
             self._scene = event
+            # A phase belongs to the scene that emitted it.
+            self._phase = None
             self._arch_steps = []
             for key in SCENE_SCOPED:
                 self._payloads.pop(key, None)
