@@ -1,0 +1,123 @@
+"""The explainer diagrams claim to describe src/ — these tests hold them to it.
+
+Two failure modes are worth catching:
+
+  1. someone re-types a constant into the facts builder instead of importing
+     it, and the wall keeps showing the old number after the pipeline changes;
+  2. the generated demo/data/explainer_facts.json goes stale on the demo
+     machine, so the wall shows numbers from a previous pipeline.
+
+The second check only runs when the file exists — it is a build artifact, not
+something in git.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from demo.snapshot.build_explainer_facts import FACTS_PATH, build_constants
+
+
+@pytest.fixture(scope="module")
+def constants() -> dict:
+    return build_constants()
+
+
+def test_retry_constants_track_the_retry_module(constants):
+    from src.crawling.retry import INITIAL_BACKOFF_SECONDS, MAX_ATTEMPTS
+
+    assert constants["retry"]["max_attempts"] == MAX_ATTEMPTS
+    assert constants["retry"]["initial_backoff_s"] == INITIAL_BACKOFF_SECONDS
+    # the sleep sequence has one entry fewer than attempts: the last attempt
+    # is not followed by a wait
+    assert len(constants["retry"]["backoff_sequence_s"]) == MAX_ATTEMPTS - 1
+    assert constants["retry"]["backoff_sequence_s"][0] == INITIAL_BACKOFF_SECONDS
+
+
+def test_window_cap_tracks_the_splitter(constants):
+    from src.nlp.sentence_splitter import MAX_WINDOW_TOKENS
+
+    assert constants["windows"]["max_window_tokens"] == MAX_WINDOW_TOKENS
+
+
+def test_tracking_params_track_the_canonicaliser(constants):
+    from src.common.canonical_url import TRACKING_PARAMS
+
+    assert set(constants["canonical"]["tracking_params"]) == set(TRACKING_PARAMS)
+
+
+def test_lexicon_prefixes_track_the_expander(constants):
+    from src.lexicon.expand_lexicon import (
+        MIN_BASE_LENGTH,
+        SINGLE_PREFIXES,
+        WHITELISTED_PREFIX_PAIRS,
+    )
+
+    assert constants["lexicon"]["single_prefixes"] == list(SINGLE_PREFIXES)
+    assert constants["lexicon"]["prefix_pairs"] == list(WHITELISTED_PREFIX_PAIRS)
+    assert constants["lexicon"]["min_base_length"] == MIN_BASE_LENGTH
+
+
+def test_crawl_alert_thresholds_track_the_base_crawler(constants):
+    from src.crawling.base import (
+        FAILURE_RATE_ALERT_THRESHOLD,
+        MIN_DISCOVERED_FOR_FAILURE_ALERT,
+    )
+
+    assert constants["crawl"]["failure_rate_threshold"] == FAILURE_RATE_ALERT_THRESHOLD
+    assert (
+        constants["crawl"]["min_discovered_for_alert"]
+        == MIN_DISCOVERED_FOR_FAILURE_ALERT
+    )
+    # read off the signature default, so a change to crawl() moves the wall
+    assert constants["crawl"]["delay_seconds"] > 0
+
+
+def test_extract_thresholds_track_the_fallback_chain(constants):
+    # The ladder on screen labels each rung with the length gate that has to
+    # fail before the next rung is reached; those two numbers are the gate.
+    assert constants["extract"]["min_len"] > constants["extract"]["min_paragraph_len"]
+
+
+def test_categories_match_the_demo_roster(constants):
+    from demo import config
+
+    assert constants["categories_he"] == list(config.LEXICON_CATEGORY_NAMES_HE)
+    assert len(constants["categories_he"]) == 7
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_generated_file_is_not_stale():
+    facts = json.loads(FACTS_PATH.read_text(encoding="utf-8"))
+    assert facts["constants"] == build_constants(), (
+        "explainer_facts.json predates a pipeline change — re-run "
+        "PYTHONPATH=. python demo/snapshot/build_explainer_facts.py"
+    )
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_worked_example_arithmetic_holds():
+    """The dominance shown on the wall must be the division shown next to it."""
+    window = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["worked_example"][
+        "window"
+    ]
+    assert window["cat_words"] == sum(window["counts"])
+    assert window["max_count"] == max(window["counts"])
+    assert window["active"] == sum(1 for c in window["counts"] if c > 0)
+    if window["cat_words"] > 0:
+        assert window["dominance"] == pytest.approx(
+            window["max_count"] / window["cat_words"]
+        )
+    else:
+        assert window["dominance"] is None
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_identity_example_actually_collapses():
+    """The dedup claim on the wall is a computed comparison, not a caption."""
+    ex = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["identity_example"]
+    assert ex["clean_canonical"] == ex["dirty_canonical"]
+    assert ex["article_id"] == ex["dirty_article_id"] == ex["stored_article_id"]
+    assert ex["same"] is True

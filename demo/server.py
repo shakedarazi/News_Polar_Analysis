@@ -8,6 +8,7 @@ Separate process from the product API (src/api/app.py) — never touches it.
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -68,6 +69,23 @@ async def events() -> StreamingResponse:
     return StreamingResponse(stream(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache",
                                       "X-Accel-Buffering": "no"})
+
+
+@app.get("/facts")
+async def facts() -> dict:
+    """Static explainer facts (demo/snapshot/build_explainer_facts.py).
+
+    Read from disk per request rather than cached at import: regenerating the
+    file during a rehearsal should show up on the next refresh without
+    restarting the demo. It is a ~20KB local read, not a network call.
+
+    Missing file is not an error — the explainer modules render their diagrams
+    from the code they describe and simply omit the measured strips.
+    """
+    path = config.DATA_DIR / "explainer_facts.json"
+    if not path.exists():
+        return {"available": False}
+    return {"available": True, **json.loads(path.read_text(encoding="utf-8"))}
 
 
 @app.get("/state")

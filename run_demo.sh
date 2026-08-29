@@ -19,6 +19,14 @@ if [ ! -f demo/data/demo.sqlite ] || [ ! -f demo/data/demo_set.json ]; then
 fi
 
 source .venv/bin/activate
+
+# The explainer modules' measured strips. Cheap (a few SQLite scans, no
+# network), and always regenerated so the wall cannot show numbers from a
+# pipeline the code no longer runs.
+PYTHONPATH=. python demo/snapshot/build_explainer_facts.py || {
+  echo "[warn] explainer facts failed to build — modules will show diagrams only"
+}
+
 export DEMO_SPEED="${DEMO_SPEED:-1.0}"
 # Presenter-controlled pacing by default (the show advances on space/click).
 export DEMO_AUTOPLAY="${DEMO_AUTOPLAY:-0}"
