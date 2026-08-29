@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8">
+<title>פרופיל ערוץ — אותו אירוע, קהלים שונים</title>
+<style>
+  :root { --bg:#0f1117; --card:#171a23; --line:#262b38; --txt:#e8ecf4;
+           --dim:#8b93a7; --accent:#5b9dff; --warn:#ffb454; --good:#4ade80; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+         font-family:"Heebo","Segoe UI",Arial,sans-serif; padding:28px 34px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  h2 { font-size:19px; margin:34px 0 10px; border-right:3px solid var(--accent);
+        padding-right:10px; }
+  .lead { color:var(--dim); margin:0 0 22px; font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+           padding:18px 20px; margin-bottom:18px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:right; color:var(--dim); font-weight:500; padding:8px 10px;
+        border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { padding:11px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .src { font-weight:700; color:var(--accent); white-space:nowrap; }
+  .ttl { max-width:250px; line-height:1.45; }
+  .sub { color:var(--dim); font-size:11px; margin-top:4px; line-height:1.4; }
+  .llm { background:rgba(91,157,255,.07); }
+  .flag { background:var(--warn); color:#000; border-radius:4px; padding:1px 6px;
+           font-size:10px; font-weight:700; }
+  .sig { color:var(--good); font-weight:700; }
+  .nosig { color:var(--dim); }
+  .warn { color:var(--warn); font-size:11px; }
+  .mix { font-size:12px; color:var(--dim); }
+  .proof { display:flex; gap:26px; align-items:center; flex-wrap:wrap; }
+  .big { font-size:34px; font-weight:800; }
+  .big small { font-size:13px; font-weight:400; color:var(--dim); display:block; }
+  .fail { color:#ff6b6b; } .pass { color:var(--good); }
+  .bar-row { display:flex; align-items:center; gap:12px; margin:7px 0; font-size:12px; }
+  .bar-label { width:90px; color:var(--dim); }
+  .bar-track { flex:1; height:9px; background:#0b0d13; border-radius:5px; overflow:hidden; }
+  .bar-fill { height:100%; background:linear-gradient(90deg,var(--accent),#7c5cff); }
+  .bar-val { width:190px; color:var(--dim); }
+  .ledger { font-size:12.5px; color:var(--dim); line-height:1.85; }
+  .ledger b { color:var(--txt); }
+  .tag { display:inline-block; font-size:10px; padding:2px 7px; border-radius:4px;
+          margin-left:6px; vertical-align:middle; }
+  .tag-det { background:#1f3d2b; color:var(--good); }
+  .tag-ai { background:#1e3358; color:var(--accent); }
+  .tag-stat { background:#3d3520; color:var(--warn); }
+  .cell { text-align:center; font-variant-numeric:tabular-nums; }
+  .cell.empty { color:#3a4152; }
+  .cell.thin { color:var(--dim); background:rgba(255,255,255,.02); }
+  .cell.hot { background:rgba(74,222,128,.12); color:var(--good); font-weight:700; }
+  .cell .sub { font-weight:400; }
+  .concl-wrap { display:grid; gap:10px; margin-bottom:26px; }
+  .concl { background:linear-gradient(90deg,rgba(91,157,255,.10),transparent);
+            border-right:3px solid var(--accent); border-radius:8px; padding:13px 16px; }
+  .concl-claim { font-size:17px; line-height:1.55; }
+  .concl-ev { color:var(--dim); font-size:12px; margin-top:6px; }
+  .null-box { border-right:3px solid var(--warn); padding:10px 14px;
+               background:rgba(255,180,84,.06); border-radius:6px;
+               font-size:13px; line-height:1.75; margin-bottom:14px; }
+</style></head><body>
+
+<h1>אותו אירוע, קהלים שונים</h1>
+<p class="lead">פרוטוטיפ · כל המספרים מחושבים מהסנאפשוט המקומי · 80 אירועים חוצי־מקורות</p>
+
+<h2>מה מצאנו</h2>
+<div class="concl-wrap"><div class="concl"><div class="concl-claim">אותו אירוע, שני ויכוחים. הכתבה של mako היא בעיקר על ביטחון — הקוראים שלה דיברו בעיקר על פוליטיקה.</div><div class="concl-ev">27 תגובות אמיתיות שנאספו ונותחו</div></div><div class="concl"><div class="concl-claim">בלי AI אי אפשר בכלל להשוות: חיפוש מילים משותפות בכותרות לא מזהה שמדובר באותו סיפור.</div><div class="concl-ev">מילות מפתח מצאו 0 מתוך 6 הגרסאות · אחזור סמנטי מצא את כולן</div></div><div class="concl"><div class="concl-claim">mako מכסה סיפורי ביטחון בצורה פחות ממוקדת נושאית מכל השאר — באופן עקבי, לא במקרה.</div><div class="concl-ev">57 אירועים משותפים · רווח סמך [-0.045, -0.006] שאינו חוצה אפס</div></div><div class="concl"><div class="concl-claim">דפוס שעדיין לא ראיה: הארץ נוטה להזיז סיפורי ביטחון לכיוון פוליטיקה — צריך עוד דגימה כדי לקבוע.</div><div class="concl-ev">15 אירועים בלבד · רווח הסמך עדיין חוצה אפס</div></div><div class="concl"><div class="concl-claim">אף ערוץ לא שינה את הקו שלו בשבוע האחרון.</div><div class="concl-ev">נבדקו 5 סדרות זמן · הגלאי תופס שינוי בגודל סטיית תקן ב־95% מהמקרים</div></div><div class="concl"><div class="concl-claim">כל מילה שהמודל מוציא נבדקת מול הטקסט המקורי, ומה שלא נמצא — נמחק.</div><div class="concl-ev">5 מתוך 69 ביטויים נדחו (7%) · 11 מתוך 15 ציטוטים נדחו</div></div></div>
+
+<h2>1. האירוע<span class="tag tag-ai">אחזור סמנטי</span></h2>
+<div class="card">
+  <div style="font-size:17px;margin-bottom:14px">בדרך להתנגשות? החשש במערכת הביטחון מהסלמה מול טורקיה</div>
+  <div class="proof">
+    <div class="big fail">0<small>גרסאות שהתאמת מילות מפתח מוצאת</small></div>
+    <div class="big pass">6<small>גרסאות שאחזור סמנטי מוצא</small></div>
+    <div style="flex:1;min-width:260px;color:var(--dim);font-size:12.5px;line-height:1.7">
+      כותרות של אותו אירוע כמעט לא חולקות מילים. בלי אחזור סמנטי אין בכלל
+      השוואה בין מקורות — וזו ההצדקה הנמדדת לשכבת ה־AI.
+    </div>
+  </div>
+</div>
+
+<h2>2. הגרסאות זו מול זו<span class="tag tag-det">לקסיקון</span><span class="tag tag-ai">חילוץ מסגור</span></h2>
+<div class="card"><table>
+  <tr><th>מקור</th><th>הכותרת</th><th>לקסיקון הכתבה</th><th>מי המבצע</th>
+      <th>למי מיוחסת אחריות</th><th>מילים טעונות</th><th>קהל בפועל</th>
+      <th>על מה התגובות דיברו</th></tr>
+  
+        <tr>
+          <td class="src">mako</td>
+          <td class="ttl">בדרך להתנגשות? החשש במערכת הביטחון מהסלמה מול טורקיה</td>
+          <td>ביטחון<div class="sub">25 חלונות · דומיננטיות 0.78</div></td>
+          <td class="llm">ישראל</td>
+          <td class="llm">מערכת הביטחון</td>
+          <td class="llm">החשש, מוטרדים, דאגה, מאוד</td>
+          <td>32<div class="sub">p85 0.0625</div></td>
+          <td>ביטחון <div class="sub">לא נאה ולא יאה בתקופת בחירות לטפל בנושאים אלה ,האמת שנראה שהממשלה הזו מרחרחת מלחמה והראיה </div></td>
+        </tr>
+        <tr>
+          <td class="src">mako</td>
+          <td class="ttl">הערכה בישראל: הניסיון הטורקי להתבסס בנמל התעופה בסוריה - נבלם</td>
+          <td>ביטחון<div class="sub">14 חלונות · דומיננטיות 0.81</div></td>
+          <td class="llm">טורקיה</td>
+          <td class="llm">ישראל</td>
+          <td class="llm">נבלם, תפנית משמעותית, חששות, גינוי חריף</td>
+          <td>27<div class="sub">p85 0.0400</div></td>
+          <td>פוליטיקה <span class='flag'>התהפך</span><div class="sub">ישנם 2 בעיות ארדואן תומך הטרור שואף כפעם להקים אימפריה עותמאנית שטח ועוד שטח
+והשנייה זה מי</div></td>
+        </tr>
+        <tr>
+          <td class="src">mako</td>
+          <td class="ttl">למרות האזהרות מישראל, טורקיה מבהירה: &quot;נמשיך לסייע לסוריה לפתח יכולות צבאיות&quot;</td>
+          <td>ביטחון<div class="sub">15 חלונות · דומיננטיות 0.72</div></td>
+          <td class="llm">טורקיה</td>
+          <td class="llm">ישראל</td>
+          <td class="llm">אזהרות, תמוך, הכחישו, תקפו, מאיימות</td>
+          <td>27<div class="sub">p85 0.0769</div></td>
+          <td>פוליטיקה <span class='flag'>התהפך</span><div class="sub">סוריה ותורכיה הכריזו שהם מבינים שההתקפה הישראלית היא לקדם את האינטרסים הפוליטיים של נתניהו</div></td>
+        </tr>
+        <tr>
+          <td class="src">הארץ</td>
+          <td class="ttl">ישראל אותתה לארדואן כי חצה את הקווים האדומים בסוריה, ומיהרה להבהיר שאינה מעוניינת בהסלמה</td>
+          <td>ביטחון<div class="sub">3 חלונות · דומיננטיות 0.83</div></td>
+          <td class="llm">ישראל</td>
+          <td class="llm">טורקיה</td>
+          <td class="llm">חצה את הקווים האדומים</td>
+          <td>11<div class="sub">p85 0.0093</div></td>
+          <td>ביטחון <div class="sub">ישראל שיחקה באש כאשר ניסתה להוציא את הג&#x27;ין הכורדי על מנת למוטט את המשטר באיראן. רק גא</div></td>
+        </tr>
+        <tr>
+          <td class="src">ynet</td>
+          <td class="ttl">מה טורקיה מחפשת בסוריה - ולמה זה מדאיג את ישראל?</td>
+          <td>בינלאומי<div class="sub">15 חלונות · דומיננטיות 0.85</div></td>
+          <td class="llm">טורקיה</td>
+          <td class="llm">ישראל</td>
+          <td class="llm">—</td>
+          <td>9<div class="sub">p85 0.0000</div></td>
+          <td>פוליטיקה <span class='flag'>התהפך</span><div class="sub">הבעיה היחידה היא שהבחירות מדאיגות את ביבי וכל השאר ספינים בבחירות הקודמות הפוקוס היה על מצ</div></td>
+        </tr>
+        <tr>
+          <td class="src">mako</td>
+          <td class="ttl">הדאגה בישראל ממכירת F35 לטורקיה: &quot;מהלך רע&quot;</td>
+          <td>ביטחון<div class="sub">12 חלונות · דומיננטיות 0.63</div></td>
+          <td class="llm">מערכת הביטחון</td>
+          <td class="llm">ישראל</td>
+          <td class="llm">מהלך רע</td>
+          <td>17<div class="sub">p85 0.0250</div></td>
+          <td>ביטחון <div class="sub">הג&#x27;ינג&#x27;י יוצא טמבל מכל הסיפור ומכל הכיוונים .</div></td>
+        </tr>
+        <tr>
+          <td class="src">ynet</td>
+          <td class="ttl">פעם היו לארדואן חברים ישראלים: כך קרסה הברית עם טורקיה - והחשש המרכזי כעת</td>
+          <td>ביטחון<div class="sub">127 חלונות · דומיננטיות 0.87</div></td>
+          <td class="llm">—</td>
+          <td class="llm">—</td>
+          <td class="llm">קרסה</td>
+          <td>69<div class="sub">p85 0.0263</div></td>
+          <td>ביטחון <div class="sub">הוא מעולם לא היה מתון ומעולם לא היה כזה שהיה בעל ברית. היא כמו דיקטטורים אחרים התחיל כ&quo</div></td>
+        </tr>
+</table>
+<p class="sub">העמודות המסומנות בכחול הן היחידות שמגיעות ממודל שפה — הן המשתנים
+שהלקסיקון עיוור אליהם. ניתוחי המסגור נטענו מהמטמון המקומי (ללא רשת).</p></div>
+
+<h2>3. פרופיל ערוץ — סטייה מחציון האירוע<span class="tag tag-stat">סטטיסטיקה, לא AI</span></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">כל ערוץ מושווה לחציון של <b>אותו אירוע בדיוק</b>,
+  מה שמנטרל את השאלה מה קרה בעולם ומשאיר רק את הבחירה המערכתית. ערך שלילי
+  בדומיננטיות = הגרסה של הערוץ פחות מרוכזת נושאית מהחציון.</p>
+  <table>
+    <tr><th>מקור</th><th>מדגם</th><th>סטייה ממוצעת</th><th>רווח סמך 95%</th>
+        <th>מובהקות</th><th>הטיית תמהיל בולטת</th></tr>
+    
+        <tr>
+          <td class="src">ynet</td>
+          <td>160 אירועים</td>
+          <td>0.0173</td>
+          <td>[+0.0058, +0.0283]</td>
+          <td class="sig">מובהק</td>
+          <td class="mix">בינלאומי +0.021 · חברה +0.016</td>
+        </tr>
+        <tr>
+          <td class="src">mako</td>
+          <td>103 אירועים</td>
+          <td>-0.0310</td>
+          <td>[-0.0456, -0.0169]</td>
+          <td class="sig">מובהק</td>
+          <td class="mix">כלכלה +0.016 · משפט +0.016</td>
+        </tr>
+        <tr>
+          <td class="src">הארץ</td>
+          <td>38 אירועים</td>
+          <td>-0.0173</td>
+          <td>[-0.0522, +0.0159]</td>
+          <td class="nosig">לא מובהק</td>
+          <td class="mix">ביטחון -0.061 · פוליטיקה +0.053</td>
+        </tr>
+        <tr>
+          <td class="src">חדשות 12</td>
+          <td>6 אירועים</td>
+          <td>-0.0055</td>
+          <td>[-0.0535, +0.0418]</td>
+          <td class="nosig">לא מובהק</td>
+          <td class="mix">ביטחון -0.022 · כלכלה +0.020</td>
+        </tr>
+  </table>
+</div>
+
+<h2>3.5 המאמת — הסוכן שבודק את המודל<span class="tag tag-det">דטרמיניסטי</span></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">מודל שפה שמחזיר "מילה טעונה" עלול להמציא אותה.
+  המאמת מחפש כל ביטוי בטקסט שהמודל עצמו קיבל, ומוחק את מה שלא נמצא. זו לא
+  חוות דעת שנייה של מודל — זו בדיקת עיגון דטרמיניסטית.</p>
+  <div class="proof">
+    <div class="big">69<small>ביטויים שהמודל הוציא</small></div>
+    <div class="big fail">5<small>נדחו — לא נמצאו בטקסט</small></div>
+    <div class="big fail">11/15<small>ציטוטי ראיה שנדחו</small></div>
+    <div style="flex:1;min-width:240px;color:var(--dim);font-size:12.5px;line-height:1.7">
+      כמעט מחצית מ"הציטוטים" שהמודל מביא הם פרפרזה ולא ציטוט. בלי המאמת
+      חצי מהמרכאות על המסך היו מומצאות. זה מה שהופך את שכבת הסוכנים
+      מתפאורה לרכיב שמשנה את הפלט.
+    </div>
+  </div>
+</div>
+
+<h2>4. פילוח מסגור לפי תחום<span class="tag tag-stat">סטטיסטיקה, לא AI</span></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">אותה סטייה תוך־אירועית, מפוצלת לפי התחום
+  של האירוע (התחום נקבע מחציון פרופיל הלקסיקון של כל הגרסאות, כך שהתווית שייכת
+  לאירוע ולא לערוץ שאותו מודדים). ★ = רווח הסמך אינו חוצה אפס.
+  תאים מתחת ל־10 אירועים מוצגים באפור — הם עדיין לא ראיה.</p>
+  <table><tr><th>מקור</th><th>ביטחון</th><th>פוליטיקה</th><th>חברה</th><th>משפט</th><th>כלכלה</th><th>בינלאומי</th></tr><tr><td class="src">ynet</td><td class="cell cell">+0.0106<div class="sub">n=74 · [-0.003,+0.024]<br>בינלאומי +0.026</div></td><td class="cell cell">+0.0143<div class="sub">n=34 · [-0.013,+0.041]<br>חברה +0.021</div></td><td class="cell cell">+0.0334<div class="sub">n=17 · [-0.002,+0.068]<br>בינלאומי +0.058</div></td><td class="cell cell">+0.0189<div class="sub">n=20 · [-0.020,+0.058]<br>פוליטיקה +0.019</div></td><td class="cell thin">+0.0171<div class="sub">n=7 · מדגם קטן</div></td><td class="cell thin">+0.0539<div class="sub">n=8 · מדגם קטן</div></td></tr><tr><td class="src">mako</td><td class="cell hot">-0.0254 ★<div class="sub">n=57 · [-0.045,-0.006]<br>ביטחון +0.019</div></td><td class="cell thin">-0.0783<div class="sub">n=7 · מדגם קטן</div></td><td class="cell cell">-0.0348<div class="sub">n=12 · [-0.078,+0.003]<br>חברה -0.048</div></td><td class="cell thin">-0.0148<div class="sub">n=9 · מדגם קטן</div></td><td class="cell cell">-0.0227<div class="sub">n=13 · [-0.065,+0.019]<br>כלכלה -0.034</div></td><td class="cell thin">-0.0714<div class="sub">n=5 · מדגם קטן</div></td></tr><tr><td class="src">הארץ</td><td class="cell cell">-0.0337<div class="sub">n=15 · [-0.099,+0.030]<br>פוליטיקה +0.089</div></td><td class="cell cell">+0.0010<div class="sub">n=15 · [-0.036,+0.035]<br>פוליטיקה +0.053</div></td><td class="cell thin">-0.0020<div class="sub">n=3 · מדגם קטן</div></td><td class="cell empty">—</td><td class="cell empty">—</td><td class="cell empty">—</td></tr><tr><td class="src">חדשות 12</td><td class="cell empty">—</td><td class="cell thin">-0.0048<div class="sub">n=5 · מדגם קטן</div></td><td class="cell empty">—</td><td class="cell empty">—</td><td class="cell empty">—</td><td class="cell empty">—</td></tr></table>
+  <p class="sub">כאן נמצא "המתווה שעליו הם רצים": ערוץ יכול לשבת בדיוק על החציון
+  בסך הכל ועדיין למסגר מחדש תחום אחד באופן שיטתי, כי תחומים בסימנים הפוכים
+  מקזזים זה את זה במספר המאוחד.</p>
+</div>
+
+<h2>5. גלאי נקודת־שינוי<span class="tag tag-stat">מבחן תמורות</span></h2>
+<div class="card">
+  <div class="null-box"><b>תוצאה: לא זוהה אף שינוי.</b> כל ערכי ה־p בטווח 0.47–0.90, רחוק מ־0.05. בחלון הנוכחי אף ערוץ לא שינה את קו המסגור שלו בגודל שהגלאי מסוגל לראות — ובתא הגדול ביותר הוא רואה שינוי של סטיית תקן אחת ב־95% מהמקרים, כך ש"לא נמצא" הוא ממצא ולא כישלון.</div>
+  
+    <table>
+      <tr><th>מקור × תחום</th><th>מדגם</th><th>נקודת הפיצול הטובה ביותר</th>
+          <th>לפני ← אחרי</th><th>p</th><th>עוצמה @1SD</th><th>מסקנה</th></tr>
+      
+        <tr><td class="src">ynet
+            × ביטחון</td>
+          <td>74</td>
+          <td>2026-08-23 13:41</td>
+          <td>+0.0363 ← +0.0046</td>
+          <td>0.507</td>
+          <td>95%</td>
+          <td><span class="nosig">אין שינוי</span></td></tr>
+        <tr><td class="src">mako
+            × ביטחון</td>
+          <td>57</td>
+          <td>2026-08-23 13:39</td>
+          <td>-0.0011 ← -0.0341</td>
+          <td>0.704</td>
+          <td>87%</td>
+          <td><span class="nosig">אין שינוי</span></td></tr>
+        <tr><td class="src">ynet
+            × פוליטיקה</td>
+          <td>34</td>
+          <td>2026-08-23 13:38</td>
+          <td>+0.0548 ← +0.0018</td>
+          <td>0.467</td>
+          <td>72%</td>
+          <td><span class="nosig">אין שינוי</span></td></tr>
+        <tr><td class="src">ynet
+            × משפט</td>
+          <td>20</td>
+          <td>2026-08-23 13:40</td>
+          <td>+0.0344 ← +0.0086</td>
+          <td>0.870</td>
+          <td>50%</td>
+          <td><span class="nosig">אין שינוי</span></td></tr>
+        <tr><td class="src">ynet
+            × חברה</td>
+          <td>17</td>
+          <td>2026-08-24 06:53</td>
+          <td>+0.0400 ← +0.0276</td>
+          <td>0.896</td>
+          <td>43%</td>
+          <td><span class="nosig">אין שינוי</span></td></tr>
+    </table>
+    <div class="ledger" style="margin-top:14px">
+      <b>כיול הגלאי</b> (מבחן תמורות, 2,000 ערבובים לכל סדרה). אזעקות שווא על
+      רעש טהור נמדדו ב־5.3%–6.3% מול יעד של 5%. עוצמת הזיהוי:
+      <table style="width:auto;margin-top:8px">
+        <tr><th>גודל סדרה</th><th>שינוי של 1 סטיית תקן</th><th>שינוי של 0.5</th></tr>
+        <tr><td>n=20</td><td>47%</td><td>17%</td></tr><tr><td>n=40</td><td>77%</td><td>26%</td></tr><tr><td>n=75</td><td>97%</td><td>42%</td></tr>
+      </table>
+    </div>
+  <p class="sub"><b>מגבלה שצריך לדעת:</b> ציר הזמן הוא <code>first_seen_at</code>,
+  כלומר מועד הסריקה ולא מועד הפרסום, והמנה הראשונה בסנאפשוט היא מילוי־לאחור של
+  269 כתבות בשעה אחת. לכן נקודת הפיצול הטובה ביותר נופלת כמעט תמיד בתחילת
+  הסדרה — ארטיפקט סריקה, לא אירוע עריכתי. הגלאי יקבל ציר זמן אמיתי רק כשהריצה
+  בענן תצבור שבועות.</p>
+</div>
+
+<h2>6. ככל שנדגם יותר — מדויק יותר<span class="tag tag-stat">bootstrap</span></h2>
+<div class="card">
+  <p class="sub" style="margin-top:0">רווח הסמך של ynet
+  כפונקציה של מספר האירועים שנדגמו. זו הקשת האמיתית: היא מצטמצמת כי יותר
+  ראיות מגבילות את ההערכה, לא כי סודרה מראש.</p>
+  
+        <div class="bar-row">
+          <div class="bar-label">3 אירועים</div>
+          <div class="bar-track"><div class="bar-fill" style="width:100.0%"></div></div>
+          <div class="bar-val">רוחב רווח סמך 0.1722</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">5 אירועים</div>
+          <div class="bar-track"><div class="bar-fill" style="width:68.4%"></div></div>
+          <div class="bar-val">רוחב רווח סמך 0.1177</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">10 אירועים</div>
+          <div class="bar-track"><div class="bar-fill" style="width:46.8%"></div></div>
+          <div class="bar-val">רוחב רווח סמך 0.0806</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">20 אירועים</div>
+          <div class="bar-track"><div class="bar-fill" style="width:45.1%"></div></div>
+          <div class="bar-val">רוחב רווח סמך 0.0777</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">40 אירועים</div>
+          <div class="bar-track"><div class="bar-fill" style="width:29.4%"></div></div>
+          <div class="bar-val">רוחב רווח סמך 0.0506</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">80 אירועים</div>
+          <div class="bar-track"><div class="bar-fill" style="width:18.9%"></div></div>
+          <div class="bar-val">רוחב רווח סמך 0.0326</div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">160 אירועים</div>
+          <div class="bar-track"><div class="bar-fill" style="width:13.1%"></div></div>
+          <div class="bar-val">רוחב רווח סמך 0.0225</div>
+        </div>
+</div>
+
+<h2>7. כיסוי והשמטה</h2>
+<div class="card"><table>
+  <tr><th>מקור</th><th>אירועים משותפים שסוקרו</th><th>שיעור</th><th>הסתייגות</th></tr>
+  
+        <tr><td class="src">ynet</td>
+        <td>77/80</td>
+        <td>96%</td>
+        <td>624 כתבות בסנאפשוט</td></tr>
+        <tr><td class="src">mako</td>
+        <td>58/80</td>
+        <td>72%</td>
+        <td>290 כתבות בסנאפשוט</td></tr>
+        <tr><td class="src">הארץ</td>
+        <td>31/80</td>
+        <td>39%</td>
+        <td>235 כתבות בסנאפשוט</td></tr>
+        <tr><td class="src">חדשות 12</td>
+        <td>5/80</td>
+        <td>6%</td>
+        <td>20 כתבות בסנאפשוט <span class='warn'>נפח דגימה נמוך</span></td></tr>
+        <tr><td class="src">ערוץ 14</td>
+        <td>0/80</td>
+        <td>0%</td>
+        <td>9 כתבות בסנאפשוט <span class='warn'>נפח דגימה נמוך</span></td></tr>
+</table>
+<p class="sub"><b>אזהרה מתודולוגית:</b> המדד הזה מערבב בחירה מערכתית עם נפח
+הסריקה שלנו. ערוץ עם תשע כתבות בסנאפשוט יקבל 0% מסיבות דגימה, לא עריכה.
+לפני שמסיקים ממנו משהו צריך נרמול לפי נפח.</p></div>
+
+<h2>פנקס יושרה למסך הזה</h2>
+<div class="card ledger">
+  <b>מה אמיתי:</b> כל מספר בעמוד מחושב מהסנאפשוט. האשכולות, ספירות הלקסיקון,
+  התגובות, קיטוב הקהל, רווחי הסמך — הכול נמדד.<br>
+  <b>מה AI:</b> שתי שכבות בלבד — אחזור האירוע (embeddings) וחילוץ המסגור
+  (מודל שפה). זהו.<br>
+  <b>מה לא AI:</b> ניתוח הלקסיקון, הסטטיסטיקה, רווחי הסמך והקשת. דטרמיניסטי לגמרי.<br>
+  <b>מה עוד לא ניתן לטעון:</b> טווח הסנאפשוט הוא חמישה ימים; מדגם משתני המסגור
+  קטן מכדי להסיק ממנו על ערוץ; פרופיל ברמת כתב בודד אינו אפשרי כלל — אין
+  שדה מחבר בנתונים.
+</div>
+</body></html>
