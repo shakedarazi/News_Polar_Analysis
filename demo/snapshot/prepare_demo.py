@@ -58,10 +58,14 @@ MIN_TEXT_CHARS = 400
 # How many versions of one event the contrastive call is given. Beyond five the
 # prompt starts to dilute and the model summarises instead of contrasting.
 CONTRAST_VERSIONS = 5
-# Scripted intake outcomes, by position among the event's versions. No version
-# is ever dropped — the comparison needs all of them — so `broken_skip` (the
-# give-up branch) does not appear here.
-SCENARIOS = {1: "broken_archive", 3: "broken_rss"}
+# How many unrelated articles ride along in the intake batch. They are what
+# makes the event-map scene an actual discovery: the crawler brings back a
+# mixed batch, and only the retrieval step says which of them are one story.
+DISTRACTORS = 4
+# Scripted intake outcomes by position in the batch. The give-up branch
+# (`broken_skip`, where the article is dropped) is only ever assigned to a
+# distractor — losing a version would quietly break the comparison.
+SCENARIOS = {1: "broken_archive", 4: "broken_rss"}
 
 
 def passage_text(row: sqlite3.Row | dict[str, Any]) -> str:
@@ -103,7 +107,7 @@ def showcase_score(event: Event) -> tuple[int, int, int]:
 
 
 def version_payload(snap: Snapshot, version, article: dict[str, Any],
-                    idx: int, framing: dict[str, Any] | None) -> dict[str, Any]:
+                    framing: dict[str, Any] | None) -> dict[str, Any]:
     text = article["text"] or ""
     payload: dict[str, Any] = {
         "article_id": version.article_id,
@@ -112,7 +116,6 @@ def version_payload(snap: Snapshot, version, article: dict[str, Any],
         "url": version.url,
         "first_seen_at": version.first_seen_at,
         "excerpt": text[:300],
-        "scenario": SCENARIOS.get(idx, "ok"),
         "windows": version.windows,
         "mean_dominance": version.mean_dominance,
         "lex_counts": version.lex_counts,
@@ -125,37 +128,77 @@ def version_payload(snap: Snapshot, version, article: dict[str, Any],
         "audience_hijacked": version.audience_hijacked,
         "top_comment": snap.top_comment(version.article_id),
         "framing": None,
+        "framing_raw": framing,
         "framing_dropped": [],
         "framing_actor_grounded": None,
     }
     if framing:
         verdict = verify_framing(framing, version.title, text)
-        # Only what survived grounding is written to the payload: nothing the
-        # runner can emit should be a phrase the audience cannot find on screen.
+        # `framing` is the verified view and the only one anything downstream
+        # should render; `framing_raw` is kept so the verifier can be re-run
+        # live on stage against the same text and show what it cut.
         payload["framing"] = {**framing, "loaded_terms": verdict.kept_terms}
         payload["framing_dropped"] = verdict.dropped_terms
         payload["framing_actor_grounded"] = verdict.actor_grounded
     return payload
 
 
-def build_showcase(snap: Snapshot, event: Event, articles: dict[str, Any],
-                   framer: FramingExtractor, contraster: ContrastExtractor,
+def build_intake(event: Event, events: list[Event],
+                 articles: dict[str, Any]) -> list[dict[str, Any]]:
+    """The crawler's batch: this event's versions mixed with unrelated stories.
+
+    The demo would be circular if intake announced "here are the three
+    versions" — finding them is the retrieval step's job one scene later. So
+    intake carries a realistic mixed batch and says nothing about which is
+    which.
+    """
+    own = {v.article_id for v in event.versions}
+    pool = [e.versions[0] for e in events
+            if e.event_id != event.event_id and e.topic_he != event.topic_he
+            and e.versions[0].article_id not in own]
+    pool.sort(key=lambda v: -(v.num_comments or 0))
+    distractors = pool[:DISTRACTORS]
+
+    batch: list[tuple[Any, bool]] = []
+    versions, others = list(event.versions), list(distractors)
+    while versions or others:
+        if others:
+            batch.append((others.pop(0), False))
+        if versions:
+            batch.append((versions.pop(0), True))
+
+    items = []
+    for idx, (version, is_version) in enumerate(batch):
+        scenario = SCENARIOS.get(idx, "ok")
+        last = idx == len(batch) - 1
+        items.append({
+            "article_id": version.article_id, "source": version.source,
+            "title": version.title, "url": version.url,
+            "is_version": is_version,
+            "scenario": "broken_skip" if (last and not is_version) else scenario,
+        })
+    return items
+
+
+def build_showcase(snap: Snapshot, event: Event, events: list[Event],
+                   articles: dict[str, Any], framer: FramingExtractor,
+                   contraster: ContrastExtractor,
                    allow_network: bool) -> dict[str, Any]:
     attach_comment_profiles(snap, event)
     kw_found, kw_total = keyword_recall(snap, event)
 
     versions = []
-    for idx, version in enumerate(event.versions):
+    for version in event.versions:
         article = articles[version.article_id]
         framing = framer.extract(version.article_id, version.title,
                                  article["text"], allow_network=allow_network)
-        versions.append(version_payload(snap, version, article, idx, framing))
+        versions.append(version_payload(snap, version, article, framing))
 
     sibling_texts = [(v.source, v.title, articles[v.article_id]["text"])
                      for v in event.versions[:CONTRAST_VERSIONS]]
     contrast = contraster.extract(event.event_id, sibling_texts,
                                   allow_network=allow_network)
-    contrast_rejected: list[str] = []
+    contrast_raw, contrast_rejected = contrast, []
     if contrast:
         contrast, contrast_rejected = verify_contrast(contrast, sibling_texts)
 
@@ -167,8 +210,10 @@ def build_showcase(snap: Snapshot, event: Event, articles: dict[str, Any],
         "sources": event.sources,
         "keyword_found": kw_found,
         "keyword_total": kw_total,
+        "intake": build_intake(event, events, articles),
         "versions": versions,
         "contrast": contrast,
+        "contrast_raw": contrast_raw,
         "contrast_rejected": contrast_rejected,
     }
 
@@ -302,6 +347,31 @@ def run_verifier(events: list[Event], articles: dict[str, Any],
             "lead_chars": EXTRACT_LEAD_CHARS}
 
 
+def accumulate_usage(framer: FramingExtractor,
+                     contraster: ContrastExtractor) -> dict[str, Any]:
+    """Every token this demo's AI has ever cost, across prepare runs.
+
+    Showtime replays the cache and therefore spends nothing, which would make
+    the economy scene report $0 and mean nothing. The real number is what
+    building the cache cost, so it is accumulated on disk rather than measured
+    per run.
+    """
+    path = config.DATA_DIR / "llm_usage.json"
+    total = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "usd": 0.0}
+    if path.exists():
+        total.update(json.loads(path.read_text(encoding="utf-8")))
+    for extractor in (framer, contraster):
+        total["calls"] += extractor.calls
+        total["prompt_tokens"] += extractor.prompt_tokens
+        total["completion_tokens"] += extractor.completion_tokens
+        total["usd"] += extractor.cost_usd()
+    total["usd"] = round(total["usd"], 6)
+    total["cached_outputs"] = len(framer.cache) + len(contraster.cache)
+    path.write_text(json.dumps(total, ensure_ascii=False, indent=1),
+                    encoding="utf-8")
+    return total
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--offline", action="store_true",
@@ -325,10 +395,40 @@ def main() -> None:
 
     framer = FramingExtractor()
     contraster = ContrastExtractor()
+    # Framing is extracted for EVERY version of every event, not just the ones
+    # that reach the screen: the verifier's rejection rate is only meaningful
+    # as a statement about the extractor, and three hand-picked stories cannot
+    # carry that claim.
+    pending = [v for e in events for v in e.versions
+               if framer.cached(v.article_id) is None]
+    if pending and not args.offline:
+        print(f"extracting framing for {len(pending)} versions...")
+        for i, version in enumerate(pending, start=1):
+            framer.extract(version.article_id, version.title,
+                           articles[version.article_id]["text"])
+            if i % 25 == 0:
+                framer.save()
+                print(f"  {i}/{len(pending)} (${framer.cost_usd():.4f})")
+        framer.save()
+
+    # Same reasoning for the contrastive step: it runs on every event, so the
+    # share of evidence quotes the verifier throws out is a real rate and not
+    # an anecdote from the three stories on screen.
+    todo = [e for e in events if contraster.cached(e.event_id) is None]
+    if todo and not args.offline:
+        print(f"contrasting {len(todo)} events...")
+        for i, event in enumerate(todo, start=1):
+            contraster.extract(event.event_id,
+                               [(v.source, v.title, articles[v.article_id]["text"])
+                                for v in event.versions[:CONTRAST_VERSIONS]])
+            if i % 25 == 0:
+                contraster.save()
+                print(f"  {i}/{len(todo)} (${contraster.cost_usd():.4f})")
+        contraster.save()
     ranked = sorted(events, key=showcase_score, reverse=True)[:args.events]
     showcases = []
     for event in ranked:
-        showcases.append(build_showcase(snap, event, articles, framer,
+        showcases.append(build_showcase(snap, event, events, articles, framer,
                                         contraster, not args.offline))
         print(f"  showcase: {event.headline[:55]}… "
               f"({len(event.sources)} sources, {event.total_comments} comments, "
@@ -339,6 +439,7 @@ def main() -> None:
         print(f"model calls: {framer.calls + contraster.calls}, "
               f"{framer.failures + contraster.failures} failures, "
               f"${framer.cost_usd() + contraster.cost_usd():.4f}")
+    usage = accumulate_usage(framer, contraster)
 
     profile = build_profile(events, articles)
     verifier = run_verifier(events, articles, framer, contraster)
@@ -351,7 +452,8 @@ def main() -> None:
 
     config.DEMO_SET_PATH.write_text(
         json.dumps({"showcase_events": showcases, "profile": profile,
-                    "verifier": verifier}, ensure_ascii=False, indent=1),
+                    "verifier": verifier, "usage": usage},
+                   ensure_ascii=False, indent=1),
         encoding="utf-8")
     print(f"demo set written: {config.DEMO_SET_PATH}")
 

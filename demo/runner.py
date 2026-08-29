@@ -1,17 +1,20 @@
-"""The demo as a scene machine: eight focused scenes (architecture → intake →
-lexicon core → RAG → three classification rounds → learning → token economy →
-summary), with a HITL gate between scenes so the presenter sets the pace.
+"""The demo as a scene machine: nine focused scenes, with a HITL gate between
+each so the presenter sets the pace.
 
-The classification sequence inside the rounds is byte-for-byte the same logic
-that snapshot/prepare_demo.py simulates when it calibrates the accuracy arc —
-scene wrapping must never change it.
+    architecture → intake → lexicon core → event map → framing → audience
+    → outlet profile → token economy → summary
+
+Scenes 1–3 are the deterministic pipeline, before any AI. Scenes 4–6 follow ONE
+story through the AI layer: which outlets covered it, how each framed it, and
+what each outlet's readers did with it. Scene 7 zooms out to every event in the
+snapshot. Everything on screen is either computed live here or replayed from
+model output captured once at prepare time — never invented.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-import time
 from typing import Any
 
 from demo import config
@@ -19,28 +22,25 @@ from demo.core import store
 from demo.core.agent import nap
 from demo.core.control import CONTROLLER
 from demo.core.events import BROKER
-from demo.core.index import Embedder, VectorIndex
-from demo.core.llm import GATEWAY
-from demo.core.memory import Learnings
-from demo.roles.agents import Amit, Lexi, Librarian, Nova, Scout
+from demo.core.index import VectorIndex
+from demo.roles.agents import Amit, Lexi, Librarian, Nova, Scout, source_he
 
 
 class DemoLoop:
     def __init__(self) -> None:
-        self.demo_set = json.loads(config.DEMO_SET_PATH.read_text(encoding="utf-8"))
+        demo_set = json.loads(config.DEMO_SET_PATH.read_text(encoding="utf-8"))
+        self.showcases = demo_set["showcase_events"]
+        self.profile = demo_set["profile"]
+        self.verifier_stats = demo_set["verifier"]
+        self.usage = demo_set.get("usage", {})
         self.conn = store.connect()
         self.index = VectorIndex.load()
-        # Pre-embed every demo article once at startup (model is loaded anyway) —
-        # retrieval at showtime is then pure math, nothing heavy mid-demo.
-        all_articles = [a for r in self.demo_set["rounds"] for a in r["articles"]]
-        texts = {}
-        for a in all_articles:
-            row = store.get_article(self.conn, a["article_id"])
-            texts[a["article_id"]] = row["text"] if row else ""
-        self.texts = texts
-        vecs = Embedder.embed_passages(
-            [f"{a['title']}. {texts[a['article_id']][:400]}" for a in all_articles])
-        self.vecs = {a["article_id"]: v for a, v in zip(all_articles, vecs)}
+        # Query vectors come straight out of the index: the embeddings were
+        # computed offline at prepare time, so showtime loads no model at all
+        # and the retrieval itself is a dot product.
+        self.vec_by_id = {m["article_id"]: self.index.vectors[i]
+                          for i, m in enumerate(self.index.meta)}
+        self.loop_no = 0
 
     async def run_forever(self) -> None:
         while True:
@@ -65,31 +65,37 @@ class DemoLoop:
     async def _gate(self, idx: int, hint_he: str) -> None:
         await CONTROLLER.gate(f"s{idx + 1}-{config.SCENES[idx]['id']}", hint_he)
 
-    async def run_once(self) -> None:
-        learnings = Learnings()
-        self.index.reset_to_base()
-        scout = Scout()
-        librarian = Librarian(self.index)
-        lexi = Lexi(self.conn)
-        nova = Nova(self.index, learnings)
-        amit = Amit(self.index, learnings)
-        for a in (scout, librarian, lexi, nova, amit):
-            a.status("idle")
-        GATEWAY.emit_mode()
+    def _text(self, article_id: str) -> str:
+        return (store.get_article(self.conn, article_id) or {}).get("text") or ""
 
-        self.metrics: list[dict[str, Any]] = []
+    async def run_once(self) -> None:
+        # One story per loop, rotating, so a kiosk running all day does not
+        # replay the same three headlines every five minutes.
+        event = self.showcases[self.loop_no % len(self.showcases)]
+        self.loop_no += 1
+
+        scout = Scout()
+        lexi = Lexi(self.conn)
+        librarian = Librarian(self.index)
+        nova = Nova()
+        amit = Amit(self.conn)
+        for agent in (scout, lexi, librarian, nova, amit):
+            agent.status("idle")
+        BROKER.emit("llm_mode", mode="cached",
+                    label_he="פלט מודל אמיתי, מוקלט מראש — הקיוסק לא תלוי רשת")
+
         self.links_recovered = 0
-        self.debates = 0
+        self.dropped = 0
 
         await self._scene_arch()
-        fetched_r1 = await self._scene_intake(scout)
-        lexi_cache = await self._scene_lexicon(lexi, fetched_r1)
-        await self._scene_rag(librarian, fetched_r1)
-        await self._scene_rounds(scout, librarian, lexi, nova, amit,
-                                 fetched_r1, lexi_cache, learnings)
-        await self._scene_learning(librarian, nova, amit, learnings)
+        await self._scene_intake(scout, event)
+        await self._scene_lexicon(lexi, event)
+        await self._scene_event_map(librarian, event)
+        await self._scene_framing(nova, amit, event)
+        await self._scene_audience(event)
+        await self._scene_profile()
         await self._scene_economy(amit)
-        await self._scene_summary()
+        await self._scene_summary(event)
 
     # ── scene 1: the deterministic pipeline, before any agent ────────────
 
@@ -108,285 +114,220 @@ class DemoLoop:
 
     # ── scene 2: intake, scout's decision tree at human pace ─────────────
 
-    async def _scene_intake(self, scout: Scout) -> list[dict[str, Any]]:
+    async def _scene_intake(self, scout: Scout, event: dict[str, Any]) -> None:
         self._scene(1)
-        round_spec = self.demo_set["rounds"][0]
-        BROKER.emit("phase", phase="intake", label_he="איסוף כתבות",
-                    round=1, total_rounds=config.TOTAL_ROUNDS,
-                    round_label_he=f"סבב 1 — {round_spec['label_he']}")
-        scout.say("נחיל הסוכנים מתעורר — מתחילים סבב עיבוד חדש")
+        BROKER.emit("phase", phase="intake", label_he="איסוף כתבות")
+        scout.say("נחיל הסוכנים מתעורר — מושכים את המנה הבאה מהמקורות")
         await nap(4)
-        fetched: list[dict[str, Any]] = []
-        for art in round_spec["articles"]:
-            ok = await scout.fetch(art, art["scenario"])
-            if ok:
-                fetched.append(art)
-                if art["scenario"] != "ok":
-                    self.links_recovered += 1
+        batch = event["intake"]
+        for article in batch:
+            ok = await scout.fetch(article, article["scenario"])
+            if ok and article["scenario"] != "ok":
+                self.links_recovered += 1
+            if not ok:
+                self.dropped += 1
             await nap(1.5)
-        scout.say(f"נאספו {len(fetched)}/{len(round_spec['articles'])} כתבות — "
-                  "מוכנות לניתוח", "decision")
+        scout.say(f"נאספו {len(batch) - self.dropped}/{len(batch)} כתבות מ־"
+                  f"{len({a['source'] for a in batch})} מקורות. מה מהן קשור למה — "
+                  "עוד לא יודעים", "decision")
         await self._gate(1, "אל הליבה הדטרמיניסטית — הלקסיקון")
-        return fetched
 
     # ── scene 3: the lexicon core + how it looks in the product ──────────
 
-    async def _scene_lexicon(self, lexi: Lexi,
-                             fetched: list[dict[str, Any]]) -> dict[str, Any]:
+    async def _scene_lexicon(self, lexi: Lexi, event: dict[str, Any]) -> None:
         self._scene(2)
-        cache: dict[str, dict[str, Any]] = {}
-        # Deep-dive on the article with the strongest lexicon signal, then a
-        # quick pass over the rest — one focus point, not eight.
-        scored = [(sum(store.lexicon_counts(self.conn, a["article_id"])), a)
-                  for a in fetched]
-        showcase_art = max(scored, key=lambda p: p[0])[1] if scored else None
-        for art in fetched:
-            verbose = art is showcase_art
-            cache[art["article_id"]] = await lexi.analyze(art, verbose=verbose)
+        # Deep-dive the version with the strongest lexicon signal, then a quick
+        # pass over the rest — one focus point, not seven.
+        showcase = max(event["versions"], key=lambda v: sum(v["lex_counts"]))
+        for version in event["versions"]:
+            verbose = version is showcase
+            result = await lexi.analyze(version, verbose=verbose)
             if verbose:
-                self._emit_showcase(art, cache[art["article_id"]])
-                # The product-fields panel is the heart of the scene — leave
-                # it front and center long enough to walk through every field.
+                self._emit_showcase(version, result)
+                # The product-fields panel is the heart of the scene — leave it
+                # on screen long enough to walk through every field.
                 await nap(18)
-        lexi.say(f"נותחו {len(fetched)} כתבות — ספירה דטרמיניסטית, "
-                 "אפס קריאות למודל שפה", "decision")
-        await self._gate(2, "ומאיפה מגיע ההקשר? — אחזור")
-        return cache
+        lexi.say("ספירה דטרמיניסטית, אפס קריאות למודל שפה — וזה כבר ממלא את "
+                 "השדות שרואים באתר", "decision")
+        await self._gate(2, "ומי עוד סיקר את הסיפור הזה? — אחזור סמנטי")
 
-    def _emit_showcase(self, art: dict[str, Any], lexi_res: dict[str, Any]) -> None:
-        """Real raw material + the exact fields the product shows, so the
-        audience sees this is a real article filling the real site."""
-        row = store.get_article(self.conn, art["article_id"]) or {}
+    def _emit_showcase(self, version: dict[str, Any],
+                       lexi_res: dict[str, Any]) -> None:
         stats = lexi_res["stats"]
         audience = stats.get("audience") or {}
         BROKER.emit(
             "showcase",
-            article_id=art["article_id"], title=art["title"],
-            source=art["source"], url=art["canonical_url"],
-            published_at=(row.get("first_seen_at") or "")[:10],
-            excerpt=(row.get("text") or "")[:300],
-            windows=stats["windows"],
-            mean_dominance=stats["mean_dominance"],
-            max_dominance=stats["max_dominance"],
-            comments=stats["comments"],
+            article_id=version["article_id"], title=version["title"],
+            source=version["source"], source_he=source_he(version["source"]),
+            url=version["url"],
+            published_at=(version.get("first_seen_at") or "")[:10],
+            excerpt=version["excerpt"],
+            windows=stats["windows"], mean_dominance=stats["mean_dominance"],
+            max_dominance=stats["max_dominance"], comments=stats["comments"],
             audience_mean=audience.get("audience_mean"),
             audience_p85=audience.get("audience_p85"),
             top_category_he=lexi_res["top_lexicon"],
             top_count=(lexi_res["counts"][lexi_res["top_i"]]
                        if lexi_res["top_i"] is not None else 0),
-            reference=art["reference"],
         )
 
-    # ── scene 4: RAG — precise context instead of the whole article ──────
+    # ── scene 4: semantic retrieval finds the same story elsewhere ───────
 
-    async def _scene_rag(self, librarian: Librarian,
-                         fetched: list[dict[str, Any]]) -> None:
+    async def _scene_event_map(self, librarian: Librarian,
+                               event: dict[str, Any]) -> None:
         self._scene(3)
-        art = fetched[0] if fetched else None
-        if art is None:
-            await self._gate(3, "אל הסבבים")
-            return
-        librarian.say(f"במאגר {self.index.base_size:,} כתבות שכבר תויגו בעבר — "
-                      "הן ישמשו תקדימים לכתבות החדשות")
-        await nap(8)
-        librarian.say("הרעיון: לא מנחשים על כתבה חדשה — בודקים איך תויגו "
-                      "הכתבות הכי דומות לה, כמו שופט שמצטט פסיקה קודמת",
+        BROKER.emit("phase", phase="retrieve", label_he="אחזור סמנטי")
+        seed = max(event["versions"], key=lambda v: v["num_comments"] or 0)
+        vec = self.vec_by_id.get(seed["article_id"])
+        if vec is not None:
+            await librarian.map_event(seed, vec, event)
+            await nap(12)
+        librarian.say("מכאן הכול נמדד על אותו אירוע בדיוק — וזה מה שמאפשר "
+                      "להשוות מערכות בלי להשוות אילו סיפורים הן בחרו לסקר",
                       "decision")
-        await nap(8)
-        neighbors = await librarian.retrieve(art["title"], self.vecs[art["article_id"]])
-        text = self.texts[art["article_id"]]
-        # Rough token estimates for the on-screen comparison (Hebrew ≈ 3 chars
-        # per token) — labeled as an estimate in the UI.
-        full_est = len(text) // 3 + 250
-        ctx_est = (len(art["title"]) + sum(len(n["title"][:60]) for n in neighbors[:5])) // 3 + 60
-        BROKER.emit("retrieval", title=art["title"],
-                    neighbors=[{"title": n["title"], "category": n["category"],
-                                "score": round(n["score"], 2)}
-                               for n in neighbors[:5]],
-                    tokens_full_est=full_est, tokens_context_est=ctx_est,
-                    note_he="אומדן טוקנים להמחשה — כותרת + שכנים במקום הכתבה המלאה")
-        await nap(14)
-        librarian.say("זה כל הרעיון: הקשר קטן ומדויק במקום להזרים את הכתבה "
-                      "המלאה למודל — פחות טוקנים, פחות רעש", "decision")
-        await self._gate(3, "אל שלושת הסבבים — הקשת עולה")
+        await self._gate(3, "איך כל אחת מספרת את זה? — מסגור")
 
-    # ── scene 5: the three rounds (the calibrated improvement arc) ───────
+    # ── scene 5: framing extraction, then the verifier ───────────────────
 
-    async def _scene_rounds(self, scout: Scout, librarian: Librarian,
-                            lexi: Lexi, nova: Nova, amit: Amit,
-                            fetched_r1: list[dict[str, Any]],
-                            lexi_cache: dict[str, dict[str, Any]],
-                            learnings: Learnings) -> None:
+    async def _scene_framing(self, nova: Nova, amit: Amit,
+                             event: dict[str, Any]) -> None:
         self._scene(4)
-        for round_spec in self.demo_set["rounds"]:
-            round_no = round_spec["round"]
-            label = round_spec["label_he"]
-            t0 = time.monotonic()
-            amit.new_round(budget=1)
-            round_results: list[dict[str, Any]] = []
-            lexi_results: list[dict[str, Any]] = []
+        BROKER.emit("phase", phase="framing", label_he="חילוץ מסגור · אימות")
+        nova.say("הלקסיקון סופר מילים. הוא לא יודע לומר מי מוצג כמבצע הפעולה "
+                 "ולמי מיוחסת האחריות — את זה אני מחלצת", "decision")
+        await nap(7)
+        for version in event["versions"]:
+            await nova.frame(version)
+            await nap(6)
+        await nova.contrast(event)
+        await nap(14)
+        await amit.verify(event, self.verifier_stats)
+        await self._gate(4, "ומה הקוראים עשו מזה? — הקהל")
 
-            if round_no == 1:
-                fetched = fetched_r1
-            else:
-                BROKER.emit("phase", phase="intake", label_he="איסוף כתבות",
-                            round=round_no, total_rounds=config.TOTAL_ROUNDS,
-                            round_label_he=f"סבב {round_no} — {label}")
-                fetched = []
-                for art in round_spec["articles"]:
-                    ok = await scout.fetch(art, art["scenario"], quick=True)
-                    if ok:
-                        fetched.append(art)
-                        if art["scenario"] != "ok":
-                            self.links_recovered += 1
-                    await nap(0.4)
+    # ── scene 6: the audience half of the same event ─────────────────────
 
-            BROKER.emit("phase", phase="classify", label_he="אחזור · סיווג · ביקורת",
-                        round=round_no, total_rounds=config.TOTAL_ROUNDS,
-                        round_label_he=f"סבב {round_no} — {label}")
-            if round_no == 1:
-                nova.say("בסבב הזה אני עובדת עיוורת — בלי מאגר ובלי הקשר", "warn")
-            elif round_no == 2:
-                librarian.say("מהסבב הזה אני בתמונה: כל כתבה מקבלת הקשר מהמאגר",
-                              "decision")
-            else:
-                nova.say(f"יש לי כבר {len(learnings)} תיקונים בזיכרון + "
-                         "מאגר שגדל מהסבבים הקודמים", "decision")
-
-            for art in fetched:
-                vec = self.vecs[art["article_id"]]
-                text = self.texts[art["article_id"]]
-                neighbors = []
-                if round_no >= 2:
-                    nova.send("librarian", "request", "צריכה הקשר")
-                    neighbors = await librarian.retrieve(art["title"], vec)
-                result = await nova.classify(art, text, round_no, vec, neighbors)
-                if round_no == 1 and art["article_id"] in lexi_cache:
-                    lexi_res = lexi_cache[art["article_id"]]
-                else:
-                    nova.send("lexi", "request", "מה אומר הלקסיקון?")
-                    lexi_res = await lexi.analyze(art, verbose=False)
-                lexi_results.append(lexi_res)
-                lexi.send("amit", "data", "ממצאי לקסיקון")
-                result = await amit.review(art, result, lexi_res)
-                self.debates = amit._debate_seq
-                # Cumulative RAG: confident final labels join the index
-                if result["confidence"] >= 0.5:
-                    self.index.add(vec, {"article_id": art["article_id"],
-                                         "title": art["title"],
-                                         "category": result["predicted"],
-                                         "source": art["source"]})
-                round_results.append({**result, "reference": art["reference"]})
-                # Breathing room: the classification card must finish its
-                # on-screen life before the next one opens (presenter feedback:
-                # slow and flowing — the presenter narrates over this).
-                await nap(4.5)
-
-            BROKER.emit("phase", phase="learn", label_he="למידה ומדידה",
-                        round=round_no, total_rounds=config.TOTAL_ROUNDS,
-                        round_label_he=f"סבב {round_no} — {label}")
-            n = len(round_results)
-            correct = sum(1 for r in round_results
-                          if r["predicted"] == r["reference"])
-            accuracy = correct / max(n, 1)
-            metric = {"round": round_no, "label_he": label,
-                      "accuracy": round(accuracy, 3), "n": n,
-                      "learned": len(learnings),
-                      "duration_s": round(time.monotonic() - t0, 1)}
-            self.metrics.append(metric)
-            BROKER.emit("metric", **metric)
-            amit.say(f"דיוק הסבב: {accuracy:.0%} ({correct}/{n})", "decision")
-            if round_no >= 2:
-                grown = len(self.index.meta) - self.index.base_size
-                librarian.say(f"המאגר גדל ב־{grown} כתבות מאומתות — "
-                              "הסבב הבא יידע יותר")
-            await nap(5)
-            await self._insight(round_results, lexi_results)
-            hint = ("אל סבב 2 — מדליקים את ה־RAG" if round_no == 1 else
-                    "אל סבב 3 — מוסיפים זיכרון" if round_no == 2 else
-                    "מה נלמד? — סצנת הלמידה")
-            await self._gate(4, hint)
-
-    # ── scene 6: what was learned ────────────────────────────────────────
-
-    async def _scene_learning(self, librarian: Librarian, nova: Nova,
-                              amit: Amit, learnings: Learnings) -> None:
+    async def _scene_audience(self, event: dict[str, Any]) -> None:
         self._scene(5)
-        first = self.metrics[0]["accuracy"] if self.metrics else 0
-        last = self.metrics[-1]["accuracy"] if self.metrics else 0
-        nova.say(f"בזיכרון שלי {len(learnings)} דוגמאות מתוקנות מהדיבייטים — "
-                 "הן נשלפות בכל סיווג חדש", "decision")
-        await nap(7)
-        grown = len(self.index.meta) - self.index.base_size
-        librarian.say(f"והאינדקס גדל ב־{grown} כתבות מאומתות בתוך הריצה הזו")
-        await nap(7)
-        amit.say(f"בלי לאמן אף מודל: {first:.0%} ← {last:.0%}. "
-                 "זו למידה מהצטברות ראיות, לא backprop", "decision")
-        await self._gate(5, "וכמה כל זה עלה? — כלכלת טוקנים")
+        BROKER.emit("phase", phase="audience", label_he="פערי קהל")
+        for version in event["versions"]:
+            BROKER.emit(
+                "audience_gap", article_id=version["article_id"],
+                source=version["source"], source_he=source_he(version["source"]),
+                title=version["title"],
+                mean_dominance=version["mean_dominance"],
+                num_comments=version["num_comments"],
+                audience_mean=version["audience_mean"],
+                audience_p85=version["audience_p85"],
+                article_topic_he=version["lex_top_he"],
+                comment_topic_he=version["comment_top_he"],
+                hijacked=version["audience_hijacked"],
+                top_comment=version["top_comment"],
+            )
+            await nap(7)
+        hijacked = [v for v in event["versions"] if v["audience_hijacked"]]
+        if hijacked:
+            BROKER.emit(
+                "insight",
+                question_he="על מה הקוראים בעצם דיברו?",
+                text_he=(f"ב־{len(hijacked)} מתוך {len(event['versions'])} הגרסאות "
+                         "הנושא שהקוראים דיברו עליו שונה מהנושא של הכתבה עצמה — "
+                         f"{', '.join(source_he(v['source']) + ': ' + str(v['lex_top_he']) + ' → ' + str(v['comment_top_he']) for v in hijacked)}"),
+                source_he="ספירת לקסיקון על טקסט התגובות, אותו מילון בדיוק",
+            )
+            await nap(10)
+        await self._gate(5, "ומה זה אומר על הערוץ עצמו? — פרופיל")
 
-    # ── scene 7: token economy ───────────────────────────────────────────
+    # ── scene 7: zoom out to every event in the snapshot ─────────────────
+
+    async def _scene_profile(self) -> None:
+        self._scene(6)
+        BROKER.emit("phase", phase="profile", label_he="פרופיל מצטבר")
+        profile = self.profile
+        significant = [o for o in profile["outlets"] if o["significant"]]
+        BROKER.emit(
+            "profile",
+            events_total=profile["events_total"],
+            outlets=profile["outlets"],
+            curve_source=profile["curve_source"],
+            curve_source_he=source_he(profile["curve_source"]),
+            sampling_curve=profile["sampling_curve"],
+            topic_cells=profile["topic_cells"],
+            change_scans=profile["change_scans"],
+            power_table=profile["power_table"],
+            coverage=profile["coverage"],
+            min_cell_events=10,
+        )
+        await nap(16)
+        BROKER.emit(
+            "insight",
+            question_he="מה אפשר כבר לומר, ומה עוד לא?",
+            text_he=(
+                f"על {profile['events_total']} אירועים משותפים: "
+                + " · ".join(f"{source_he(o['source'])} {o['mean']:+.3f}"
+                             for o in significant)
+                + f". פילוח לפי תחום עדיין לא מובהק באף תא — "
+                + f"{sum(1 for c in profile['topic_cells'] if c['usable'])} "
+                + "תאים מגיעים לסף הגודל, ואף אחד מהם לא לרווח סמך שאינו חוצה אפס."),
+            source_he="השוואה תוך־אירועית + רווחי סמך bootstrap — סטטיסטיקה, לא AI",
+        )
+        await nap(10)
+        await self._gate(6, "וכמה כל זה עלה? — כלכלת טוקנים")
+
+    # ── scene 8: token economy ───────────────────────────────────────────
 
     async def _scene_economy(self, amit: Amit) -> None:
-        self._scene(6)
-        # Estimate the same 24 articles with every step as a full-text LLM
-        # call (classification + lexicon judgement + critique) — the
-        # "everything-LLM" strawman the architecture avoids. Estimate only.
-        n_articles = sum(len(r["articles"]) for r in self.demo_set["rounds"])
-        prompt_est = sum(len(t) // 3 + 250 for t in self.texts.values()) * 2
-        completion_est = n_articles * 150 + 3 * 400
-        allllm_cost = (prompt_est * config.PRICE_PROMPT_PER_M
-                       + completion_est * config.PRICE_COMPLETION_PER_M) / 1_000_000
-        BROKER.emit("economy",
-                    total_tokens=BROKER.total_tokens,
-                    total_cost_usd=round(BROKER.total_cost_usd, 6),
-                    llm_calls=BROKER.llm_calls,
-                    allllm_tokens_est=prompt_est + completion_est,
-                    allllm_cost_est=round(allllm_cost, 4),
-                    note_he="אומדן: אותן 24 כתבות אילו כל שלב היה קריאת LLM על הטקסט המלא")
-        await nap(8)
-        if BROKER.llm_calls == 0:
-            amit.say("הריצה הזו עלתה 0$ — הליבה דטרמיניסטית, וה־LLM נכנס רק "
-                     "כשבאמת צריך אותו", "decision")
-        else:
-            amit.say(f"{BROKER.llm_calls} קריאות מודל בלבד, "
-                     f"‏${BROKER.total_cost_usd:.4f} — כי הדטרמיניסטי עשה את רוב העבודה",
-                     "decision")
-        await nap(5)
-        amit.say("אותו בנצ'מרק רץ חינם ב־CI על כל שינוי — אם הקשת נשברת, הבנייה נכשלת")
-        await self._gate(6, "לסיכום")
-
-    # ── scene 8: summary ─────────────────────────────────────────────────
-
-    async def _scene_summary(self) -> None:
         self._scene(7)
-        first = self.metrics[0]["accuracy"] if self.metrics else 0
-        last = self.metrics[-1]["accuracy"] if self.metrics else 0
+        usage = self.usage
+        # The strawman this architecture avoids: sending every article in the
+        # snapshot through a model in full instead of scoring it with a
+        # dictionary. Estimate, and labeled as one.
+        n_articles = len(self.index.meta)
+        allllm_prompt = n_articles * 900
+        allllm_completion = n_articles * 150
+        allllm_cost = (allllm_prompt * config.PRICE_PROMPT_PER_M
+                       + allllm_completion * config.PRICE_COMPLETION_PER_M) / 1_000_000
         BROKER.emit(
-            "run_summary", rounds=self.metrics,
-            total_articles=sum(m["n"] for m in self.metrics),
-            debates=self.debates, links_recovered=self.links_recovered,
-            total_cost_usd=round(BROKER.total_cost_usd, 4),
-            headline_he=f"הדיוק עלה מ־{first:.0%} ל־{last:.0%} בשלושה סבבים",
+            "economy",
+            model_calls=usage.get("calls", 0),
+            cached_outputs=usage.get("cached_outputs", 0),
+            total_tokens=usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0),
+            total_cost_usd=usage.get("usd", 0.0),
+            showtime_calls=0,
+            corpus_articles=n_articles,
+            allllm_tokens_est=allllm_prompt + allllm_completion,
+            allllm_cost_est=round(allllm_cost, 4),
+            note_he="אומדן: אותן כתבות אילו כל שלב היה קריאת מודל על הטקסט המלא",
         )
-        await self._gate(7, "ריצה חדשה מההתחלה")
+        await nap(8)
+        amit.say(f"כל שכבת ה־AI של המערכת הזאת עלתה "
+                 f"${usage.get('usd', 0):.4f} — {usage.get('calls', 0)} קריאות, "
+                 "פעם אחת, אופליין. הריצה שעל המסך עלתה 0$", "decision")
+        await nap(6)
+        amit.say("הליבה הדטרמיניסטית עושה את רוב העבודה; המודל נכנס רק לשאלה "
+                 "שאין לה תשובה דטרמיניסטית")
+        await self._gate(7, "לסיכום")
 
-    async def _insight(self, results: list[dict[str, Any]],
-                       lexi_results: list[dict[str, Any]]) -> None:
-        totals = [0] * 7
-        doms = []
-        for lr in lexi_results:
-            for i, c in enumerate(lr["counts"]):
-                totals[i] += c
-            if lr["stats"]["mean_dominance"] is not None:
-                doms.append(lr["stats"]["mean_dominance"])
-        if not any(totals):
-            return
-        top_i = max(range(7), key=lambda i: totals[i])
-        top_name = config.LEXICON_CATEGORY_NAMES_HE[top_i]
-        mean_dom = sum(doms) / len(doms) if doms else 0.0
-        text = (f"מוקד הקיטוב בסבב: {top_name} — {totals[top_i]} מופעים לקסיקליים, "
-                f"דומיננטיות ממוצעת {mean_dom:.2f}")
-        BROKER.emit("insight",
-                    question_he="מה מוקד הקיטוב בסבב הזה?",
-                    text_he=text,
-                    source_he="מחושב מנתוני הלקסיקון בלבד (מחקר בן שמחון)")
+    # ── scene 9: summary ─────────────────────────────────────────────────
+
+    async def _scene_summary(self, event: dict[str, Any]) -> None:
+        self._scene(8)
+        profile = self.profile
+        stats = self.verifier_stats
+        BROKER.emit(
+            "run_summary",
+            headline_he=f"אותו אירוע, {len(event['versions'])} מערכות, "
+                        f"{len(event['versions'])} מסגורים שונים",
+            event_headline=event["headline"],
+            topic_he=event["topic_he"],
+            keyword_found=event["keyword_found"],
+            keyword_total=event["keyword_total"],
+            events_total=profile["events_total"],
+            outlets=[{"source_he": source_he(o["source"]), "n": o["n"],
+                      "mean": o["mean"], "significant": o["significant"]}
+                     for o in profile["outlets"] if o["mean"] is not None],
+            terms_total=stats["terms_total"], terms_rejected=stats["terms_rejected"],
+            quotes_total=stats["quotes_total"], quotes_rejected=stats["quotes_rejected"],
+            links_recovered=self.links_recovered, dropped=self.dropped,
+            total_cost_usd=self.usage.get("usd", 0.0),
+        )
+        await self._gate(8, "ריצה חדשה — סיפור אחר")

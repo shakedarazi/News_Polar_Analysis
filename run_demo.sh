@@ -19,7 +19,6 @@ if [ ! -f demo/data/demo.sqlite ] || [ ! -f demo/data/demo_set.json ]; then
 fi
 
 source .venv/bin/activate
-export DEMO_MODE="${DEMO_MODE:-auto}"
 export DEMO_SPEED="${DEMO_SPEED:-1.0}"
 # Presenter-controlled pacing by default (the show advances on space/click).
 export DEMO_AUTOPLAY="${DEMO_AUTOPLAY:-0}"

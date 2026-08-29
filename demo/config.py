@@ -16,10 +16,6 @@ DEBATE_CACHE_PATH = DATA_DIR / "debate_cache.json"
 
 EMBED_MODEL = "intfloat/multilingual-e5-small"
 
-# "live"    — real LLM calls through OpenRouter (network required)
-# "offline" — no network: kNN classification, grounded template debates
-# "auto"    — try live, degrade to offline on first failure/timeout
-DEMO_MODE = os.environ.get("DEMO_MODE", "auto")
 # Multiplier on theatrical sleeps; 1.0 ≈ a ~5 minute loop. Use 0.15 for dev.
 DEMO_SPEED = float(os.environ.get("DEMO_SPEED", "1.0"))
 SERVER_PORT = int(os.environ.get("DEMO_PORT", "8010"))
@@ -30,11 +26,10 @@ SERVER_PORT = int(os.environ.get("DEMO_PORT", "8010"))
 DEMO_AUTOPLAY = os.environ.get("DEMO_AUTOPLAY", "1") == "1"
 AUTOPLAY_GATE_S = 12.0
 
-TOTAL_ROUNDS = 3
-ARTICLES_PER_ROUND = 8
-LLM_TIMEOUT_S = 8.0
-
-ROUND_LABELS_HE = {1: "בלי RAG", 2: "עם RAG", 3: "עם RAG + למידה"}
+# How many of the precomputed showcase events exist; the runner walks one per
+# loop so a kiosk running all day does not repeat the same story every five
+# minutes.
+SHOWCASE_EVENTS = 3
 
 # The scene waterfall — the full story in focused, gated steps. The frontend
 # switches its layout on the scene id; the runner emits them in this order.
@@ -42,15 +37,17 @@ SCENES = [
     {"id": "arch", "title_he": "הארכיטקטורה",
      "subtitle_he": "פייפליין דטרמיניסטי אוסף ומנתח — עוד לפני ששכבת הסוכנים נכנסת"},
     {"id": "intake", "title_he": "איסוף — עוד בלי AI",
-     "subtitle_he": "קרולרים דטרמיניסטיים אוספים את חומר הגלם; קישור שבור מפעיל עץ החלטות, לא קריסה"},
+     "subtitle_he": "קרולרים דטרמיניסטיים מביאים מנה מעורבת של כתבות; קישור שבור מפעיל עץ החלטות, לא קריסה"},
     {"id": "lexicon", "title_he": "האלגוריתם — עדיין בלי AI",
      "subtitle_he": "לקסיקון הקיטוב של אלמוג בן שמחון: חלונות, ספירה, דומיננטיות — כך נולדים השדות שבאתר"},
-    {"id": "rag", "title_he": "כאן נכנס ה־AI: אחזור (RAG)",
-     "subtitle_he": "כתבות דומות שכבר תויגו בעבר משמשות תקדימים לכתבה החדשה — עוגן במקום ניחוש"},
-    {"id": "rounds", "title_he": "סיווג · ביקורת · שיפור",
-     "subtitle_he": "שלושה סבבים: חוקי אצבע ← RAG ← RAG + זיכרון, עם מבקר שמערער"},
-    {"id": "learning", "title_he": "למידה",
-     "subtitle_he": "זיכרון מצטבר, לא אימון מודל — מה נצבר ואיך הדיוק טיפס"},
+    {"id": "event_map", "title_he": "כאן נכנס ה־AI: מי עוד סיקר את זה?",
+     "subtitle_he": "כותרות של אותו אירוע כמעט לא חולקות מילים — אחזור סמנטי מוצא את הגרסאות שחיפוש מילולי מפספס"},
+    {"id": "framing", "title_he": "המסגור: מי המבצע, למי האחריות",
+     "subtitle_he": "מודל שפה מחלץ את מה שהלקסיקון עיוור אליו — ומאמת דטרמיניסטי פוסל כל ביטוי שאינו בטקסט"},
+    {"id": "audience", "title_he": "אותו אירוע, קהלים שונים",
+     "subtitle_he": "מה הקוראים עשו מהסיפור — ומתי הם חטפו אותו לנושא אחר לגמרי"},
+    {"id": "profile", "title_he": "פרופיל הערוץ",
+     "subtitle_he": "כל ערוץ מול חציון אותו אירוע — מה כבר אפשר לומר, ומה עוד אין מספיק ראיות לומר"},
     {"id": "economy", "title_he": "כלכלת טוקנים",
      "subtitle_he": "דטרמיניסטי כשאפשר, מודל שפה רק כשצריך — וכמה זה חוסך"},
     {"id": "summary", "title_he": "סיכום", "subtitle_he": ""},
@@ -73,7 +70,7 @@ ARCH_STEPS = [
     {"step": "db", "label_he": "Postgres", "detail_he":
         "התוצאות נשמרות ומוגשות לאתר — בדיוק בסדר הזה רץ הכל ב־GitHub Actions כל 6 שעות"},
     {"step": "agents", "label_he": "שכבת הסוכנים", "detail_he":
-        "ומעל הכל: חמישה סוכנים שמדגימים איסוף, אחזור, סיווג, ביקורת ולמידה"},
+        "ומעל הכל: חמישה סוכנים — איסוף, לקסיקון, אחזור סמנטי, חילוץ מסגור ואימות"},
 ]
 
 AGENTS = [
@@ -90,23 +87,18 @@ AGENTS = [
     {
         "id": "librarian", "name_he": "הספרנית", "role_he": "סוכנת אחזור (RAG)", "emoji": "🗂️",
         "tier": 3, "tier_label_he": "אחזור וקטורי סמנטי",
-        "persona_he": "מדויקת, תמיד מביאה הקשר",
+        "persona_he": "מוצאת את אותו סיפור גם כשאין מילה משותפת",
     },
     {
-        "id": "nova", "name_he": "נובה", "role_he": "סוכנת סיווג", "emoji": "🤖",
-        "tier": 4, "tier_label_he": "RAG + מודל שפה + זיכרון",
-        "persona_he": "בטוחה בעצמה, אוהבת להסביר למה",
+        "id": "nova", "name_he": "נובה", "role_he": "סוכנת מסגור", "emoji": "🤖",
+        "tier": 4, "tier_label_he": "מודל שפה על גבי האחזור",
+        "persona_he": "קוראת מי המבצע ולמי מיוחסת האחריות",
     },
     {
-        "id": "amit", "name_he": "עמית", "role_he": "מבקר־על", "emoji": "🎓",
-        "tier": 5, "tier_label_he": "אוטונומי: מבקר, מתווכח, לומד",
-        "persona_he": "ספקן, שואל את השאלות הקשות",
+        "id": "amit", "name_he": "עמית", "role_he": "המאמת", "emoji": "🎓",
+        "tier": 5, "tier_label_he": "דטרמיניסטי — פוסל מה שאינו מעוגן",
+        "persona_he": "ספקן; ביטוי שלא נמצא בטקסט לא עולה למסך",
     },
-]
-
-CATEGORIES_HE = [
-    "פוליטיקה", "ביטחון", "בידור", "כלכלה", "ספורט",
-    "חברה", "טכנולוגיה", "בינלאומי", "אחר",
 ]
 
 # The 7 lexicon categories (c1..c7), matching the headers of

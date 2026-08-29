@@ -4,14 +4,20 @@ Honesty ledger (also in demo/README.md):
 - Scout "fetches" from the local snapshot with pre-scripted failure scenarios —
   no live network scraping at showtime. The fallback decision tree itself runs
   for real (it just gets deterministic outcomes).
-- In offline mode, debate turns are TEMPLATED but grounded in real numbers
-  (real neighbor votes, real lexicon counts). In live mode they are real LLM
-  turns.
+- Librarian's retrieval is NOT replayed: the cosine query runs live at showtime
+  against the real index, and the keyword baseline it is compared to is
+  computed live too. This is the one place the AI is load-bearing, so it is
+  also the one place nothing is precomputed.
+- Nova replays framing that a real model produced once at prepare time. The
+  output is real; the call is not live, because a kiosk must not depend on the
+  network. Nothing else about it is simulated.
+- Amit is not a second model opinion. He is deterministic string grounding,
+  re-run live against the same text the extractor was given, and he is the only
+  agent whose verdict removes something from the screen.
 """
 
 from __future__ import annotations
 
-import hashlib
 import sqlite3
 from typing import Any
 
@@ -20,12 +26,19 @@ import numpy as np
 from demo import config
 from demo.core import store
 from demo.core.agent import Agent, nap
-from demo.core.classify import (LEXI_TO_NEWS, classify_baseline, classify_knn,
-                                critic_verdict)
 from demo.core.events import BROKER
-from demo.core.index import Embedder, VectorIndex
-from demo.core.llm import GATEWAY
-from demo.core.memory import Learnings
+from demo.core.framing import (keyword_jaccard, verify_contrast,
+                               verify_framing)
+from demo.core.index import VectorIndex
+
+SOURCE_LABELS_HE = {"ynet": "ynet", "mako": "mako", "haaretz": "הארץ",
+                    "news12": "חדשות 12", "channel14": "ערוץ 14",
+                    "reshet13": "רשת 13"}
+
+
+def source_he(source: str) -> str:
+    return SOURCE_LABELS_HE.get(source, source)
+
 
 class Scout(Agent):
     id = "scout"
@@ -54,8 +67,6 @@ class Scout(Agent):
 
     async def fetch(self, article: dict[str, Any], scenario: str,
                     quick: bool = False) -> bool:
-        """quick=True — compressed pacing for rounds 2–3, after the intake
-        scene already told the decision-tree story at human pace."""
         title = article["title"]
         self.status("working", f"מושך: {title[:40]}…")
         steps = self.STEPS[scenario]
@@ -64,42 +75,20 @@ class Scout(Agent):
         pace = 0.15 if quick else 1.0
         ok = False
         for i, (strategy, status, note) in enumerate(steps):
-            BROKER.emit("scrape_step", url=article["canonical_url"],
+            BROKER.emit("scrape_step", url=article["url"],
                         article_title=title, step_idx=i, strategy=strategy,
                         status="trying", note_he="")
             await nap((2.6 if scenario != "ok" else 1.6) * pace)
-            BROKER.emit("scrape_step", url=article["canonical_url"],
+            BROKER.emit("scrape_step", url=article["url"],
                         article_title=title, step_idx=i, strategy=strategy,
                         status=status, note_he=note)
             ok = status == "success"
-        if ok:
-            self.send("nova", "data", f"כתבה נטענה: {title[:30]}…")
-            if scenario != "ok":
-                self.say("שוחזר בהצלחה — אף כתבה לא הולכת לאיבוד", "decision")
-        else:
+        if ok and scenario != "ok":
+            self.say("שוחזר בהצלחה — אף כתבה לא הולכת לאיבוד", "decision")
+        elif not ok:
             self.say(f"ויתרתי על {title[:30]}… אחרי מיצוי כל המסלולים", "warn")
         self.status("idle")
         return ok
-
-
-class Librarian(Agent):
-    id = "librarian"
-
-    def __init__(self, index: VectorIndex) -> None:
-        super().__init__()
-        self.index = index
-
-    async def retrieve(self, title: str, vec: np.ndarray) -> list[dict[str, Any]]:
-        self.status("working", f"מאחזרת הקשר: {title[:35]}…")
-        await nap(2.5)
-        neighbors = self.index.query(vec, k=6)
-        top = neighbors[0] if neighbors else None
-        if top:
-            self.say(f"נמצאו {len(neighbors)} מקבילות; הקרובה ביותר "
-                     f"(דמיון {top['score']:.2f}): \"{top['title'][:40]}…\"")
-            self.send("nova", "data", f"{len(neighbors)} שכנים סמנטיים")
-        self.status("idle")
-        return neighbors
 
 
 class Lexi(Agent):
@@ -111,8 +100,7 @@ class Lexi(Agent):
 
     async def analyze(self, article: dict[str, Any],
                       verbose: bool = True) -> dict[str, Any]:
-        """verbose=False — quiet quick pass (rounds 2–3 and the bulk of the
-        lexicon scene), so only one focus point talks at a time."""
+        """verbose=False — quiet quick pass, so only one focus point talks."""
         self.status("working", f"מריץ לקסיקון: {article['title'][:35]}…")
         await nap(3.5 if verbose else 1.3)
         counts = store.lexicon_counts(self.conn, article["article_id"])
@@ -134,212 +122,164 @@ class Lexi(Agent):
         return result
 
 
+class Librarian(Agent):
+    id = "librarian"
+
+    def __init__(self, index: VectorIndex) -> None:
+        super().__init__()
+        self.index = index
+
+    async def map_event(self, seed: dict[str, Any], seed_vec: np.ndarray,
+                        event: dict[str, Any]) -> None:
+        """Find the other outlets' versions of one story, live.
+
+        Both halves run here and now: the cosine query against the real index,
+        and the keyword baseline it is measured against. The baseline is the
+        whole point — in Hebrew, two outlets covering the same event share
+        almost no headline words, so a word-matching search misses versions
+        that are plainly the same story to any reader.
+        """
+        self.status("working", f"מחפשת את אותו סיפור: {seed['title'][:32]}…")
+        self.say("שאלה אחת: מי עוד סיקר בדיוק את האירוע הזה?")
+        await nap(6)
+
+        wanted = {v["article_id"] for v in event["versions"]
+                  if v["article_id"] != seed["article_id"]}
+        neighbors = self.index.query(seed_vec, k=12)
+        found = [n for n in neighbors if n["article_id"] in wanted]
+        by_keyword = [n for n in neighbors
+                      if n["article_id"] in wanted
+                      and keyword_jaccard(seed["title"], n["title"]) >= 0.25]
+
+        self.say(f"חיפוש מילולי על הכותרות מוצא {len(by_keyword)} מתוך "
+                 f"{len(wanted)} — הכותרות פשוט לא חולקות מילים", "warn")
+        await nap(7)
+        self.say(f"אחזור סמנטי מוצא {len(found)} מתוך {len(wanted)}: "
+                 + ", ".join(f"{source_he(n['source'])} ({n['score']:.2f})"
+                             for n in found), "decision")
+        BROKER.emit(
+            "event_map", event_id=event["event_id"], seed_title=seed["title"],
+            seed_source=seed["source"], topic_he=event["topic_he"],
+            keyword_found=len(by_keyword), semantic_found=len(found),
+            total=len(wanted),
+            versions=[{"source": n["source"], "source_he": source_he(n["source"]),
+                       "title": n["title"], "score": round(n["score"], 3),
+                       "keyword_overlap": round(
+                           keyword_jaccard(seed["title"], n["title"]), 3)}
+                      for n in found],
+        )
+        self.send("nova", "data", f"{len(found)} גרסאות של אותו אירוע")
+        self.status("idle")
+
+
 class Nova(Agent):
     id = "nova"
 
-    def __init__(self, index: VectorIndex, learnings: Learnings) -> None:
-        super().__init__()
-        self.index = index
-        self.learnings = learnings
-
-    async def classify(self, article: dict[str, Any], text: str, round_no: int,
-                       vec: np.ndarray,
-                       neighbors: list[dict[str, Any]]) -> dict[str, Any]:
-        title = article["title"]
-        self.status("working", f"מסווגת: {title[:35]}…")
-        await nap(4.5)
-        # Capability ladder, one rung per round: rules → retrieval-only →
-        # retrieval + LLM + accumulated memory. (Keeps the improvement arc
-        # honest in live mode too — the LLM only enters at round 3.)
-        if round_no == 1:
-            pred, conf, reason = classify_baseline(title, text)
-            method = "baseline"
-            self.say(f"בלי RAG יש לי רק חוקי אצבע: {reason} → {pred}")
-        else:
-            llm_answer = None
-            if round_no >= 3:
-                llm_answer = await self._try_llm(title, text, neighbors)
-            if llm_answer is not None:
-                pred, conf, method = llm_answer, 0.85, "llm"
-                self.say(f"מודל שפה + הקשר מהספרנית + {len(self.learnings)} "
-                         f"תיקונים בזיכרון → {pred}", "decision")
-            else:
-                pred, conf, neighbors = classify_knn(self.index, vec)
-                method = "knn"
-                votes = f"{conf:.0%} מהשכנים מסכימים"
-                self.say(f"הצבעת שכנים סמנטיים: {pred} ({votes})", "decision")
+    async def frame(self, version: dict[str, Any]) -> None:
+        """Emit the verified framing variables for one version."""
+        framing = version.get("framing")
+        if not framing:
+            return
+        self.status("working", f"מנתחת מסגור: {source_he(version['source'])}")
+        await nap(3.5)
         BROKER.emit(
-            "classification", article_id=article["article_id"], title=title,
-            predicted=pred, reference=article["reference"],
-            correct=(pred == article["reference"]),
-            confidence=round(conf, 2), method=method,
-            neighbors=[{"title": n["title"], "category": n["category"],
-                        "score": round(n["score"], 2)} for n in neighbors[:3]],
+            "framing", article_id=version["article_id"],
+            source=version["source"], source_he=source_he(version["source"]),
+            title=version["title"], url=version["url"],
+            actor=framing.get("actor"),
+            responsibility=framing.get("responsibility"),
+            voice=framing.get("voice"),
+            lead_perspective=framing.get("lead_perspective"),
+            loaded_terms=framing.get("loaded_terms") or [],
+            lex_top_he=version["lex_top_he"],
         )
         self.status("idle")
-        return {"predicted": pred, "confidence": conf, "method": method,
-                "neighbors": neighbors, "vec": vec}
 
-    async def _try_llm(self, title: str, text: str,
-                       neighbors: list[dict[str, Any]]) -> str | None:
-        if not GATEWAY.available:
-            return None
-        context = "\n".join(f'- "{n["title"][:60]}" → {n["category"]}'
-                            for n in neighbors[:5])
-        few_shots = self.learnings.few_shot_block()
-        user = (f"סווג את הכתבה לאחת מהקטגוריות: {', '.join(config.CATEGORIES_HE)}.\n"
-                f"כתבות דומות מהמאגר:\n{context}\n{few_shots}\n"
-                f"כותרת: {title}\nתחילת הכתבה: {text[:350]}\n"
-                f"ענה במילה אחת בלבד — שם הקטגוריה.")
-        answer = await GATEWAY.chat(
-            "nova", "אתה מסווג חדשות בעברית. ענה במילה אחת.", user, max_tokens=10)
-        if answer:
-            answer = answer.strip().strip('."')
-            if answer in config.CATEGORIES_HE:
-                return answer
-        return None
+    async def contrast(self, event: dict[str, Any]) -> None:
+        """The retrieval-AUGMENTED step: what is unique about each version
+        GIVEN the others. Unanswerable from a single article, which is exactly
+        why the retrieval has to come first."""
+        contrast = event.get("contrast")
+        if not contrast:
+            return
+        self.status("working", "משווה את הגרסאות זו מול זו")
+        self.say("עכשיו אני מקבלת את כל הגרסאות יחד — ושואלת מה ייחודי בכל אחת "
+                 "ביחס לאחרות. את זה אי אפשר לענות מכתבה בודדת", "decision")
+        await nap(7)
+        BROKER.emit(
+            "contrast", event_id=event["event_id"],
+            shared_he=contrast.get("shared"),
+            per_source=[{"source": i["source"],
+                         "source_he": source_he(i["source"]),
+                         "distinctive_he": i.get("distinctive"),
+                         "evidence_he": i.get("evidence")}
+                        for i in contrast.get("per_source") or []],
+        )
+        self.status("idle")
 
 
 class Amit(Agent):
     id = "amit"
 
-    def __init__(self, index: VectorIndex, learnings: Learnings) -> None:
+    def __init__(self, conn: sqlite3.Connection) -> None:
         super().__init__()
-        self.index = index
-        self.learnings = learnings
-        self._debate_seq = 0
-        self._round_budget = 1
+        self.conn = conn
 
-    def new_round(self, budget: int = 1) -> None:
-        """One debate per round keeps the 5-minute pacing; the rest of the
-        low-confidence cases get a spoken reservation instead of a full debate."""
-        self._round_budget = budget
+    async def verify(self, event: dict[str, Any],
+                     stats: dict[str, Any]) -> None:
+        """Re-run the grounding check live, then report the rate over the
+        whole snapshot — not just the story on screen."""
+        self.status("working", "מאמת כל ביטוי מול הטקסט")
+        self.say("אני לא דעה שנייה של מודל. אני בדיקה דטרמיניסטית: כל ביטוי "
+                 "שנובה מחזירה חייב להימצא באותו טקסט שהיא קראה", "decision")
+        await nap(7)
 
-    async def debate(self, article: dict[str, Any], result: dict[str, Any],
-                     lexi: dict[str, Any], reason_he: str,
-                     final: str) -> dict[str, Any]:
-        self._round_budget -= 1
-        self._debate_seq += 1
-        debate_id = f"d{self._debate_seq}"
-        title = article["title"]
-        for aid in ("amit", "nova"):
-            BROKER.emit("agent_status", agent=aid, state="debating",
-                        task_he=f"דיון: {title[:30]}…")
-        BROKER.emit("debate_start", debate_id=debate_id,
-                    article_id=article["article_id"], title=title,
-                    participants=["nova", "amit"], reason_he=reason_he)
-        self.send("nova", "challenge", "אני לא משוכנע")
+        checked, dropped = 0, []
+        for version in event["versions"]:
+            raw = version.get("framing_raw")
+            if not raw:
+                continue
+            text = (store.get_article(self.conn, version["article_id"]) or {}).get("text", "")
+            verdict = verify_framing(raw, version["title"], text)
+            checked += len(verdict.kept_terms) + len(verdict.dropped_terms)
+            dropped += [{"source_he": source_he(version["source"]), "term": t}
+                        for t in verdict.dropped_terms]
 
-        top_i = lexi.get("top_i")
-        mapped = LEXI_TO_NEWS.get(top_i) if top_i is not None else None
-        counts = lexi.get("counts") or [0] * 7
-        pred = result["predicted"]
-        nb = result["neighbors"][:2]
+        rejected_quotes = self._rejected_quotes(event)
+        if rejected_quotes:
+            self.say(f"פסלתי ציטוט: \"{rejected_quotes[0]['quote'][:50]}…\" — "
+                     f"פרפרזה, לא ציטוט מהטקסט של "
+                     f"{rejected_quotes[0]['source_he']}", "warn")
+        BROKER.emit(
+            "verifier", checked_terms=checked, dropped_terms=dropped,
+            rejected_quotes=rejected_quotes,
+            terms_total=stats["terms_total"], terms_rejected=stats["terms_rejected"],
+            actors_total=stats["actors_total"],
+            actors_rejected=stats["actors_rejected"],
+            quotes_total=stats["quotes_total"],
+            quotes_rejected=stats["quotes_rejected"],
+            lead_chars=stats["lead_chars"],
+        )
+        await nap(6)
+        self.say(f"על כל הסנאפשוט: {stats['terms_rejected']} מתוך "
+                 f"{stats['terms_total']} ביטויים נפסלו, ו־{stats['quotes_rejected']} "
+                 f"מתוך {stats['quotes_total']} ציטוטים. מה שנפסל לא עולה למסך",
+                 "decision")
+        self.status("idle")
 
-        turns = await self._llm_turns(title, pred, mapped, counts, top_i, nb, reason_he)
-        if turns is None:
-            turns = self._template_turns(article, title, pred, mapped, counts,
-                                         top_i, nb, reason_he,
-                                         result.get("confidence", 0.0))
-        for agent_id, text in turns:
-            await nap(5.5)
-            BROKER.emit("debate_turn", debate_id=debate_id, agent=agent_id,
-                        text_he=text)
-
-        changed = final != pred
-        verdict = (f"מאמצים את אות הלקסיקון: {final}" if changed
-                   else f"הסיווג {pred} אושר, בהסתייגות")
-        await nap(4)
-        BROKER.emit("debate_end", debate_id=debate_id, verdict_he=verdict,
-                    final_category=final, changed=changed)
-        if changed:
-            self.learnings.add(title, pred, final,
-                               "תוקן בדיון מול אות הלקסיקון")
-            BROKER.emit("learn", agent="nova",
-                        text_he=f"נלמד: \"{title[:40]}…\" → {final}",
-                        memory_size=len(self.learnings))
-        for aid in ("amit", "nova"):
-            BROKER.emit("agent_status", agent=aid, state="idle", task_he="")
-        return {**result, "predicted": final, "confidence": max(result["confidence"], 0.7)}
-
-    def _template_turns(self, article, title, pred, mapped, counts, top_i, nb,
-                        reason_he, conf):
-        """Offline debate: several phrasings per turn, chosen deterministically
-        per article, and every number/title in them is real data."""
-        variant = int(hashlib.sha256(article["article_id"].encode()).hexdigest(), 16) % 3
-        short = title[:35]
-        nb_txt = (f'"{nb[0]["title"][:35]}…" (דמיון {nb[0]["score"]:.2f})'
-                  if nb else "אף שכן חזק")
-        nb2_txt = (f'וגם "{nb[1]["title"][:30]}…" ({nb[1]["category"]})'
-                   if len(nb) > 1 else "ואין תמיכה נוספת")
-        lex_txt = (f"{counts[top_i]} מופעי {mapped} בלקסיקון" if mapped
-                   else "בלי אות לקסיקון ברור")
-        openers = [
-            f'נובה, על "{short}…" נתת {pred} בביטחון {conf:.0%} — {reason_he}.',
-            f'רגע לפני שזה נכנס למאגר: "{short}…" סווגה {pred}, אבל {reason_he}.',
-            f'אני עוצר את "{short}…". הסיווג {pred} לא משכנע אותי: {reason_he}.',
-        ]
-        defenses = [
-            f"השכן הקרוב ביותר שלי הוא {nb_txt}, {nb2_txt}.",
-            f"אני נשענת על אחזור אמיתי: {nb_txt} — זה לא ניחוש.",
-            f"תסתכל על ההקשר ששלפה הספרנית — {nb_txt}.",
-        ]
-        rebuttals = [
-            (f"מולם עומד {lex_txt} — ספירה דטרמיניסטית, לא הסתברות."
-             if mapped else
-             f"אבל ביטחון של {conf:.0%} לא מספיק לפרסום, גם עם שכנים."),
-            (f"הלקסיקון של בן שמחון מצא {lex_txt}. ראיה קשה מנצחת דמיון וקטורי."
-             if mapped else
-             f"{conf:.0%} זה מתחת לרף שלנו. עדיף להסתייג מלטעות."),
-            (f"כשהחוקים והווקטורים חלוקים — {lex_txt} מכריע."
-             if mapped else
-             "כשאין ראיה קשה ואין ביטחון, לא מפרסמים."),
-        ]
-        closers = [
-            "מקבלת — עדיף לתקן עכשיו מאשר לזהם את המאגר.",
-            "משכנע. מעדכנת את הסיווג ושומרת את הדוגמה לזיכרון.",
-            "בסדר, ההכרעה שלך. שתיכנס גם לסט הלמידה שלי.",
-        ]
-        return [("amit", openers[variant]), ("nova", defenses[variant]),
-                ("amit", rebuttals[variant]), ("nova", closers[variant])]
-
-    async def _llm_turns(self, title, pred, mapped, counts, top_i, nb, reason_he):
-        if not GATEWAY.available:
-            return None
-        evidence = (f"לקסיקון: {counts[top_i]} מופעי {mapped}" if mapped
-                    else "אין אות לקסיקון חזק")
-        nb_txt = "; ".join(f'"{n["title"][:40]}"→{n["category"]}' for n in nb)
-        user = (f'כתבה: "{title}". נובה סיווגה: {pred}. סיבת הערעור: {reason_he}. '
-                f"ראיות: {evidence}. שכנים: {nb_txt}.\n"
-                "כתוב דיון קצר של 4 תורות בין עמית (מבקר) לנובה (מסווגת), "
-                "כל תורה משפט אחד בעברית. פורמט: כל שורה 'amit: ...' או 'nova: ...'")
-        out = await GATEWAY.chat("amit", "אתה כותב דיון ענייני קצר בין שני סוכני AI.",
-                                 user, max_tokens=420)
-        if not out:
-            return None
-        turns = []
-        for line in out.splitlines():
-            line = line.strip()
-            if line.lower().startswith(("amit:", "nova:")):
-                aid, _, text = line.partition(":")
-                turns.append((aid.strip().lower(), text.strip()))
-        if GATEWAY.last_finish_reason == "length" and len(turns) > 2:
-            turns = turns[:-1]  # the cut-off turn never reaches the screen
-        return turns[:4] if len(turns) >= 2 else None
-
-    async def review(self, article: dict[str, Any], result: dict[str, Any],
-                     lexi: dict[str, Any]) -> dict[str, Any]:
-        final, reason = critic_verdict(result["predicted"], result["confidence"],
-                                       lexi.get("counts") or [0] * 7)
-        if reason and self._round_budget > 0:
-            self.say(f"מערער על הסיווג: {reason}", "warn")
-            return await self.debate(article, result, lexi, reason, final)
-        if reason:
-            # Debate budget for this round is spent — reservation only, so the
-            # 5-minute pacing holds. Keeps Nova's answer (mirrored in prep sim).
-            self.say(f"מסתייג ({reason}) אבל מאשר — נחזור לזה בסבב הבא", "warn")
-            return result
-        if result["confidence"] >= 0.75:
-            self.say(f"מאשר את {result['predicted']} "
-                     f"({result['confidence']:.0%} ביטחון)")
-        return result
+    def _rejected_quotes(self, event: dict[str, Any]) -> list[dict[str, Any]]:
+        raw = event.get("contrast_raw")
+        if not raw:
+            return []
+        versions = [(v["source"], v["title"],
+                     (store.get_article(self.conn, v["article_id"]) or {}).get("text", ""))
+                    for v in event["versions"]]
+        kept, _ = verify_contrast(raw, versions)
+        good = {(i["source"], i.get("evidence")) for i in kept["per_source"]}
+        out = []
+        for item in raw.get("per_source") or []:
+            evidence = item.get("evidence")
+            if evidence and (item["source"], evidence) not in good:
+                out.append({"source_he": source_he(item["source"]),
+                            "quote": evidence})
+        return out

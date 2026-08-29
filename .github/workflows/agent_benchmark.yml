@@ -27,7 +27,6 @@ jobs:
           PYTHONPATH=. python demo/snapshot/prepare_demo.py
       - name: Run benchmark (offline mode, deterministic)
         env:
-          DEMO_MODE: offline
           DEMO_SPEED: "0.02"
         run: PYTHONPATH=. python demo/benchmark.py
       - name: Upload results
