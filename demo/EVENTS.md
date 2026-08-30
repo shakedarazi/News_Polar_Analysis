@@ -28,8 +28,11 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   nothing to do with the SSE stream: it backs the deep-dive modules, which are
   navigated by the presenter rather than driven by the runner. Shape:
   `{corpus, constants, identity_example, worked_example, sources[], windows,
-  comments, lexicon}` — see `demo/snapshot/build_explainer_facts.py` for the
-  producer and `frontend/src/components/demo/explain/facts.ts` for the mirror.
+  comments, lexicon, retrieval}` — see `demo/snapshot/build_explainer_facts.py`
+  for the producer and `frontend/src/components/demo/explain/facts.ts` for the
+  mirror. `retrieval` additionally carries the clustering threshold sweep,
+  which is **recomputed on every build** (six clusterings over the snapshot),
+  so the table on the wall is the experiment rather than a remembered result.
 
 Every event also carries `ts` (epoch milliseconds).
 
@@ -45,6 +48,8 @@ back. Two kinds of module exist:
   diagrams of one subsystem, fed by `GET /facts`. No SSE, no runner state, no
   gates. They are readable while the run is mid-scene, and they still render
   (diagrams only, measured strips omitted) when `/facts` is unavailable.
+  Live: `scraping`, `algorithm`, `retrieval`. The remaining four tiles are
+  disabled and labelled "בבנייה".
 
 ## The scene machine
 

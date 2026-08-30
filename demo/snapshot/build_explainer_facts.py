@@ -365,6 +365,248 @@ def build_worked_example(conn: sqlite3.Connection) -> dict:
     }
 
 
+# ── retrieval ───────────────────────────────────────────────────────────
+
+# Thresholds swept on screen. 0.90 (CLUSTER_SIM) must be in the list: the wall
+# shows the chosen value inside the same table as the ones it was chosen over.
+SWEEP_THRESHOLDS = [0.84, 0.86, 0.88, 0.90, 0.92, 0.94]
+SIM_BUCKETS = [
+    ("<0.70", -1.0, 0.70),
+    ("0.70-0.80", 0.70, 0.80),
+    ("0.80-0.85", 0.80, 0.85),
+    ("0.85-0.90", 0.85, 0.90),
+    ("0.90-0.95", 0.90, 0.95),
+    ("0.95-1.00", 0.95, 1.01),
+]
+JACCARD_BUCKETS = [
+    ("0", -0.001, 0.0001),
+    ("0-0.05", 0.0001, 0.05),
+    ("0.05-0.10", 0.05, 0.10),
+    ("0.10-0.25", 0.10, 0.25),
+    ("0.25+", 0.25, 1.01),
+]
+
+
+def _bucketize(values, buckets) -> list[dict]:
+    return [{"label": label, "n": int(((values >= lo) & (values < hi)).sum())}
+            for label, lo, hi in buckets]
+
+
+def build_retrieval(conn: sqlite3.Connection) -> dict:
+    """The semantic-retrieval layer: what is indexed, how the cut was chosen,
+    and what a keyword baseline would have found instead.
+
+    Everything here is recomputed from the frozen index + snapshot, including
+    the threshold sweep — so the table on the wall is the experiment, not a
+    memory of one. The embedding model is NOT loaded: the vectors were computed
+    offline by prepare_demo.py and this only reads them.
+    """
+    import time
+
+    import numpy as np
+
+    from demo.core import framing as F
+    from demo.core.framing import (Snapshot, build_event_clusters,
+                                   keyword_jaccard)
+    from demo.snapshot.prepare_demo import MIN_TEXT_CHARS, PASSAGE_LEAD_CHARS
+
+    snap = Snapshot()
+    articles = snap.articles()
+    ids = [i for i in snap.vec_by_id if i in articles]
+    matrix = np.stack([snap.vec_by_id[i] for i in ids])
+
+    # ---- corpus coverage: who got into the index, and who was left out
+    total = conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+    too_short = conn.execute(
+        "SELECT COUNT(*) FROM articles WHERE length(coalesce(text,'')) <= ?",
+        (MIN_TEXT_CHARS,),
+    ).fetchone()[0]
+    per_source: dict[str, dict] = {}
+    for row in conn.execute(
+        "SELECT source, COUNT(*) n,"
+        " SUM(CASE WHEN length(coalesce(text,'')) > ? THEN 1 ELSE 0 END) long"
+        " FROM articles GROUP BY source", (MIN_TEXT_CHARS,)
+    ):
+        per_source[row[0]] = {"source": row[0], "source_he": source_he(row[0]),
+                              "articles": row[1], "indexed": 0}
+    for article_id in ids:
+        per_source[articles[article_id]["source"]]["indexed"] += 1
+
+    # ---- the similarity distribution: what a cosine score is worth here
+    sim = matrix @ matrix.T
+    upper = sim[np.triu_indices(len(ids), k=1)]
+    above = [{"threshold": t, "n": int((upper >= t).sum()),
+              "pct": round(float((upper >= t).mean()) * 100, 3)}
+             for t in (0.80, 0.86, 0.88, 0.90, 0.92, 0.95)]
+
+    # ---- the threshold sweep: the choice, with what each value costs
+    sweep = []
+    original = F.CLUSTER_SIM
+    try:
+        for threshold in SWEEP_THRESHOLDS:
+            F.CLUSTER_SIM = threshold
+            events = build_event_clusters(snap)
+            sweep.append({
+                "threshold": threshold,
+                "events": len(events),
+                "three_plus": sum(1 for e in events if len(e.sources) >= 3),
+                "versions": sum(len(e.versions) for e in events),
+                "chosen": threshold == original,
+            })
+    finally:
+        F.CLUSTER_SIM = original
+
+    events = build_event_clusters(snap)
+
+    # ---- the keyword baseline, over every event rather than the showcase
+    jaccards, found, blind = [], 0, 0
+    for event in events:
+        seed = event.versions[0]
+        hits = [keyword_jaccard(seed.title, v.title) for v in event.versions[1:]]
+        jaccards.extend(hits)
+        matched = sum(1 for j in hits if j >= F.KEYWORD_JACCARD)
+        found += matched
+        if hits and matched == 0:
+            blind += 1
+    jac = np.asarray(jaccards, dtype=float)
+
+    # ---- one event, fully worked: prefer the one a keyword search is most
+    # blind to (most zero-overlap pairs), tie-broken deterministically.
+    example = _retrieval_example(snap, events, articles, ids, matrix)
+
+    # ---- what the index sees that sha256(url) cannot
+    duplicates = _duplicate_pairs(articles, ids, sim)
+
+    query = matrix[0]
+    start = time.perf_counter()
+    for _ in range(200):
+        _ = matrix @ query
+    query_ms = (time.perf_counter() - start) / 200 * 1000
+
+    return {
+        "model": config.EMBED_MODEL,
+        "dims": int(matrix.shape[1]),
+        "vectors": len(ids),
+        "bytes": int(matrix.nbytes),
+        "query_ms": round(query_ms, 4),
+        "min_text_chars": MIN_TEXT_CHARS,
+        "passage_lead_chars": PASSAGE_LEAD_CHARS,
+        "cluster_sim": F.CLUSTER_SIM,
+        "keyword_jaccard": F.KEYWORD_JACCARD,
+        "corpus": {
+            "total": total, "indexed": len(ids), "too_short": too_short,
+            "per_source": sorted(per_source.values(),
+                                 key=lambda r: -r["articles"]),
+        },
+        "events": {
+            "total": len(events),
+            "versions": sum(len(e.versions) for e in events),
+            "three_plus": sum(1 for e in events if len(e.sources) >= 3),
+        },
+        "keyword": {
+            "found": found, "total": int(jac.size),
+            "recall": round(found / max(int(jac.size), 1), 4),
+            "zero_overlap": int((jac == 0).sum()),
+            "blind_events": blind,
+            "median": round(float(np.median(jac)), 4) if jac.size else None,
+            "histogram": _bucketize(jac, JACCARD_BUCKETS),
+        },
+        "similarity": {
+            "pairs": int(upper.size),
+            "mean": round(float(upper.mean()), 4),
+            "median": round(float(np.median(upper)), 4),
+            "histogram": _bucketize(upper, SIM_BUCKETS),
+            "above": above,
+        },
+        "sweep": sweep,
+        "example": example,
+        "duplicates": duplicates,
+    }
+
+
+def _retrieval_example(snap, events, articles, ids, matrix) -> dict:
+    """Replay the greedy pass for ONE event, keeping what the pass discarded.
+
+    build_event_clusters returns only survivors, and the discards are half the
+    lesson: a neighbour above the threshold that the one-per-source rule drops,
+    and the first neighbour below the threshold — the article the cut refused.
+    """
+    import numpy as np
+
+    from demo.core import framing as F
+    from demo.core.framing import keyword_jaccard
+
+    def blindness(event) -> tuple:
+        seed = event.versions[0]
+        hits = [keyword_jaccard(seed.title, v.title) for v in event.versions[1:]]
+        return (sum(1 for j in hits if j == 0), -max(hits), event.event_id)
+
+    candidates = [e for e in events if len(e.versions) >= 3]
+    if not candidates:
+        candidates = events
+    if not candidates:
+        return {}
+    event = max(candidates, key=blindness)
+    seed_id = event.versions[0].article_id
+    kept = {v.article_id for v in event.versions}
+
+    scores = matrix @ snap.vec_by_id[seed_id]
+    order = np.argsort(-scores)
+    seed_title = articles[seed_id]["title"]
+
+    neighbours, rejected = [], None
+    for j in order:
+        article_id, score = ids[j], float(scores[j])
+        if article_id == seed_id:
+            continue
+        if score <= F.CLUSTER_SIM:
+            row = articles[article_id]
+            rejected = {"source": row["source"], "source_he": source_he(row["source"]),
+                        "title": row["title"], "cos": round(score, 4)}
+            break
+        row = articles[article_id]
+        shared = sorted(F._tokens(seed_title) & F._tokens(row["title"]))
+        neighbours.append({
+            "source": row["source"], "source_he": source_he(row["source"]),
+            "title": row["title"], "cos": round(score, 4),
+            "jaccard": round(keyword_jaccard(seed_title, row["title"]), 4),
+            "shared": shared,
+            "kept": article_id in kept,
+        })
+
+    return {
+        "topic_he": event.topic_he,
+        "seed": {"source": articles[seed_id]["source"],
+                 "source_he": source_he(articles[seed_id]["source"]),
+                 "title": seed_title},
+        "neighbours": neighbours,
+        "rejected": rejected,
+    }
+
+
+def _duplicate_pairs(articles, ids, sim, threshold: float = 0.999) -> dict:
+    """Near-identical vectors — the same story under two URLs.
+
+    article_id is sha256 of the canonical URL, so identity is a URL fact, not a
+    content fact. The index does not fix that; it makes it visible, which is
+    why it belongs on the wall rather than in a drawer.
+    """
+    import numpy as np
+
+    rows, upper = [], np.triu(sim, k=1)
+    for i, j in zip(*np.where(upper >= threshold)):
+        a, b = articles[ids[i]], articles[ids[j]]
+        rows.append({
+            "cos": round(float(sim[i][j]), 5),
+            "source": a["source"], "source_he": source_he(a["source"]),
+            "title": a["title"],
+            "url_a": a["canonical_url"], "url_b": b["canonical_url"],
+            "id_a": ids[i][:12], "id_b": ids[j][:12],
+        })
+    rows.sort(key=lambda r: r["id_a"])
+    return {"threshold": threshold, "pairs": len(rows), "examples": rows[:3]}
+
+
 def main() -> int:
     if not config.SQLITE_PATH.exists():
         print(f"missing snapshot: {config.SQLITE_PATH}", file=sys.stderr)
@@ -382,6 +624,7 @@ def main() -> int:
             "windows": build_windows(conn),
             "comments": build_comments(conn),
             "lexicon": build_lexicon(),
+            "retrieval": build_retrieval(conn),
         }
     finally:
         conn.close()
@@ -393,6 +636,9 @@ def main() -> int:
           f"{facts['comments']['total']} comments")
     print(f"  {len(facts['sources'])} sources · "
           f"{facts['lexicon']['article_expanded']} expanded lexicon forms")
+    ret = facts["retrieval"]
+    print(f"  index {ret['vectors']}x{ret['dims']} · {ret['events']['total']} events · "
+          f"keyword recall {ret['keyword']['found']}/{ret['keyword']['total']}")
     return 0
 
 

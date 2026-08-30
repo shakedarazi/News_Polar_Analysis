@@ -21,6 +21,7 @@ import { HubScene, MODULES, type ModuleId } from "./HubScene";
 import { useFacts } from "./explain/facts";
 import { ScrapingModule } from "./explain/ScrapingModule";
 import { AlgorithmModule } from "./explain/AlgorithmModule";
+import { RetrievalModule } from "./explain/RetrievalModule";
 
 interface DemoDashboardProps {
   forceMock: boolean;
@@ -180,6 +181,9 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
         )}
         {view.kind === "module" && view.id === "algorithm" && (
           <AlgorithmModule facts={factsOrNull} />
+        )}
+        {view.kind === "module" && view.id === "retrieval" && (
+          <RetrievalModule facts={factsOrNull} />
         )}
         {view.kind === "run" && (
           <>

@@ -127,6 +127,94 @@ export interface WorkedExample {
   };
 }
 
+export interface Bucketed {
+  label: string;
+  n: number;
+}
+
+export interface RetrievalNeighbour {
+  source: string;
+  source_he: string;
+  title: string;
+  cos: number;
+  jaccard: number;
+  shared: string[];
+  /** survived the one-per-source selection into the final event */
+  kept: boolean;
+}
+
+export interface RetrievalFacts {
+  model: string;
+  dims: number;
+  vectors: number;
+  bytes: number;
+  query_ms: number;
+  min_text_chars: number;
+  passage_lead_chars: number;
+  cluster_sim: number;
+  keyword_jaccard: number;
+  corpus: {
+    total: number;
+    indexed: number;
+    too_short: number;
+    per_source: {
+      source: string;
+      source_he: string;
+      articles: number;
+      indexed: number;
+    }[];
+  };
+  events: { total: number; versions: number; three_plus: number };
+  keyword: {
+    found: number;
+    total: number;
+    recall: number;
+    zero_overlap: number;
+    blind_events: number;
+    median: number | null;
+    histogram: Bucketed[];
+  };
+  similarity: {
+    pairs: number;
+    mean: number;
+    median: number;
+    histogram: Bucketed[];
+    above: { threshold: number; n: number; pct: number }[];
+  };
+  sweep: {
+    threshold: number;
+    events: number;
+    three_plus: number;
+    versions: number;
+    chosen: boolean;
+  }[];
+  example: {
+    topic_he: string | null;
+    seed: { source: string; source_he: string; title: string };
+    neighbours: RetrievalNeighbour[];
+    rejected: {
+      source: string;
+      source_he: string;
+      title: string;
+      cos: number;
+    } | null;
+  };
+  duplicates: {
+    threshold: number;
+    pairs: number;
+    examples: {
+      cos: number;
+      source: string;
+      source_he: string;
+      title: string;
+      url_a: string;
+      url_b: string;
+      id_a: string;
+      id_b: string;
+    }[];
+  };
+}
+
 export interface Facts {
   available: true;
   corpus: { articles: number };
@@ -137,6 +225,7 @@ export interface Facts {
   windows: WindowFacts;
   comments: CommentFacts;
   lexicon: LexiconFacts;
+  retrieval: RetrievalFacts;
 }
 
 type FactsState =

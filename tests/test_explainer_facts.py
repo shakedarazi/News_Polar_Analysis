@@ -121,3 +121,62 @@ def test_identity_example_actually_collapses():
     assert ex["clean_canonical"] == ex["dirty_canonical"]
     assert ex["article_id"] == ex["dirty_article_id"] == ex["stored_article_id"]
     assert ex["same"] is True
+
+
+# ── retrieval ───────────────────────────────────────────────────────────
+#
+# The retrieval module puts a threshold, a baseline and a sweep on the wall.
+# The sweep is recomputed on every build, so it cannot go stale; these tests
+# guard the two things that can: a constant re-typed instead of imported, and
+# a generated file whose worked example contradicts its own caption.
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_retrieval_constants_track_the_demo_layer():
+    from demo.core.framing import CLUSTER_SIM, KEYWORD_JACCARD
+    from demo.snapshot.prepare_demo import MIN_TEXT_CHARS, PASSAGE_LEAD_CHARS
+
+    r = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["retrieval"]
+    assert r["cluster_sim"] == CLUSTER_SIM
+    assert r["keyword_jaccard"] == KEYWORD_JACCARD
+    assert r["min_text_chars"] == MIN_TEXT_CHARS
+    assert r["passage_lead_chars"] == PASSAGE_LEAD_CHARS
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_sweep_contains_the_threshold_actually_in_use():
+    """The chosen value has to appear in the table it was chosen from."""
+    from demo.core.framing import CLUSTER_SIM
+
+    r = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["retrieval"]
+    chosen = [row for row in r["sweep"] if row["chosen"]]
+    assert len(chosen) == 1
+    assert chosen[0]["threshold"] == CLUSTER_SIM
+    # and the row must agree with the unswept clustering shown elsewhere
+    assert chosen[0]["events"] == r["events"]["total"]
+    assert chosen[0]["versions"] == r["events"]["versions"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_keyword_baseline_is_a_subset_of_what_retrieval_found():
+    r = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["retrieval"]
+    k = r["keyword"]
+    assert 0 <= k["found"] <= k["total"]
+    assert k["zero_overlap"] <= k["total"]
+    assert sum(b["n"] for b in k["histogram"]) == k["total"]
+    # the pairs are (versions - events): every event contributes its seed
+    assert k["total"] == r["events"]["versions"] - r["events"]["total"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_worked_neighbourhood_is_above_the_threshold_and_stops_below_it():
+    from demo.core.framing import CLUSTER_SIM
+
+    ex = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["retrieval"]["example"]
+    assert ex["neighbours"], "the walkthrough tab needs at least one neighbour"
+    for n in ex["neighbours"]:
+        assert n["cos"] > CLUSTER_SIM
+        # a shared-token list and a Jaccard of 0 must not both be claimed
+        assert (n["jaccard"] == 0) == (not n["shared"])
+    if ex["rejected"] is not None:
+        assert ex["rejected"]["cos"] <= CLUSTER_SIM

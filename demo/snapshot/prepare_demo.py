@@ -55,6 +55,10 @@ from demo.core.index import Embedder  # noqa: E402
 # Articles below this length have no usable lead for framing extraction and a
 # thin lexicon profile; including them adds noise to the clustering, not reach.
 MIN_TEXT_CHARS = 400
+# How much of the body rides along with the title into the embedded passage.
+# Named rather than inlined so the retrieval explainer can import it instead of
+# re-typing it onto the wall.
+PASSAGE_LEAD_CHARS = 400
 # How many versions of one event the contrastive call is given. Beyond five the
 # prompt starts to dilute and the model summarises instead of contrasting.
 CONTRAST_VERSIONS = 5
@@ -69,7 +73,7 @@ SCENARIOS = {1: "broken_archive", 4: "broken_rss"}
 
 
 def passage_text(row: sqlite3.Row | dict[str, Any]) -> str:
-    return f"{row['title']}. {(row['text'] or '')[:400]}"
+    return f"{row['title']}. {(row['text'] or '')[:PASSAGE_LEAD_CHARS]}"
 
 
 def build_index(conn: sqlite3.Connection) -> int:

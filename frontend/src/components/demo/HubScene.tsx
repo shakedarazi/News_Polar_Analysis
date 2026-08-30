@@ -62,8 +62,8 @@ export const MODULES: ModuleDef[] = [
     icon: "🗂",
     title_he: "אחזור סמנטי",
     sub_he: "איך נמצא אותו אירוע בלי מילה משותפת",
-    promise_he: "אמבדינגים, סף אשכול, והבסיס המילולי שנכשל מולם",
-    ready: false,
+    promise_he: "17 מתוך 77 — כמה גרסאות חיפוש מילולי היה מוצא, ולמה",
+    ready: true,
   },
   {
     id: "framing",
