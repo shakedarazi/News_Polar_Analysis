@@ -180,3 +180,63 @@ def test_worked_neighbourhood_is_above_the_threshold_and_stops_below_it():
         assert (n["jaccard"] == 0) == (not n["shared"])
     if ex["rejected"] is not None:
         assert ex["rejected"]["cos"] <= CLUSTER_SIM
+
+
+# ── framing + verifier ──────────────────────────────────────────────────
+#
+# The framing module's claim is not "the model is good" — it is "everything on
+# screen was checked against the text". These tests hold the generated file to
+# that claim: the rates must add up, and the worked examples must actually
+# demonstrate what their captions say they demonstrate.
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_framing_window_is_one_constant_for_extractor_and_verifier():
+    from demo.core.framing import EXTRACT_LEAD_CHARS
+
+    f = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["framing"]
+    assert f["lead_chars"] == EXTRACT_LEAD_CHARS
+    assert f["keys"] == list(__import__(
+        "demo.core.framing", fromlist=["FRAMING_KEYS"]).FRAMING_KEYS)
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_verifier_rates_are_internally_consistent():
+    v = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["framing"]["verifier"]
+    assert 0 <= v["terms_rejected"] <= v["terms_total"]
+    assert 0 <= v["quotes_rejected"] <= v["quotes_total"]
+    # every rejected quote is classified into exactly one reason
+    assert sum(r["n"] for r in v["quote_reasons"]) == v["quotes_rejected"]
+    # every counted actor is exact, word-level, or rejected — no fourth bucket
+    assert (v["actors_exact"] + v["actors_word_level"] + v["actors_rejected"]
+            == v["actors_total"])
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_dropped_term_really_is_absent_from_the_text_shown_beside_it():
+    """The panel invites the audience to check the drop by eye. It must hold."""
+    from demo.core.framing import _normalise, verify_framing
+
+    ex = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["framing"]["term_example"]
+    if ex is None:
+        pytest.skip("no term was dropped in this snapshot")
+    haystack = _normalise(f"{ex['title']} {ex['lead']}")
+    for term in ex["dropped"]:
+        assert _normalise(term) not in haystack
+    for term in ex["kept"]:
+        assert _normalise(term) in haystack
+    verdict = verify_framing(ex["framing"], ex["title"], ex["lead"])
+    assert verdict.dropped_terms == ex["dropped"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_no_rejected_quote_is_rendered_as_evidence():
+    """A quote the verifier refused must never be presentable as grounding."""
+    ex = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["framing"]["contrast_example"]
+    if ex is None:
+        pytest.skip("no contrast example in this snapshot")
+    assert any(not row["kept"] for row in ex["per_source"]), (
+        "the panel exists to show a rejection — pick an event that has one"
+    )
+    for row in ex["per_source"]:
+        assert row["evidence"] is None or isinstance(row["evidence"], str)

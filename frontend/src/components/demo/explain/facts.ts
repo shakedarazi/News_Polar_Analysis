@@ -215,6 +215,83 @@ export interface RetrievalFacts {
   };
 }
 
+export interface FramingOutput {
+  actor: string | null;
+  responsibility: string | null;
+  loaded_terms: string[];
+  voice: string | null;
+  lead_perspective: string | null;
+}
+
+export interface ContrastRow {
+  source: string;
+  source_he: string;
+  title: string;
+  distinctive: string | null;
+  evidence: string | null;
+  /** survived the grounding check; false means the quote was not in the text */
+  kept: boolean;
+}
+
+export interface FramingFacts {
+  model: string;
+  temperature: number;
+  lead_chars: number;
+  max_tokens: { framing: number; contrast: number };
+  contrast_versions: number;
+  keys: string[];
+  framing_system: string;
+  contrast_system: string;
+  cache: { framing: number; contrast: number };
+  distribution: {
+    total: number;
+    voice: Bucketed[];
+    terms_per_article: { terms: number; n: number }[];
+    actor_null: number;
+    responsibility_null: number;
+  };
+  verifier: {
+    terms_total: number;
+    terms_rejected: number;
+    actors_total: number;
+    actors_rejected: number;
+    actors_exact: number;
+    actors_word_level: number;
+    quotes_total: number;
+    quotes_rejected: number;
+    quote_reasons: { kind: string; n: number }[];
+  };
+  acronyms: {
+    framing_hits: number;
+    framing_total: number;
+    contrast_hits: number;
+    contrast_total: number;
+    distinct: number;
+    examples: string[];
+  };
+  term_example: {
+    source: string;
+    source_he: string;
+    title: string;
+    lead: string;
+    framing: FramingOutput;
+    kept: string[];
+    dropped: string[];
+  } | null;
+  quote_examples: {
+    kind: string;
+    source: string;
+    source_he: string;
+    evidence: string;
+    excerpt: string;
+  }[];
+  contrast_example: {
+    topic_he: string | null;
+    shared: string | null;
+    per_source: ContrastRow[];
+  } | null;
+}
+
 export interface Facts {
   available: true;
   corpus: { articles: number };
@@ -226,6 +303,7 @@ export interface Facts {
   comments: CommentFacts;
   lexicon: LexiconFacts;
   retrieval: RetrievalFacts;
+  framing: FramingFacts;
 }
 
 type FactsState =

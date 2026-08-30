@@ -70,8 +70,8 @@ export const MODULES: ModuleDef[] = [
     icon: "🤖",
     title_he: "מסגור ואימות",
     sub_he: "מה המודל מחלץ ומה המאמת פוסל",
-    promise_he: "חלון ההקשר, הפרומפט הקונטרסטיבי, וכלל הפסילה",
-    ready: false,
+    promise_he: "כלל הפסילה, שיעוריו בפועל — וביקורת על המאמת עצמו",
+    ready: true,
   },
   {
     id: "audience",

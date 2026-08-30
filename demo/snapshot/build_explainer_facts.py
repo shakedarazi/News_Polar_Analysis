@@ -607,6 +607,231 @@ def _duplicate_pairs(articles, ids, sim, threshold: float = 0.999) -> dict:
     return {"threshold": threshold, "pairs": len(rows), "examples": rows[:3]}
 
 
+# ── framing + verifier ──────────────────────────────────────────────────
+
+# Why a rejected quote failed. The verifier itself does not classify — it just
+# says no — so this split is computed here, after the fact, to answer the
+# obvious question from the floor: is the model making things up, or is our
+# check blunt? The answer turns out to be "mostly the second", and that
+# belongs on the wall rather than in a drawer.
+_PUNCT = None
+
+
+def _loose(text: str) -> str:
+    """Punctuation-insensitive form, for asking 'was this verbatim apart from
+    a full stop the model added at the end?'"""
+    import re
+
+    global _PUNCT
+    if _PUNCT is None:
+        _PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
+    return re.sub(r"\s+", " ", _PUNCT.sub("", text or "")).strip()
+
+
+def build_framing() -> dict:
+    """The model layer and the deterministic check that trims it.
+
+    Every rate here is counted over the whole cache rather than the showcase
+    event, so what the wall reports is the extractor's behaviour and not one
+    lucky story. Nothing calls the model: the cache on disk IS the measurement.
+    """
+    import collections
+    import difflib
+    import re
+
+    from demo.core.framing import (CONTRAST_SYSTEM, EXTRACT_LEAD_CHARS,
+                                   FRAMING_KEYS, FRAMING_SYSTEM,
+                                   ContrastExtractor, FramingExtractor,
+                                   Snapshot, _normalise, build_event_clusters,
+                                   verify_framing)
+    from demo.snapshot.prepare_demo import CONTRAST_VERSIONS
+
+    snap = Snapshot()
+    articles = snap.articles()
+    events = build_event_clusters(snap)
+    framer, contraster = FramingExtractor(), ContrastExtractor()
+
+    # ---- what the model actually returns, across the whole cache
+    voices: collections.Counter = collections.Counter()
+    per_article: collections.Counter = collections.Counter()
+    actor_null = responsibility_null = 0
+    for value in framer.cache.values():
+        voices[value.get("voice") or "null"] += 1
+        per_article[len(value.get("loaded_terms") or [])] += 1
+        actor_null += value.get("actor") is None
+        responsibility_null += value.get("responsibility") is None
+
+    # ---- the grounding pass over every extraction
+    terms_total = terms_rejected = 0
+    actors_exact = actors_word_level = actors_rejected = 0
+    term_example = None
+    for event in events:
+        for version in event.versions:
+            framing = framer.cached(version.article_id)
+            if not framing:
+                continue
+            lead = (articles[version.article_id]["text"] or "")[:EXTRACT_LEAD_CHARS]
+            verdict = verify_framing(framing, version.title,
+                                     articles[version.article_id]["text"])
+            terms_total += len(verdict.kept_terms) + len(verdict.dropped_terms)
+            terms_rejected += len(verdict.dropped_terms)
+            actor = framing.get("actor")
+            if actor:
+                haystack = _normalise(f"{version.title} {lead}")
+                if not verdict.actor_grounded:
+                    actors_rejected += 1
+                elif _normalise(actor) in haystack:
+                    actors_exact += 1
+                else:
+                    actors_word_level += 1
+            # the first drop, with everything needed to check it on screen
+            if verdict.dropped_terms and term_example is None:
+                term_example = {
+                    "source": version.source,
+                    "source_he": source_he(version.source),
+                    "title": version.title,
+                    "lead": lead,
+                    "framing": framing,
+                    "kept": verdict.kept_terms,
+                    "dropped": verdict.dropped_terms,
+                }
+
+    # ---- the contrastive step, and why its quotes get dropped
+    by_event = {e.event_id: e for e in events}
+    reasons: collections.Counter = collections.Counter()
+    quotes_total = 0
+    quote_examples: dict[str, dict] = {}
+    contrast_example = None
+    for event_id, result in contraster.cache.items():
+        event = by_event.get(event_id)
+        if event is None:
+            continue
+        texts = {v.source: (v.title, articles[v.article_id]["text"])
+                 for v in event.versions[:CONTRAST_VERSIONS]}
+        rendered = []
+        for item in result.get("per_source") or []:
+            source = item.get("source")
+            evidence = item.get("evidence") or ""
+            if source not in texts:
+                continue
+            title, body = texts[source]
+            haystack = _normalise(f"{title} {(body or '')[:EXTRACT_LEAD_CHARS]}")
+            kept = True
+            if evidence:
+                quotes_total += 1
+                if _normalise(evidence) not in haystack:
+                    kept = False
+                    kind = _quote_failure_kind(_normalise(evidence), haystack,
+                                               difflib)
+                    reasons[kind] += 1
+                    quote_examples.setdefault(kind, {
+                        "kind": kind,
+                        "source": source, "source_he": source_he(source),
+                        "evidence": evidence,
+                        "excerpt": _closest_excerpt(_normalise(evidence),
+                                                    haystack, difflib),
+                    })
+            rendered.append({
+                "source": source, "source_he": source_he(source),
+                "title": title,
+                "distinctive": item.get("distinctive"),
+                "evidence": evidence or None,
+                "kept": kept,
+            })
+        if contrast_example is None and len(rendered) >= 3 and any(
+                not r["kept"] for r in rendered):
+            contrast_example = {
+                "topic_he": event.topic_he,
+                "shared": result.get("shared"),
+                "per_source": rendered,
+            }
+
+    # ---- the acronym repair, measured rather than asserted
+    acronym = re.compile(r'(?<=[\u0590-\u05ff])"(?=[\u0590-\u05ff])')
+    word = re.compile(r'[\u0590-\u05ff]+"[\u0590-\u05ff]+')
+
+    def strings(obj):
+        if isinstance(obj, str):
+            yield obj
+        elif isinstance(obj, dict):
+            for v in obj.values():
+                yield from strings(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                yield from strings(v)
+
+    def hits(cache) -> int:
+        return sum(1 for v in cache.values()
+                   if any(acronym.search(s) for s in strings(v)))
+
+    distinct = sorted({m for cache in (framer.cache, contraster.cache)
+                       for v in cache.values() for s in strings(v)
+                       for m in word.findall(s)})
+
+    return {
+        "model": "gpt-4o-mini",
+        "temperature": 0,
+        "lead_chars": EXTRACT_LEAD_CHARS,
+        "max_tokens": {"framing": 260, "contrast": 700},
+        "contrast_versions": CONTRAST_VERSIONS,
+        "keys": list(FRAMING_KEYS),
+        "framing_system": FRAMING_SYSTEM,
+        "contrast_system": CONTRAST_SYSTEM,
+        "cache": {"framing": len(framer.cache),
+                  "contrast": len(contraster.cache)},
+        "distribution": {
+            "total": len(framer.cache),
+            "voice": [{"label": k, "n": n} for k, n in voices.most_common()],
+            "terms_per_article": [{"terms": k, "n": per_article[k]}
+                                  for k in sorted(per_article)],
+            "actor_null": actor_null,
+            "responsibility_null": responsibility_null,
+        },
+        "verifier": {
+            "terms_total": terms_total, "terms_rejected": terms_rejected,
+            "actors_total": actors_exact + actors_word_level + actors_rejected,
+            "actors_rejected": actors_rejected,
+            "actors_exact": actors_exact,
+            "actors_word_level": actors_word_level,
+            "quotes_total": quotes_total,
+            "quotes_rejected": sum(reasons.values()),
+            "quote_reasons": [{"kind": k, "n": n}
+                              for k, n in sorted(reasons.items())],
+        },
+        "acronyms": {
+            "framing_hits": hits(framer.cache),
+            "framing_total": len(framer.cache),
+            "contrast_hits": hits(contraster.cache),
+            "contrast_total": len(contraster.cache),
+            "distinct": len(distinct),
+            "examples": distinct[:10],
+        },
+        "term_example": term_example,
+        "quote_examples": list(quote_examples.values()),
+        "contrast_example": contrast_example,
+    }
+
+
+def _quote_failure_kind(quote: str, haystack: str, difflib) -> str:
+    """punct — verbatim apart from punctuation the model added or dropped.
+    wrapper — the quote contains the prose plus a label the model bolted on.
+    paraphrase — the model rewrote or elided; the only genuine miss."""
+    if _loose(quote) and _loose(quote) in _loose(haystack):
+        return "punct"
+    match = difflib.SequenceMatcher(None, quote, haystack).find_longest_match(
+        0, len(quote), 0, len(haystack))
+    return "wrapper" if quote and match.size / len(quote) >= 0.8 else "paraphrase"
+
+
+def _closest_excerpt(quote: str, haystack: str, difflib, pad: int = 40) -> str:
+    """The stretch of real text the quote came closest to — so the audience
+    can see for themselves how near the miss was."""
+    match = difflib.SequenceMatcher(None, quote, haystack).find_longest_match(
+        0, len(quote), 0, len(haystack))
+    start = max(0, match.b - pad)
+    return haystack[start:match.b + match.size + pad]
+
+
 def main() -> int:
     if not config.SQLITE_PATH.exists():
         print(f"missing snapshot: {config.SQLITE_PATH}", file=sys.stderr)
@@ -625,6 +850,7 @@ def main() -> int:
             "comments": build_comments(conn),
             "lexicon": build_lexicon(),
             "retrieval": build_retrieval(conn),
+            "framing": build_framing(),
         }
     finally:
         conn.close()
@@ -639,6 +865,9 @@ def main() -> int:
     ret = facts["retrieval"]
     print(f"  index {ret['vectors']}x{ret['dims']} · {ret['events']['total']} events · "
           f"keyword recall {ret['keyword']['found']}/{ret['keyword']['total']}")
+    v = facts["framing"]["verifier"]
+    print(f"  verifier: {v['terms_rejected']}/{v['terms_total']} terms and "
+          f"{v['quotes_rejected']}/{v['quotes_total']} quotes rejected")
     return 0
 
 
