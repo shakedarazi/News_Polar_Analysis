@@ -23,6 +23,7 @@ import { ScrapingModule } from "./explain/ScrapingModule";
 import { AlgorithmModule } from "./explain/AlgorithmModule";
 import { RetrievalModule } from "./explain/RetrievalModule";
 import { FramingModule } from "./explain/FramingModule";
+import { AudienceModule } from "./explain/AudienceModule";
 
 interface DemoDashboardProps {
   forceMock: boolean;
@@ -188,6 +189,9 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
         )}
         {view.kind === "module" && view.id === "framing" && (
           <FramingModule facts={factsOrNull} />
+        )}
+        {view.kind === "module" && view.id === "audience" && (
+          <AudienceModule facts={factsOrNull} />
         )}
         {view.kind === "run" && (
           <>

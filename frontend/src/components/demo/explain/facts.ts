@@ -292,6 +292,127 @@ export interface FramingFacts {
   } | null;
 }
 
+export interface AudienceComment {
+  text: string;
+  likes: number;
+  len: number;
+  polar: number;
+  hits: string[];
+  ratio: number;
+  weight: number;
+}
+
+export interface AudienceWalkStep {
+  value: number;
+  weight: number;
+  cum: number;
+  /** the step where the cumulative weight first reaches 0.85 of the total */
+  hit: boolean;
+}
+
+export interface AudienceFacts {
+  polar_lexicon_forms: number;
+  quantile: number;
+  comments: {
+    total: number;
+    articles: number;
+    len_mean: number;
+    len_median: number;
+    len_max: number;
+    len_under_4: number;
+    zero_polar: number;
+    ratio_mean: number;
+    ratio_hist: Bucketed[];
+  };
+  weight: {
+    curve: { likes: number; weight: number }[];
+    max_likes: number;
+    inert: number;
+    shift_mean: number;
+    shift_p85: number;
+    articles: number;
+    articles_unaffected: number;
+    per_source: {
+      source: string;
+      source_he: string;
+      comments: number;
+      likes: number;
+      avg_likes: number;
+      inert: number;
+      articles: number;
+      articles_unaffected: number;
+      mean_p85_shift: number;
+    }[];
+  };
+  controversy: {
+    articles: number;
+    nonzero: number;
+    at_one_like: number;
+    at_even_split: number;
+  };
+  aggregate: {
+    p85_mean: number;
+    p85_median: number;
+    p85_zero: number;
+    p85_one: number;
+    mean_median: number;
+    p85_hist: Bucketed[];
+    counts: { median: number; under_5: number; under_10: number; total: number };
+  };
+  artifacts: {
+    ratio_one: number;
+    single_token: number;
+    examples: {
+      source: string;
+      source_he: string;
+      text: string;
+      likes: number;
+      len: number;
+    }[];
+  };
+  example: {
+    article_id: string;
+    source: string;
+    source_he: string;
+    title: string;
+    comments: AudienceComment[];
+    weighted: { mean: number; p85: number };
+    unweighted: { mean: number; p85: number };
+    sum_weight: number;
+    target: number;
+    walk: AudienceWalkStep[];
+  } | null;
+  hijack: {
+    events: number;
+    comparable: number;
+    hijacked: number;
+    per_source: {
+      source: string;
+      source_he: string;
+      hijacked: number;
+      total: number;
+    }[];
+    pairs: { article_he: string; comments_he: string; n: number }[];
+    examples: {
+      num_comments: number;
+      source: string;
+      source_he: string;
+      title: string;
+      article_he: string;
+      comments_he: string;
+      top_comment: string;
+      top_likes: number;
+    }[];
+  };
+  deviation: {
+    source: string;
+    source_he: string;
+    n: number;
+    mean: number;
+    median: number;
+  }[];
+}
+
 export interface Facts {
   available: true;
   corpus: { articles: number };
@@ -304,6 +425,7 @@ export interface Facts {
   lexicon: LexiconFacts;
   retrieval: RetrievalFacts;
   framing: FramingFacts;
+  audience: AudienceFacts;
 }
 
 type FactsState =

@@ -832,6 +832,352 @@ def _closest_excerpt(quote: str, haystack: str, difflib, pad: int = 40) -> str:
     return haystack[start:match.b + match.size + pad]
 
 
+# ── the audience signal ─────────────────────────────────────────────────
+# Reader engagement is the one input the pipeline does not control: we take
+# whatever each outlet's comment widget happens to expose. That makes this
+# the module where "what the data does not contain" matters as much as the
+# formulas, so almost everything below is a coverage measurement.
+
+RATIO_BUCKETS = [
+    ("0", 0.0, 0.0),
+    ("0-0.02", 0.0, 0.02),
+    ("0.02-0.05", 0.02, 0.05),
+    ("0.05-0.10", 0.05, 0.10),
+    ("0.10-0.20", 0.10, 0.20),
+    ("0.20+", 0.20, 1.01),
+]
+
+# Likes to show on the weight curve. Endpoints are replaced by the snapshot's
+# real maximum at build time so the curve ends where the data ends.
+WEIGHT_LIKES = [0, 1, 3, 10, 30, 100, 300]
+
+
+def _ratio_hist(values: list[float]) -> list[dict]:
+    out = []
+    for label, lo, hi in RATIO_BUCKETS:
+        if lo == hi == 0.0:
+            n = sum(1 for v in values if v == 0.0)
+        else:
+            n = sum(1 for v in values if lo < v < hi or (v == lo and lo > 0))
+        out.append({"label": label, "n": n})
+    return out
+
+
+def _audience_quantile_default(weighted_quantile) -> float:
+    """0.85 read off aggregation._weighted_quantile, not re-typed here."""
+    import inspect
+
+    return float(inspect.signature(weighted_quantile).parameters["quantile"].default)
+
+
+def build_audience(conn: sqlite3.Connection) -> dict:
+    import math
+    import statistics
+    from collections import Counter, defaultdict
+
+    from src.analysis.aggregation import _weighted_mean, _weighted_quantile
+    from src.analysis.comments_scoring import (
+        controversy,
+        engagement_weight,
+        score_comment,
+    )
+    from src.lexicon.load_lexicon import load_comment_lexicon
+    from src.nlp.normalize import normalize_text
+    from src.nlp.tokenize import tokenize
+
+    polar, _polar_version = load_comment_lexicon()
+    conn.row_factory = sqlite3.Row
+
+    sources = {r["article_id"]: r["source"]
+               for r in conn.execute("SELECT article_id, source FROM articles")}
+    titles = {r["article_id"]: r["title"]
+              for r in conn.execute("SELECT article_id, title FROM articles")}
+
+    per_article: dict[str, list] = defaultdict(list)
+    raw_by_id: dict[str, dict] = {}
+    lengths: list[int] = []
+    ratios: list[float] = []
+    inert = 0
+    ratio_one_lengths: Counter = Counter()
+    ratio_one_examples: list[dict] = []
+    per_source_comments: dict[str, dict] = defaultdict(
+        lambda: {"comments": 0, "likes": 0, "inert": 0})
+
+    rows = conn.execute(
+        "SELECT comment_id, article_id, source, text, like_count FROM comments")
+    for row in rows:
+        likes = int(row["like_count"] or 0)
+        feat = score_comment(comment_id=row["comment_id"], text=row["text"] or "",
+                             polar_lexicon=polar, like_count=likes)
+        per_article[row["article_id"]].append(feat)
+        raw_by_id[row["comment_id"]] = {"text": row["text"] or "", "likes": likes}
+        lengths.append(feat.comment_len)
+        ratios.append(feat.polar_ratio)
+        bucket = per_source_comments[row["source"]]
+        bucket["comments"] += 1
+        bucket["likes"] += likes
+        if feat.engagement_weight == 1.0:
+            inert += 1
+            bucket["inert"] += 1
+        if feat.polar_ratio == 1.0:
+            ratio_one_lengths[feat.comment_len] += 1
+            if len(ratio_one_examples) < 6:
+                ratio_one_examples.append({
+                    "source": row["source"],
+                    "source_he": source_he(row["source"]),
+                    "text": (row["text"] or "").strip()[:40],
+                    "likes": likes,
+                    "len": feat.comment_len,
+                })
+
+    # What the like-weighting actually changes: the SAME estimator run with
+    # every weight forced to 1.0. Anything else would compare two different
+    # statistics and blame the difference on the weights.
+    shift_mean: list[float] = []
+    shift_p85: list[float] = []
+    per_source_shift: dict[str, list[float]] = defaultdict(list)
+    for article_id, feats in per_article.items():
+        scores = [f.comment_score for f in feats]
+        weights = [f.engagement_weight for f in feats]
+        flat = [1.0] * len(feats)
+        wm, um = _weighted_mean(scores, weights), _weighted_mean(scores, flat)
+        wp, up = _weighted_quantile(scores, weights), _weighted_quantile(scores, flat)
+        if wm is None or wp is None:
+            continue
+        shift_mean.append(abs(wm - um))
+        shift_p85.append(abs(wp - up))
+        per_source_shift[sources.get(article_id, "?")].append(abs(wp - up))
+
+    per_source = []
+    for source, bucket in sorted(per_source_comments.items(),
+                                 key=lambda kv: -kv[1]["comments"]):
+        shifts = per_source_shift.get(source, [])
+        per_source.append({
+            "source": source,
+            "source_he": source_he(source),
+            "comments": bucket["comments"],
+            "likes": bucket["likes"],
+            "avg_likes": round(bucket["likes"] / max(1, bucket["comments"]), 2),
+            "inert": bucket["inert"],
+            "articles": len(shifts),
+            "articles_unaffected": sum(1 for s in shifts if s == 0.0),
+            "mean_p85_shift": round(statistics.mean(shifts), 5) if shifts else 0.0,
+        })
+
+    likes_max = max((r["likes"] for r in raw_by_id.values()), default=0)
+    curve = [{"likes": n, "weight": round(engagement_weight(n), 3)}
+             for n in WEIGHT_LIKES if n < likes_max]
+    curve.append({"likes": likes_max, "weight": round(engagement_weight(likes_max), 3)})
+
+    agg_rows = [dict(r) for r in conn.execute(
+        "SELECT audience_mean, audience_p85, controversy_mean, num_comments"
+        " FROM article_comments_agg WHERE num_comments > 0")]
+    p85 = [r["audience_p85"] for r in agg_rows if r["audience_p85"] is not None]
+    means = [r["audience_mean"] for r in agg_rows if r["audience_mean"] is not None]
+    counts = [r["num_comments"] for r in agg_rows]
+
+    facts = {
+        "polar_lexicon_forms": len(polar),
+        "quantile": _audience_quantile_default(_weighted_quantile),
+        "comments": {
+            "total": len(lengths),
+            "articles": len(per_article),
+            "len_mean": round(statistics.mean(lengths), 1),
+            "len_median": statistics.median(lengths),
+            "len_max": max(lengths),
+            "len_under_4": sum(1 for x in lengths if x <= 3),
+            "zero_polar": sum(1 for x in ratios if x == 0.0),
+            "ratio_mean": round(statistics.mean(ratios), 5),
+            "ratio_hist": _ratio_hist(ratios),
+        },
+        "weight": {
+            "curve": curve,
+            "max_likes": likes_max,
+            "inert": inert,
+            "shift_mean": round(statistics.mean(shift_mean), 5) if shift_mean else 0.0,
+            "shift_p85": round(statistics.mean(shift_p85), 5) if shift_p85 else 0.0,
+            "articles": len(shift_p85),
+            "articles_unaffected": sum(1 for s in shift_p85 if s == 0.0),
+            "per_source": per_source,
+        },
+        # The pipeline computes this on every comment. No Israeli outlet in the
+        # snapshot exposes a dislike count, so p is always 1 and 4p(1-p) is
+        # always 0 — a live metric with no data behind it.
+        "controversy": {
+            "articles": len(agg_rows),
+            "nonzero": sum(1 for r in agg_rows if (r["controversy_mean"] or 0) > 0),
+            "at_one_like": round(controversy(1, 0), 4),
+            "at_even_split": round(controversy(1, 1), 4),
+        },
+        "aggregate": {
+            "p85_mean": round(statistics.mean(p85), 4),
+            "p85_median": round(statistics.median(p85), 4),
+            "p85_zero": sum(1 for x in p85 if x == 0.0),
+            "p85_one": sum(1 for x in p85 if x == 1.0),
+            "mean_median": round(statistics.median(means), 4),
+            "p85_hist": _ratio_hist(p85),
+            "counts": {
+                "median": statistics.median(counts),
+                "under_5": sum(1 for x in counts if x < 5),
+                "under_10": sum(1 for x in counts if x < 10),
+                "total": len(counts),
+            },
+        },
+        "artifacts": {
+            "ratio_one": sum(ratio_one_lengths.values()),
+            "single_token": ratio_one_lengths.get(1, 0),
+            "examples": ratio_one_examples,
+        },
+        "example": _audience_example(per_article, raw_by_id, sources, titles,
+                                    polar, normalize_text, tokenize,
+                                    _weighted_mean, _weighted_quantile,
+                                    _audience_quantile_default(_weighted_quantile)),
+    }
+    facts.update(_audience_events(math))
+    return facts
+
+
+# The article the worked example walks through. Chosen once, by hand, for one
+# reason: its most-liked comment is furious and scores exactly 0.0000, so the
+# example teaches the limit at the same time as the formula. Pinned by title so
+# a re-export that reshuffles ids still finds it, with a fallback if it is gone.
+EXAMPLE_TITLE = 'ומי ישלם על קריסת נתב"ג?'
+
+
+def _audience_example(per_article, raw_by_id, sources, titles, polar,
+                      normalize_text, tokenize, weighted_mean, weighted_quantile,
+                      quantile) -> dict | None:
+    wanted = [aid for aid, t in titles.items() if t == EXAMPLE_TITLE
+              and aid in per_article]
+    if not wanted:
+        wanted = sorted((aid for aid in per_article if 8 <= len(per_article[aid]) <= 12),
+                        key=lambda a: -len(per_article[a]))[:1]
+    if not wanted:
+        return None
+    article_id = wanted[0]
+    feats = sorted(per_article[article_id], key=lambda f: -f.like_count)
+
+    comments = []
+    for feat in feats:
+        raw = raw_by_id[feat.comment_id]
+        tokens = tokenize(normalize_text(raw["text"]), normalized=True)
+        comments.append({
+            "text": raw["text"].strip(),
+            "likes": feat.like_count,
+            "len": feat.comment_len,
+            "polar": feat.polar_count,
+            "hits": [t for t in tokens if t in polar],
+            "ratio": round(feat.polar_ratio, 4),
+            "weight": round(feat.engagement_weight, 3),
+        })
+
+    scores = [f.comment_score for f in feats]
+    weights = [f.engagement_weight for f in feats]
+    flat = [1.0] * len(feats)
+    total_weight = sum(weights)
+    target = quantile * total_weight
+
+    walk, cumulative, landed = [], 0.0, False
+    for value, weight in sorted(zip(scores, weights), key=lambda p: p[0]):
+        cumulative += weight
+        hit = not landed and cumulative >= target
+        landed = landed or hit
+        walk.append({"value": round(value, 4), "weight": round(weight, 3),
+                     "cum": round(cumulative, 3), "hit": hit})
+
+    return {
+        "article_id": article_id,
+        "source": sources.get(article_id, "?"),
+        "source_he": source_he(sources.get(article_id, "?")),
+        "title": titles.get(article_id, ""),
+        "comments": comments,
+        "weighted": {"mean": round(weighted_mean(scores, weights), 5),
+                     "p85": round(weighted_quantile(scores, weights), 5)},
+        "unweighted": {"mean": round(weighted_mean(scores, flat), 5),
+                       "p85": round(weighted_quantile(scores, flat), 5)},
+        "sum_weight": round(total_weight, 3),
+        "target": round(target, 3),
+        "walk": walk,
+    }
+
+
+def _audience_events(math) -> dict:
+    """Topic hijacking and the within-event audience deviation.
+
+    Both need the event clustering, so they are built from demo.core.framing
+    rather than from SQL — the same clusters the kiosk itself shows.
+    """
+    import statistics
+    from collections import Counter, defaultdict
+
+    from demo.core.framing import (
+        Snapshot,
+        attach_comment_profiles,
+        build_event_clusters,
+        outlet_deviation,
+    )
+
+    snap = Snapshot()
+    events = build_event_clusters(snap)
+
+    comparable = 0
+    hijacked = 0
+    per_source: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    pairs: Counter = Counter()
+    examples: list[tuple] = []
+    for event in events:
+        attach_comment_profiles(snap, event)
+        for version in event.versions:
+            article_topic, comment_topic = version.lex_top_he, version.comment_top_he
+            if not (article_topic and comment_topic):
+                continue
+            comparable += 1
+            per_source[version.source][1] += 1
+            if version.audience_hijacked:
+                hijacked += 1
+                per_source[version.source][0] += 1
+                pairs[(article_topic, comment_topic)] += 1
+                top = snap.top_comment(version.article_id) or {}
+                examples.append((
+                    version.num_comments or 0, version.source, version.title,
+                    article_topic, comment_topic,
+                    (top.get("text") or "").strip()[:150], top.get("like_count") or 0,
+                ))
+    examples.sort(key=lambda e: -e[0])
+
+    deviation = []
+    for source, values in sorted(outlet_deviation(events, "audience_p85").items(),
+                                 key=lambda kv: -len(kv[1])):
+        deviation.append({
+            "source": source,
+            "source_he": source_he(source),
+            "n": len(values),
+            "mean": round(statistics.mean(values), 4),
+            "median": round(statistics.median(values), 4),
+        })
+
+    return {
+        "hijack": {
+            "events": len(events),
+            "comparable": comparable,
+            "hijacked": hijacked,
+            "per_source": [
+                {"source": s, "source_he": source_he(s), "hijacked": v[0], "total": v[1]}
+                for s, v in sorted(per_source.items(), key=lambda kv: -kv[1][1])
+            ],
+            "pairs": [{"article_he": a, "comments_he": c, "n": n}
+                      for (a, c), n in pairs.most_common(6)],
+            "examples": [
+                {"num_comments": e[0], "source": e[1], "source_he": source_he(e[1]),
+                 "title": e[2], "article_he": e[3], "comments_he": e[4],
+                 "top_comment": e[5], "top_likes": e[6]}
+                for e in examples[:3]
+            ],
+        },
+        "deviation": deviation,
+    }
+
+
 def main() -> int:
     if not config.SQLITE_PATH.exists():
         print(f"missing snapshot: {config.SQLITE_PATH}", file=sys.stderr)
@@ -851,6 +1197,7 @@ def main() -> int:
             "lexicon": build_lexicon(),
             "retrieval": build_retrieval(conn),
             "framing": build_framing(),
+            "audience": build_audience(conn),
         }
     finally:
         conn.close()
@@ -868,6 +1215,10 @@ def main() -> int:
     v = facts["framing"]["verifier"]
     print(f"  verifier: {v['terms_rejected']}/{v['terms_total']} terms and "
           f"{v['quotes_rejected']}/{v['quotes_total']} quotes rejected")
+    a = facts["audience"]
+    print(f"  audience: {a['comments']['zero_polar']}/{a['comments']['total']} comments "
+          f"score 0 · like-weight inert on {a['weight']['inert']} · "
+          f"hijacked {a['hijack']['hijacked']}/{a['hijack']['comparable']}")
     return 0
 
 

@@ -79,7 +79,7 @@ export const MODULES: ModuleDef[] = [
     title_he: "אות הקהל",
     sub_he: "מה הקוראים עשו מהסיפור",
     promise_he: "שקלול לייקים, אחוזון 85, וחטיפת נושא",
-    ready: false,
+    ready: true,
   },
   {
     id: "stats",

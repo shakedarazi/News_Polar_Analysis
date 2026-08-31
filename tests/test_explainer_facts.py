@@ -240,3 +240,115 @@ def test_no_rejected_quote_is_rendered_as_evidence():
     )
     for row in ex["per_source"]:
         assert row["evidence"] is None or isinstance(row["evidence"], str)
+
+
+# ── the audience signal ─────────────────────────────────────────────────
+#
+# This is the layer where the honest answer is mostly about coverage: a
+# weighting that is inert where an outlet ships no likes, and a metric with no
+# data at all. These tests make sure the wall keeps saying that, and that the
+# worked example still demonstrates the limit it is captioned with.
+
+
+def test_audience_formulas_match_the_pipeline_functions():
+    """The three formulas on the wall, evaluated against src/."""
+    from src.analysis.comments_scoring import controversy, engagement_weight
+
+    assert engagement_weight(0, 0) == 1.0
+    # every like is worth less than the one before it — that is the whole
+    # reason for the log, and the wall's "×3.4 not ×10" line depends on it
+    assert engagement_weight(10, 0) < 10 * engagement_weight(1, 0)
+    # with likes only, p is 1 and the controversy term collapses
+    assert controversy(5, 0) == 0.0
+    assert controversy(5, 5) == 1.0
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_audience_quantile_is_the_aggregation_default():
+    from src.analysis.aggregation import _weighted_quantile
+
+    import inspect
+
+    a = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["audience"]
+    default = inspect.signature(_weighted_quantile).parameters["quantile"].default
+    assert a["quantile"] == default
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_like_weighting_is_reported_as_inert_where_the_outlet_ships_no_likes():
+    """The claim on screen: no likes -> weight 1.0 -> p85 cannot move."""
+    w = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["audience"]["weight"]
+    assert sum(s["comments"] for s in w["per_source"]) > 0
+    silent = [s for s in w["per_source"] if s["likes"] == 0]
+    assert silent, "the panel exists to show outlets with no like data"
+    for s in silent:
+        assert s["inert"] == s["comments"]
+        assert s["mean_p85_shift"] == 0.0
+        assert s["articles_unaffected"] == s["articles"]
+    assert w["inert"] >= sum(s["comments"] for s in silent)
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_controversy_is_shown_as_a_metric_with_no_data_behind_it():
+    c = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["audience"]["controversy"]
+    assert c["articles"] > 0
+    assert c["nonzero"] == 0, (
+        "an outlet started shipping dislikes — the 'dead metric' panel is now"
+        " a lie and has to be rewritten against the new data"
+    )
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_worked_example_reproduces_the_aggregates_it_displays():
+    """Recompute the panel's two headline numbers from the rows beside them."""
+    from src.analysis.aggregation import _weighted_mean, _weighted_quantile
+
+    a = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["audience"]
+    e = a["example"]
+    if e is None:
+        pytest.skip("no worked example in this snapshot")
+    scores = [c["ratio"] for c in e["comments"]]
+    weights = [c["weight"] for c in e["comments"]]
+    assert round(_weighted_mean(scores, weights), 4) == round(e["weighted"]["mean"], 4)
+    assert round(_weighted_quantile(scores, weights, a["quantile"]), 4) == round(
+        e["weighted"]["p85"], 4)
+    # the cumulative walk lands exactly once, and lands at the reported p85
+    hits = [s for s in e["walk"] if s["hit"]]
+    assert len(hits) == 1
+    assert round(hits[0]["value"], 4) == round(e["weighted"]["p85"], 4)
+    assert hits[0]["cum"] >= e["target"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_worked_example_still_shows_a_furious_comment_scoring_zero():
+    """The caption's whole point. If the top comment ever scores above zero
+    the example stops teaching the limit and must be re-chosen."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["audience"]["example"]
+    if e is None:
+        pytest.skip("no worked example in this snapshot")
+    top = e["comments"][0]
+    assert top["likes"] == max(c["likes"] for c in e["comments"])
+    assert top["ratio"] == 0.0 and top["hits"] == []
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_hijacking_counts_only_versions_where_both_sides_have_a_topic():
+    h = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["audience"]["hijack"]
+    assert 0 <= h["hijacked"] <= h["comparable"]
+    assert sum(s["total"] for s in h["per_source"]) == h["comparable"]
+    assert sum(s["hijacked"] for s in h["per_source"]) == h["hijacked"]
+    assert sum(p["n"] for p in h["pairs"]) <= h["hijacked"]
+    for pair in h["pairs"]:
+        assert pair["article_he"] != pair["comments_he"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_thin_cells_are_carried_with_their_sample_size():
+    """Nothing on this wall may be reportable without the n beside it."""
+    a = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["audience"]
+    for cell in a["deviation"]:
+        assert cell["n"] >= 1
+        assert "median" in cell and "mean" in cell
+    assert any(cell["n"] < 10 for cell in a["deviation"]), (
+        "the limits panel promises to show a cell too thin to report"
+    )
