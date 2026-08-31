@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { Facts } from "./facts";
 import {
-  BarRow,
   Caveat,
   Chip,
   CodeRef,
@@ -14,11 +13,10 @@ import {
 } from "./kit";
 
 const TABS: TabDef[] = [
-  { id: "why", label_he: "למה מודל שפה" },
-  { id: "back", label_he: "מה חוזר בפועל" },
-  { id: "contrast", label_he: "הצעד הקונטרסטיבי" },
-  { id: "verify", label_he: "המאמת" },
-  { id: "audit", label_he: "ביקורת על המאמת" },
+  { id: "why", label_he: "למה מודל ולא קוד" },
+  { id: "output", label_he: "פלט המודל" },
+  { id: "ground", label_he: "כלל העיגון" },
+  { id: "rejects", label_he: "למה ציטוטים נפסלו" },
 ];
 
 interface Props {
@@ -29,10 +27,12 @@ interface Props {
  * Module: the one layer that is not deterministic, and the deterministic
  * check bolted to its output.
  *
- * The order of the tabs is the argument: a model is used only where counting
- * cannot reach, everything it returns is measured across the whole cache, and
- * the last tab turns the same scrutiny on our own verifier — which turns out
- * to reject twice as much for punctuation as for invention.
+ * Four decisions, one per tab: pay for framing because it is the only
+ * question here without a computable answer; do not lean on the provider's
+ * JSON guarantee, because valid JSON says nothing about whether the content
+ * is true; verify against exactly the window the model read, from a single
+ * shared constant; and leave the verifier strict even after measuring that
+ * most of its rejections are punctuation rather than invention.
  */
 export function FramingModule({ facts }: Props) {
   const [tab, setTab] = useState("why");
@@ -41,231 +41,137 @@ export function FramingModule({ facts }: Props) {
     <div className="flex h-full min-h-0 flex-col gap-3">
       <SubNav tabs={TABS} active={tab} onSelect={setTab} />
       {tab === "why" && <WhyModel facts={facts} />}
-      {tab === "back" && <WhatComesBack facts={facts} />}
-      {tab === "contrast" && <Contrast facts={facts} />}
-      {tab === "verify" && <Verify facts={facts} />}
-      {tab === "audit" && <Audit facts={facts} />}
+      {tab === "output" && <Output facts={facts} />}
+      {tab === "ground" && <Ground facts={facts} />}
+      {tab === "rejects" && <Rejects facts={facts} />}
     </div>
   );
 }
 
-/* ── 1. why a model at all ──────────────────────────────────────── */
+/* ── 1. the question that has no computable answer ──────────────── */
 
-const VARIABLES: { key: string; label_he: string; why_he: string }[] = [
-  {
-    key: "actor",
+/** The five keys the prompt asks for, in the order the extractor lists them. */
+const FIELD: Record<string, { label_he: string; why_he: string }> = {
+  actor: {
     label_he: "מי מוצג כמבצע",
-    why_he: "אותה עובדה כשהיא מיוחסת לגורם מפורש או נשארת בלי נושא",
+    why_he: "אותה עובדה עם נושא מפורש או בלעדיו",
   },
-  {
-    key: "responsibility",
+  responsibility: {
     label_he: "למי מיוחסת האחריות",
-    why_he: "מי מוצג כאשם במצב — לרוב לא אותו גורם שביצע",
+    why_he: "מי מוצג כאשם במצב — לרוב לא מי שביצע",
   },
-  {
-    key: "loaded_terms",
+  loaded_terms: {
     label_he: "מילים טעונות בכותרת",
-    why_he: "תארים שיפוטיים; זה השדה שהמאמת בודק הכי קשוח",
+    why_he: "תארים שיפוטיים; השדה שהמאמת בודק הכי קשוח",
   },
-  {
-    key: "voice",
+  voice: {
     label_he: "קול פעיל או סביל",
-    why_he: '"נהרגו" מול "כוחותינו הרגו" — אותו אירוע, אחריות אחרת',
+    why_he: '"נהרגו" מול "כוחותינו הרגו" — אחריות אחרת',
   },
-  {
-    key: "lead_perspective",
+  lead_perspective: {
     label_he: "מנקודת מבט של מי נפתח",
     why_he: "מי מקבל את המשפט הראשון",
   },
-];
+};
 
 function WhyModel({ facts }: Props) {
   const f = facts?.framing;
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="הגבול של הלקסיקון">
-          <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
-            ספירת מילים אומרת <b>על מה</b> הכתבה. היא לא יכולה לומר מי מוצג
-            כמבצע הפעולה ולמי מיוחסת האחריות — שתי כותרות עם אותו פרופיל
-            לקסיקוני בדיוק יכולות לייחס את אותו אירוע לשני גורמים הפוכים. זו לא
-            בעיה של מילון עשיר יותר; זה מידע תחבירי, לא מילוני.
-          </p>
-        </Panel>
-
-        <Panel title="חמשת המשתנים שמבקשים מהמודל" hint="מחקר מסגור תקשורתי">
-          <div className="flex flex-col gap-1.5">
-            {VARIABLES.map((v) => (
-              <div
-                key={v.key}
-                className="flex items-baseline gap-2.5 rounded-lg border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/50 px-3 py-1.5"
-              >
-                <code
-                  dir="ltr"
-                  className="w-[128px] shrink-0 font-mono text-[13px] text-[var(--dk-accent)]"
-                >
-                  {v.key}
-                </code>
-                <span className="text-[15px] font-semibold">{v.label_he}</span>
-                <span className="text-[13.5px] leading-snug text-[var(--dk-ink-3)]">
-                  {v.why_he}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      </div>
-
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel
-          title="הקריאה עצמה"
-          hint="demo/core/framing.py · FramingExtractor"
-        >
-          <div className="grid grid-cols-2 gap-2">
-            <Node title={f?.model ?? "gpt-4o-mini"} mono sub="דגם החילוץ" />
-            <Node
-              title={`temperature = ${f?.temperature ?? 0}`}
-              mono
-              sub="אותה כותרת מחזירה אותו פלט; לא דטרמיניזם מובטח, אבל הכי קרוב שאפשר"
-            />
-            <Node
-              title={`${f?.lead_chars ?? 500} תווים`}
-              sub="הכותרת + פתיח באורך הזה — זה כל ההקשר שהמודל מקבל"
-            />
-            <Node
-              title={`max_tokens = ${f?.max_tokens.framing ?? 260}`}
-              mono
-              sub="JSON קצר, בלי מקום לנאום"
-            />
-          </div>
-        </Panel>
-
-        <Panel title="למה 500 הוא קבוע אחד ולא שניים">
-          <p className="text-[15px] leading-relaxed text-[var(--dk-ink-2)]">
-            אותו חלון בדיוק משמש את החילוץ ואת האימות. חלון אימות רחב יותר היה
-            מכשיר ביטוי מומצא רק כי הוא במקרה מופיע עמוק בגוף הכתבה; חלון צר
-            יותר היה פוסל ביטויים שהמודל באמת קרא — בדיקה מול הכותרת בלבד נתנה
-            33% עיגון במקום 93% במדידה הראשונה. לכן{" "}
-            <CodeRef path="EXTRACT_LEAD_CHARS" /> הוא קבוע יחיד שהשניים
-            מייבאים.
-          </p>
-        </Panel>
-
-        {f && (
-          <Panel title="הפרומפט כפי שהוא נשלח" hint="FRAMING_SYSTEM">
-            <p
-              dir="rtl"
-              className="max-h-[132px] overflow-auto rounded-lg border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/60 px-3 py-2 text-[13.5px] leading-snug text-[var(--dk-ink-2)]"
-            >
-              {f.framing_system}
-            </p>
-          </Panel>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── 2. what actually comes back ────────────────────────────────── */
-
-function WhatComesBack({ facts }: Props) {
-  const f = facts?.framing;
   const d = f?.distribution;
-  const maxTerms = Math.max(1, ...(d?.terms_per_article.map((t) => t.n) ?? [1]));
+  const passive = d?.voice.find((v) => v.label === "passive")?.n ?? 0;
+  const zeroTerms = d?.terms_per_article.find((t) => t.terms === 0)?.n ?? 0;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel
-          title="מילים טעונות לכתבה"
-          hint={d ? `${d.total} חילוצים במטמון` : undefined}
-        >
-          {d ? (
-            <div className="flex flex-col gap-2">
-              {d.terms_per_article.map((t) => (
-                <div key={t.terms} className="flex-1">
-                  <BarRow
-                    label={`${t.terms} מילים`}
-                    n={t.n}
-                    max={maxTerms}
-                    tone={t.terms === 0 ? "muted" : "accent"}
-                    note={t.terms === 0 ? "כותרת ניטרלית" : undefined}
-                  />
+    <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
+      <Panel
+        title="מילון לא יודע מי מוצג כמבצע"
+        hint={
+          f
+            ? `${f.cache.contrast} קריאות השוואה נוספות · עד ${f.contrast_versions} גרסאות`
+            : undefined
+        }
+      >
+        {f ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              {f.cache.framing} כותרות הגיעו למודל, אחרי שכל שאלה עם תשובה
+              מחושבת נענתה בקוד. מסגור — איך אותה עובדה מוצגת — הוא מידע תחבירי,
+              ומילון עשיר יותר לא מגיע לשם.
+            </p>
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              הדרג קבוע: קוד דטרמיניסטי, מודל מקומי, קריאה בתשלום, ואימות
+              דטרמיניסטי אחריה.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Node title={f.model} mono sub="דגם החילוץ" />
+              <Node
+                title={`temperature = ${f.temperature}`}
+                mono
+                sub="אותה כותרת מחזירה אותו פלט; קרוב לדטרמיניזם, לא הבטחה"
+              />
+              <Node
+                title={`${f.lead_chars} תווים`}
+                sub="הכותרת והפתיח — כל ההקשר שהמודל מקבל"
+              />
+              <Node
+                title={`max_tokens = ${f.max_tokens.framing}`}
+                mono
+                sub="JSON קצר, בלי מקום לנאום"
+              />
+            </div>
+          </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
+
+      <Panel title="חמשת השדות, ומה חזר בהם" hint="מחקר מסגור תקשורתי">
+        {f && d ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              {f.keys.map((key) => (
+                <div
+                  key={key}
+                  className="flex items-baseline gap-2.5 rounded-lg border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/50 px-3 py-1.5"
+                >
+                  <code
+                    dir="ltr"
+                    className="w-[128px] shrink-0 font-mono text-[13px] text-[var(--dk-accent)]"
+                  >
+                    {key}
+                  </code>
+                  <span className="text-[15px] font-semibold">
+                    {FIELD[key]?.label_he ?? key}
+                  </span>
+                  <span className="text-[13.5px] leading-snug text-[var(--dk-ink-3)]">
+                    {FIELD[key]?.why_he}
+                  </span>
                 </div>
               ))}
             </div>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
 
-        {d && (
-          <Panel title="שדות שחוזרים ריקים — וזה תקין">
             <div className="grid grid-cols-3 gap-2 text-center">
-              <Stat n={d.voice.find((v) => v.label === "passive")?.n ?? 0} of={d.total} label="קול סביל" />
+              <Stat n={passive} of={d.total} label="קול סביל" />
               <Stat n={d.actor_null} of={d.total} label="בלי מבצע מזוהה" />
-              <Stat n={d.responsibility_null} of={d.total} label="בלי ייחוס אחריות" />
+              <Stat
+                n={d.responsibility_null}
+                of={d.total}
+                label="בלי ייחוס אחריות"
+              />
             </div>
-            <p className="mt-2 text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-              רק {d.voice.find((v) => v.label === "passive")?.n ?? 0} כותרות
-              בסביל. זה ממצא על העיתונות הישראלית שנמדד כאן, לא הנחה — וזה גם
-              אומר שהמשתנה הזה כמעט לא מפריד בין ערוצים בסנאפשוט הזה.
-            </p>
-          </Panel>
-        )}
-      </div>
 
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="פלט מודל הוא מחרוזת, לא מבנה" hint="_json_object">
-          <div className="flex flex-col gap-1.5">
-            <Node
-              title="גדרות קוד ופרוזה עוטפת"
-              sub="חלק מהתשובות מגיעות עטופות ב־```json או עם משפט מלווה. נחלץ את האובייקט הראשון במקום להיכשל."
-            />
-            <Node
-              title='המחרוזת "null" במקום null'
-              sub="המודל מחזיר לפעמים את המילה. שלושה שדות מנורמלים ידנית."
-            />
-            <Node
-              title="voice שאינו active/passive"
-              sub="כל ערך אחר הופך ל־null. עדיף שדה ריק על ערך שאי אפשר להשוות."
-            />
+            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
+              רק {passive} כותרות בסביל. זה ממצא על העיתונות הישראלית שנמדד כאן,
+              לא הנחה, והמשתנה הזה כמעט לא מפריד בין ערוצים בסנאפשוט.
+            </p>
+            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
+              {zeroTerms} כותרות חזרו בלי אף מילה טעונה. שדה ריק הוא תשובה, לא
+              כישלון.
+            </p>
           </div>
-        </Panel>
-
-        {f && (
-          <Panel
-            title="הבאג שהיה שליש מהכשלים: גרש בתוך ראשי תיבות"
-            hint="_repair_hebrew_quotes"
-          >
-            <p className="text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-              ראשי תיבות בעברית נכתבים עם גרש בתוך המילה. המודל פולט אותו לא
-              מוברח, וזה שובר את מחרוזת ה־JSON שהוא יושב בתוכה. גרש שיש אות
-              עברית משני צדיו אף פעם אינו תוחם — ולכן אפשר להבריח אותו בבטחה.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {f.acronyms.examples.map((a) => (
-                <span
-                  key={a}
-                  className="rounded-md border border-[var(--dk-warn)]/35 bg-[var(--dk-warn)]/8 px-2 py-0.5 font-mono text-[13px] text-[var(--dk-warn)]"
-                >
-                  {a}
-                </span>
-              ))}
-            </div>
-            <p className="mt-2 text-[14.5px] text-[var(--dk-ink-2)]">
-              <b className="text-[var(--dk-accent)]">
-                {f.acronyms.framing_hits + f.acronyms.contrast_hits}
-              </b>{" "}
-              מתוך{" "}
-              {f.acronyms.framing_total + f.acronyms.contrast_total} הפלטים
-              במטמון מכילים ראשי תיבות כאלה ({f.acronyms.distinct} שונים).
-              בלי התיקון הם היו נופלים בפענוח.
-            </p>
-          </Panel>
+        ) : (
+          <Missing />
         )}
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -286,128 +192,124 @@ function Stat({ n, of, label }: { n: number; of: number; label: string }) {
   );
 }
 
-/* ── 3. the contrastive step ────────────────────────────────────── */
+/* ── 2. structured output, and the parser that does not trust it ── */
 
-function Contrast({ facts }: Props) {
+function Output({ facts }: Props) {
   const f = facts?.framing;
-  const ex = f?.contrast_example;
+  const a = f?.acronyms;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[38%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="כאן האחזור הופך להגברה">
-          <p className="text-[15px] leading-relaxed text-[var(--dk-ink-2)]">
-            הקריאה הזאת היא היחידה שמקבלת את הגרסאות המאוחזרות כהקשר. השאלה
-            שנשאלת היא <b>מה ייחודי בגרסה הזאת ביחס לאחרות</b> — שאלה שאי אפשר
-            לענות עליה מכתבה בודדת, ולכן זה RAG ולא &quot;לאחזר ואז לסכם&quot;.
+    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+      <Panel title="‏JSON תקין לא מבטיח שהתוכן נכון">
+        <div className="flex flex-col gap-3">
+          <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+            הפייפליין מבקש מהמודל אובייקט JSON דרך{" "}
+            <CodeRef path="response_format" />. שכבת הסוכנים כאן לא נשענת עליו.
           </p>
-        </Panel>
-
-        <Panel title="מבנה הפרומפט" hint="build_contrast_prompt">
-          <pre
-            dir="rtl"
-            className="rounded-lg border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/60 px-3 py-2 text-[13.5px] leading-relaxed text-[var(--dk-ink-2)]"
-          >
-{`--- מקור: <שם הערוץ>
-כותרת: <הכותרת>
-פתיח: <400 תווים>
-
---- מקור: ...`}
-          </pre>
-          <p className="mt-2 text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-            עד {f?.contrast_versions ?? 5} גרסאות בקריאה אחת. מעבר לזה הפרומפט
-            מתחיל להידלל והמודל מסכם במקום להנגיד.
+          <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+            היא מחלצת את האובייקט הראשון מהמחרוזת, ואז מאמתת כל ביטוי מול הטקסט.
+            סכמה קונה פענוח, לא אמת.
           </p>
-        </Panel>
+          <div className="flex flex-wrap items-center gap-2">
+            <CodeRef path="src/nlp/classify.py" />
+            <CodeRef path="demo/core/framing.py · _json_object" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Node
+              title="גדרות קוד ופרוזה עוטפת"
+              sub="חלק מהתשובות מגיעות עטופות בגדר קוד או עם משפט מלווה. נחלץ את האובייקט הראשון במקום להיכשל."
+            />
+            <Node
+              title='המחרוזת "null" במקום null'
+              sub="המודל מחזיר לפעמים את המילה. שלושה שדות מנורמלים ידנית."
+            />
+            <Node
+              title="voice שאינו active/passive"
+              sub="כל ערך אחר הופך ל־null. שדה ריק עדיף על ערך שאי אפשר להשוות."
+            />
+          </div>
+        </div>
+      </Panel>
 
-        {f && (
-          <Panel title="עלות">
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              {f.cache.contrast} קריאות קונטרסטיביות ו־{f.cache.framing} חילוצי
-              מסגור נשמרו למטמון. בזמן המיצג לא נשלחת אף בקשה — הקיוסק מנגן פלט
-              מודל אמיתי שהוקלט מראש.
+      <Panel title="גרש בתוך ראשי תיבות שבר את ה־JSON" hint="_repair_hebrew_quotes">
+        {a ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              {a.framing_hits + a.contrast_hits} מתוך{" "}
+              {a.framing_total + a.contrast_total} הפלטים במטמון מכילים ראשי
+              תיבות עם גרש ({a.distinct} שונים).
             </p>
-          </Panel>
-        )}
-      </div>
-
-      <div className="flex min-h-0 flex-col justify-center gap-2.5">
-        {ex ? (
-          <>
-            <Panel
-              title="מה כל הגרסאות מסכימות עליו"
-              hint={ex.topic_he ? `אירוע בנושא ${ex.topic_he}` : undefined}
-            >
-              <p className="text-[16px] leading-snug">{ex.shared}</p>
-            </Panel>
-            {ex.per_source.map((row) => (
-              <div
-                key={row.source}
-                className="rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/40 px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <Chip tone="accent">{row.source_he}</Chip>
-                  <span className="truncate text-[13.5px] text-[var(--dk-ink-3)]">
-                    {row.title}
-                  </span>
-                </div>
-                <div className="mt-1 text-[15px] leading-snug">
-                  {row.distinctive}
-                </div>
-                {row.evidence &&
-                  (row.kept ? (
-                    <div className="mt-1 border-r-2 border-[var(--dk-good)]/60 pe-2 ps-2 text-[14px] leading-snug text-[var(--dk-ink-2)]">
-                      ״{row.evidence}״
-                    </div>
-                  ) : (
-                    <div className="mt-1 flex items-start gap-2">
-                      <Chip tone="bad">הציטוט נפסל</Chip>
-                      <span className="text-[13.5px] leading-snug text-[var(--dk-ink-3)] line-through">
-                        {row.evidence}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            ))}
-          </>
+            <div className="flex flex-wrap gap-1.5">
+              {a.examples.map((x) => (
+                <span
+                  key={x}
+                  className="rounded-md border border-[var(--dk-warn)]/35 bg-[var(--dk-warn)]/8 px-2 py-0.5 font-mono text-[13px] text-[var(--dk-warn)]"
+                >
+                  {x}
+                </span>
+              ))}
+            </div>
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              המודל פולט את הגרש לא מוברח, והוא שובר את מחרוזת ה־JSON שהוא יושב
+              בתוכה. בלי התיקון הפלטים האלה היו נופלים בפענוח.
+            </p>
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              גרש שיש אות עברית משני צדיו אף פעם אינו תוחם, ולכן ההברחה בטוחה
+              והערך שומר על ראשי התיבות כלשונם.
+            </p>
+          </div>
         ) : (
-          <Panel title="דוגמה קונטרסטיבית">
-            <Missing />
-          </Panel>
+          <Missing />
         )}
-      </div>
+      </Panel>
     </div>
   );
 }
 
-/* ── 4. the verifier ────────────────────────────────────────────── */
+/* ── 3. the grounding rule and what it caught ───────────────────── */
 
-function Verify({ facts }: Props) {
+function Ground({ facts }: Props) {
   const f = facts?.framing;
   const v = f?.verifier;
   const ex = f?.term_example;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="הכלל" hint="verify_framing · דטרמיניסטי">
-          <div className="flex flex-col gap-2">
+    <div className="grid min-h-0 flex-1 grid-cols-[40%_1fr] gap-3">
+      <Panel title="קבוע אחד לחילוץ ולאימות, אחרי אישור שווא">
+        {f ? (
+          <div className="flex flex-col gap-3">
             <div
               dir="rtl"
               className="rounded-lg border border-[var(--dk-accent)]/25 bg-[var(--dk-accent-dim)]/40 px-3 py-2 text-center text-[15.5px] font-semibold text-[var(--dk-accent)]"
             >
               ביטוי שאינו מופיע בטקסט שהמודל קיבל — יורד מהמסך
             </div>
-            <p className="text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-              זו לא דעה שנייה של מודל. זו השוואת מחרוזות: מנרמלים גרשיים
-              ורווחים, ובודקים הכלה בתוך הכותרת והפתיח. אין כאן שיפוט — יש
-              בדיקה שאפשר להריץ ידנית מול המסך.
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              עיגון הוא השוואת מחרוזות: מנרמלים גרשיים ורווחים ובודקים הכלה
+              בכותרת ובפתיח. אין כאן דעה שנייה של מודל.
+            </p>
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              כשהאימות קרא חלון רחב מ־{f.lead_chars} התווים שהחילוץ קיבל, ביטוי
+              שהמודל מעולם לא ראה עבר אימות. לכן{" "}
+              <CodeRef path="EXTRACT_LEAD_CHARS" /> הוא קבוע יחיד שהשניים
+              מייבאים.
             </p>
           </div>
-        </Panel>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
 
-        {v && (
-          <Panel title="שיעורי הפסילה על כל המטמון">
+      <Panel
+        title={
+          v
+            ? `${v.terms_rejected} מתוך ${v.terms_total} מילים טעונות נפסלו`
+            : "שיעורי הפסילה"
+        }
+        hint="על כל המטמון, לא על אירוע אחד"
+      >
+        {v && ex ? (
+          <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-2.5">
               <RateRow
                 label="מילים טעונות"
@@ -425,73 +327,59 @@ function Verify({ facts }: Props) {
                 total={v.quotes_total}
               />
             </div>
-            <p className="mt-2 text-[14px] leading-snug text-[var(--dk-ink-3)]">
-              מתוך {v.actors_total} שמות מבצע, {v.actors_exact} נמצאו כמחרוזת
-              מלאה ו־{v.actors_word_level} רק ברמת מילה בודדת — שמות פרטיים
-              נכתבים אחרת בכל ערוץ, ולכן ההתאמה למבצע רופפת מזו של מילה טעונה.
+            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
+              {v.actors_exact} מהמבצעים נמצאו כמחרוזת מלאה ו־{v.actors_word_level}{" "}
+              רק ברמת מילה בודדת. המודל מחזיר לפעמים שם מלא שהכתבה עצמה קיצרה,
+              ולכן ההתאמה למבצע רופפת מזו של מילה טעונה.
             </p>
-          </Panel>
-        )}
-      </div>
 
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        {ex ? (
-          <>
-            <Panel
-              title="פסילה אמיתית, צעד־צעד"
-              hint={`${ex.source_he} · בדקו בעצמכם`}
-            >
-              <div className="flex flex-col gap-2">
-                <div className="rounded-lg border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/60 px-3 py-2">
-                  <div className="text-[13px] text-[var(--dk-ink-3)]">כותרת</div>
-                  <div className="text-[15.5px] font-semibold leading-snug">
-                    {ex.title}
-                  </div>
-                  <div className="mt-1.5 text-[13px] text-[var(--dk-ink-3)]">
-                    פתיח (מה שהמודל וגם המאמת ראו)
-                  </div>
-                  <div className="max-h-[92px] overflow-auto text-[14px] leading-snug text-[var(--dk-ink-2)]">
-                    {ex.lead}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[14px] text-[var(--dk-ink-3)]">
-                    המודל החזיר:
-                  </span>
-                  {ex.dropped.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-md border border-[var(--dk-bad)]/45 bg-[var(--dk-bad)]/10 px-2 py-0.5 text-[15px] font-semibold text-[var(--dk-bad)] line-through"
-                    >
-                      {t}
-                    </span>
-                  ))}
-                  {ex.kept.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-md border border-[var(--dk-good)]/45 bg-[var(--dk-good)]/10 px-2 py-0.5 text-[15px] font-semibold text-[var(--dk-good)]"
-                    >
-                      {t}
-                    </span>
-                  ))}
-                </div>
+            <div className="rounded-lg border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/60 px-3 py-2">
+              <div className="text-[13px] text-[var(--dk-ink-3)]">
+                {ex.source_he} · כותרת
               </div>
-            </Panel>
+              <div className="text-[15.5px] font-semibold leading-snug">
+                {ex.title}
+              </div>
+              <div className="mt-1.5 text-[13px] text-[var(--dk-ink-3)]">
+                הפתיח שהמודל וגם המאמת ראו
+              </div>
+              <div className="max-h-[92px] overflow-auto text-[14px] leading-snug text-[var(--dk-ink-2)]">
+                {ex.lead}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[14px] text-[var(--dk-ink-3)]">
+                המודל החזיר:
+              </span>
+              {ex.dropped.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-md border border-[var(--dk-bad)]/45 bg-[var(--dk-bad)]/10 px-2 py-0.5 text-[15px] font-semibold text-[var(--dk-bad)] line-through"
+                >
+                  {t}
+                </span>
+              ))}
+              {ex.kept.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-md border border-[var(--dk-good)]/45 bg-[var(--dk-good)]/10 px-2 py-0.5 text-[15px] font-semibold text-[var(--dk-good)]"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
 
             <Caveat>
-              המודל לא המציא כאן כלום: הפתיח אומר &quot;הצעידה
-              המבורכת&quot;, והמודל החזיר את הצורה &quot;מברכת&quot;. המאמת
-              משווה מחרוזות ולא נטיות, ולכן הוא פוסל. זה הכיוון הבטוח לטעות בו
-              — אבל זו טעות.
+              המאמת משווה מחרוזות ולא נטיות. הפתיח כותב את אותו שורש בנטייה
+              אחרת, ולכן ״{ex.dropped[0]}״ ירד. זה הכיוון הבטוח לטעות בו, וזו
+              עדיין טעות.
             </Caveat>
-          </>
+          </div>
         ) : (
-          <Panel title="דוגמה">
-            <Missing />
-          </Panel>
+          <Missing />
         )}
-      </div>
+      </Panel>
     </div>
   );
 }
@@ -527,9 +415,12 @@ function RateRow({
   );
 }
 
-/* ── 5. auditing the verifier itself ────────────────────────────── */
+/* ── 4. auditing the verifier itself ────────────────────────────── */
 
-const REASONS: Record<string, { label_he: string; note_he: string; tone: "bad" | "warn" | "good" }> = {
+const REASONS: Record<
+  string,
+  { label_he: string; note_he: string; tone: "bad" | "warn" | "good" }
+> = {
   paraphrase: {
     label_he: "ניסוח מחדש או השמטה",
     note_he: "המודל חיבר משפטים או שינה מילים — פסילה נכונה",
@@ -537,7 +428,7 @@ const REASONS: Record<string, { label_he: string; note_he: string; tone: "bad" |
   },
   punct: {
     label_he: "הבדל בפיסוק בלבד",
-    note_he: "מילה במילה, למעט נקודה שהמודל הוסיף בסוף — פסילה מיותרת",
+    note_he: "מילה במילה, למעט פיסוק שהמודל הוסיף — לרוב נקודה בסוף",
     tone: "bad",
   },
   wrapper: {
@@ -547,37 +438,30 @@ const REASONS: Record<string, { label_he: string; note_he: string; tone: "bad" |
   },
 };
 
-function Audit({ facts }: Props) {
+function Rejects({ facts }: Props) {
   const f = facts?.framing;
   const v = f?.verifier;
   const maxReason = Math.max(1, ...(v?.quote_reasons.map((r) => r.n) ?? [1]));
+  const punct = v?.quote_reasons.find((r) => r.kind === "punct")?.n ?? 0;
   const bad = v?.quote_reasons.find((r) => r.kind === "paraphrase")?.n ?? 0;
-  const share = v
-    ? ((v.quotes_rejected / Math.max(v.quotes_total, 1)) * 100).toFixed(0)
-    : null;
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel
-          title={
-            share
-              ? `${share}% מהציטוטים נפסלו. בגלל מה?`
-              : "הציטוטים שנפסלו — בגלל מה?"
-          }
-        >
-          <p className="text-[15px] leading-relaxed text-[var(--dk-ink-2)]">
-            שיעור פסילה גבוה נשמע כמו מודל שממציא. פירקנו את הפסילות לפי סיבה,
-            ומה שיצא הוא בעיקר ביקורת על המאמת שלנו: הוא השוואת־מחרוזת נאיבית,
-            ונקודה שהמודל הוסיף בסוף המשפט מפילה ציטוט מדויק לחלוטין.
-          </p>
-        </Panel>
+      <Panel
+        title={
+          v
+            ? `${punct} מתוך ${v.quotes_rejected} הפסילות הן פיסוק בלבד`
+            : "פירוק הפסילות"
+        }
+        hint={v ? `על כל ${v.quotes_total} ציטוטי הראיה במטמון` : undefined}
+      >
+        {f && v ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              {v.quotes_rejected} מתוך {v.quotes_total} ציטוטי הראיה לא נמצאו
+              בטקסט כלשונם. שיעור כזה נשמע כמו מודל שממציא.
+            </p>
 
-        {v && (
-          <Panel
-            title="פירוק הפסילות"
-            hint={`${v.quotes_rejected} מתוך ${v.quotes_total} ציטוטים`}
-          >
             <div className="flex flex-col gap-2.5">
               {v.quote_reasons.map((r) => {
                 const meta = REASONS[r.kind];
@@ -611,62 +495,58 @@ function Audit({ facts }: Props) {
                 );
               })}
             </div>
-          </Panel>
-        )}
 
-        {v && (
-          <Panel title="המספר שמותר לצטט">
-            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
-              המודל ניסח מחדש או השמיט ב־<b className="text-[var(--dk-bad)]">{bad}</b>{" "}
-              מתוך {v.quotes_total} הציטוטים —{" "}
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
+              המודל ניסח מחדש או השמיט ב־
+              <b className="text-[var(--dk-bad)]">{bad}</b> מתוך {v.quotes_total}{" "}
+              הציטוטים —{" "}
               {((bad / Math.max(v.quotes_total, 1)) * 100).toFixed(1)}%. שאר
-              הפסילות הן קשיחות יתר שלנו. שתי הטעויות נופלות לאותו כיוון: פחות
-              על המסך, לא יותר.
+              הפסילות הן קשיחות יתר שלנו.
             </p>
-          </Panel>
-        )}
-      </div>
 
-      <div className="flex min-h-0 flex-col justify-center gap-2.5">
+            <Caveat>
+              לא ריככנו את הכלל בעקבות המדידה. ריכוך היה מעלה את שיעור המעבר על
+              חשבון הערובה היחידה כאן, שכל ביטוי על המסך נמצא בטקסט כלשונו. שתי
+              הטעויות נופלות לאותו כיוון: פחות על המסך, לא יותר.
+            </Caveat>
+          </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
+
+      <Panel title="מה המודל כתב, ומה כתוב בטקסט" hint="שלוש הפסילות, אחת מכל סוג">
         {f?.quote_examples.length ? (
-          f.quote_examples.map((q) => (
-            <Panel
-              key={q.kind}
-              title={REASONS[q.kind]?.label_he ?? q.kind}
-              hint={q.source_he}
-            >
-              <div className="flex flex-col gap-1.5">
-                <div>
-                  <div className="text-[13px] text-[var(--dk-ink-3)]">
-                    מה המודל כתב
-                  </div>
-                  <div className="text-[14.5px] leading-snug text-[var(--dk-ink)]">
-                    ״{q.evidence}״
-                  </div>
+          <div className="flex flex-col gap-2.5">
+            {f.quote_examples.map((q) => (
+              <div
+                key={q.kind}
+                className="rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/40 px-3 py-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Chip tone={REASONS[q.kind]?.tone ?? "bad"}>
+                    {REASONS[q.kind]?.label_he ?? q.kind}
+                  </Chip>
+                  <span className="text-[13.5px] text-[var(--dk-ink-3)]">
+                    {q.source_he}
+                  </span>
                 </div>
-                <div>
-                  <div className="text-[13px] text-[var(--dk-ink-3)]">
-                    מה כתוב בטקסט באותו מקום
-                  </div>
-                  <div className="text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-                    …{q.excerpt}…
-                  </div>
+                <div className="mt-1 text-[14.5px] leading-snug text-[var(--dk-ink)]">
+                  ״{q.evidence}״
+                </div>
+                <div className="mt-1 text-[13px] text-[var(--dk-ink-3)]">
+                  בטקסט באותו מקום
+                </div>
+                <div className="text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
+                  …{q.excerpt}…
                 </div>
               </div>
-            </Panel>
-          ))
+            ))}
+          </div>
         ) : (
-          <Panel title="דוגמאות">
-            <Missing />
-          </Panel>
+          <Missing />
         )}
-
-        <Caveat>
-          לא שינינו את המאמת בעקבות המדידה הזאת. ריכוך הכלל היה מעלה את שיעור
-          המעבר על חשבון הערובה היחידה שיש כאן — שכל ביטוי על המסך נמצא בטקסט
-          כלשונו. זו החלטה פתוחה, והמספרים לצידה.
-        </Caveat>
-      </div>
+      </Panel>
     </div>
   );
 }
