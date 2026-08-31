@@ -1,10 +1,10 @@
 name: Agent-layer benchmark
 
+# Manual only. The demo layer is a frozen exhibit that lives on this branch
+# and is never merged into main, so a push trigger scoped to demo/** on
+# main could never fire. Run it from the Actions tab against this branch.
 on:
   workflow_dispatch:
-  push:
-    paths: ["demo/**"]
-    branches: [main]
 
 jobs:
   benchmark:
