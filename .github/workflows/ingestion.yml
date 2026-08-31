@@ -35,12 +35,12 @@ jobs:
       - name: Run ingestion
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # OPENAI_API_KEY above is an OpenRouter key, not an OpenAI one — it
-          # only works against api.openai.com/v1 if these are also set (see
-          # src/nlp/openai_config.py). Not secret, hardcoded here directly.
-          OPENAI_BASE_URL: https://openrouter.ai/api/v1
-          OPENAI_MODEL: openai/gpt-4o-mini
+          # Existing OpenRouter key (GitHub secret still named OPENAI_API_KEY).
+          # Injected as OPENAI_INGESTION_API_KEY so it cannot be confused with
+          # Render's real OpenAI key used for summary / bias / Q&A.
+          OPENAI_INGESTION_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_INGESTION_BASE_URL: https://openrouter.ai/api/v1
+          OPENAI_INGESTION_MODEL: openai/gpt-4o-mini
         run: bash scripts/run_ingestion.sh
 
       - name: Upload ingestion logs

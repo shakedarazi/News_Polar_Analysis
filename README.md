@@ -113,7 +113,7 @@ by `src/db/browse.py`, `trending.py`, `events.py`, `summary.py`, `bias.py`, `ale
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 docker compose up -d                # starts local Postgres (news_polar_db)
-cp .env.example .env                # set DATABASE_URL, OPENAI_API_KEY (see note below)
+cp .env.example .env                # set DATABASE_URL, OPENAI_API_KEY (OpenAI), OPENAI_INGESTION_* (OpenRouter)
 python pipeline/init_db.py          # applies sql/schema.sql + sql/migrations/*.sql
 ```
 
@@ -141,10 +141,15 @@ PYTHONPATH=. pytest tests/ -q
 cd frontend && npm run lint && npm run build
 ```
 
-> **Note on `OPENAI_API_KEY`:** in this project it's actually an **OpenRouter** key (`sk-or-v1-...`), not a real
-> OpenAI one. `src/nlp/openai_config.py` routes every OpenAI SDK call through `OPENAI_BASE_URL` /
-> `OPENAI_MODEL` (`https://openrouter.ai/api/v1` / `openai/gpt-4o-mini`) instead of `api.openai.com`. If you swap
-> in a real OpenAI key, unset both (or set `OPENAI_MODEL=gpt-4o-mini`).
+> **Note on AI keys:** two providers, two credit pools.
+>
+> - **User-facing** (summary / bias / Q&A): a real **OpenAI** key in `OPENAI_API_KEY`, talking to
+>   `api.openai.com` with `OPENAI_MODEL=gpt-4o-mini`. Unset `OPENAI_BASE_URL`.
+> - **Ingestion** (classify): the existing **OpenRouter** key in `OPENAI_INGESTION_API_KEY`, talking to
+>   `https://openrouter.ai/api/v1` with `OPENAI_INGESTION_MODEL=openai/gpt-4o-mini`.
+>
+> Locally both live in `.env` (see `.env.example`). In the cloud they never share a process:
+> GitHub Actions injects only the OpenRouter vars; Render injects only the OpenAI key.
 
 ## 🚀 Deployment & Operations
 
@@ -161,24 +166,30 @@ This section is the source of truth for how the system actually runs in the clou
 
 ### Secrets / env vars
 
-- **GitHub Actions repo secrets** (Settings → Secrets and variables → Actions): `DATABASE_URL`, `OPENAI_API_KEY`
-  — consumed only by the ingestion workflow.
+- **GitHub Actions repo secrets** (Settings → Secrets and variables → Actions): `DATABASE_URL`,
+  `OPENAI_API_KEY` — the existing **OpenRouter** key. The workflow injects it as
+  `OPENAI_INGESTION_API_KEY` (plus OpenRouter `OPENAI_INGESTION_BASE_URL` / `OPENAI_INGESTION_MODEL`).
+  Do not replace this secret with a real OpenAI key; classify would break.
 - **Render service env vars**: `DATABASE_URL`, `OPENAI_API_KEY`, `CORS_ORIGINS` — all marked `sync: false` in
   `render.yaml`, so they must be filled in by hand in the Render dashboard (not auto-provisioned).
+  `OPENAI_API_KEY` here is a **real OpenAI** key for user-facing AI. If a leftover `OPENAI_BASE_URL`
+  pointing at OpenRouter is still on the service, delete it — otherwise the OpenAI key would be sent
+  to OpenRouter and fail.
 - **Vercel project env var**: `NEXT_PUBLIC_API_URL` — the Render service's public URL.
 
-`OPENAI_BASE_URL` / `OPENAI_MODEL` aren't secret and are already baked into both `.github/workflows/ingestion.yml`
-and `render.yaml` — nothing to configure by hand for them (see the OpenRouter note above).
+`OPENAI_INGESTION_BASE_URL` / `OPENAI_INGESTION_MODEL` are baked into `.github/workflows/ingestion.yml`.
+`OPENAI_MODEL=gpt-4o-mini` is baked into `render.yaml`. Nothing to configure by hand for those.
 
 ### One-time provisioning
 
 1. **Neon** — create a project, copy the connection string. It goes into local `.env`, the GitHub secret, and
    the Render env var below.
-2. **GitHub** — `gh secret set DATABASE_URL` and `gh secret set OPENAI_API_KEY` on this repo (or via the
-   Settings UI).
+2. **GitHub** — `gh secret set DATABASE_URL` on this repo (or via the Settings UI). The existing
+   `OPENAI_API_KEY` secret stays as the **OpenRouter** ingestion key — do not overwrite it.
 3. **Render** — dashboard.render.com → New → Blueprint → select this repo (it reads `render.yaml`
-   automatically) → Apply. Then open the `news-polar-api` service → Environment and fill in the three vars
-   above. Note the resulting `https://*.onrender.com` URL.
+   automatically) → Apply. Then open the `news-polar-api` service → Environment and fill in
+   `DATABASE_URL`, a **real OpenAI** `OPENAI_API_KEY`, and `CORS_ORIGINS`. Remove any leftover
+   `OPENAI_BASE_URL`. Note the resulting `https://*.onrender.com` URL.
 4. **Vercel** — vercel.com/new → Import this repo → set **Root Directory to `frontend`** (required — the repo
    root isn't the Next.js app) → add `NEXT_PUBLIC_API_URL` = the Render URL from step 3 → Deploy.
 5. Back on Render, set `CORS_ORIGINS` to the Vercel URL from step 4.

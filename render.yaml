@@ -14,12 +14,12 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
-      # OPENAI_API_KEY is an OpenRouter key — these route it there instead of
-      # api.openai.com (see src/nlp/openai_config.py). Not secret, so they're
-      # provisioned automatically instead of requiring manual dashboard entry.
-      - key: OPENAI_BASE_URL
-        value: https://openrouter.ai/api/v1
+      # User-facing AI only (summary / bias / Q&A) — a real OpenAI key hitting
+      # api.openai.com. Classify during ingestion uses the OpenRouter key on
+      # GitHub Actions (OPENAI_INGESTION_*). Do not put the OpenRouter key or
+      # OPENAI_BASE_URL here, or user actions would share that credit pool.
+      # OPENAI_MODEL is not secret; provisioned automatically.
       - key: OPENAI_MODEL
-        value: openai/gpt-4o-mini
+        value: gpt-4o-mini
       - key: CORS_ORIGINS
         sync: false

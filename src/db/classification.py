@@ -92,10 +92,12 @@ def maybe_classify_after_save(
     if not enabled:
         return None
 
-    from src.nlp.openai_config import get_openai_api_key
+    from src.nlp.openai_config import get_ingestion_openai_api_key
 
-    if not get_openai_api_key():
-        print("  WARN: OPENAI_API_KEY not set — article saved without category")
+    if not get_ingestion_openai_api_key():
+        print(
+            "  WARN: OPENAI_INGESTION_API_KEY not set — article saved without category"
+        )
         return None
 
     try:

@@ -18,7 +18,7 @@ runtime path; treat it as optional/future work unless a task specifically asks f
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 docker compose up -d                # starts Postgres (news_polar_db)
-cp .env.example .env                # set DATABASE_URL, OPENAI_API_KEY
+cp .env.example .env                # set DATABASE_URL, OPENAI_API_KEY, OPENAI_INGESTION_API_KEY
 python pipeline/init_db.py          # applies sql/schema.sql + sql/migrations/*.sql
 ```
 
@@ -115,7 +115,9 @@ The system also runs 24/7 in the cloud, decoupling ingestion scheduling from API
 - **Neon** — hosted PostgreSQL, same `DATABASE_URL` contract as local Docker Postgres (see below).
 - **GitHub Actions** (`.github/workflows/ingestion.yml`) — the *only* ingestion scheduler. Runs
   `scripts/run_ingestion.sh` (crawl → windows backfill → comments → lexicon → analyze, then classify as a bonus) every 6 hours via
-  `cron`, plus `workflow_dispatch` for manual runs. Secrets `DATABASE_URL` / `OPENAI_API_KEY` point it at Neon.
+  `cron`, plus `workflow_dispatch` for manual runs. Secret `DATABASE_URL` points it at Neon; the existing
+  GitHub `OPENAI_API_KEY` secret is the OpenRouter classify key (injected as `OPENAI_INGESTION_API_KEY`).
+  User-facing summary / bias / Q&A use a real OpenAI `OPENAI_API_KEY` on Render.
   This replaced two earlier mechanisms: OS `cron` (unreliable — macOS TCC blocked it silently) and an in-process
   `APScheduler` started from FastAPI's startup hook (required the API host to stay running continuously just to
   fire a timer). Because scheduling no longer lives inside the API process, the API host is free to idle/sleep
