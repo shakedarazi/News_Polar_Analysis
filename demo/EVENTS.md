@@ -28,7 +28,7 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   nothing to do with the SSE stream: it backs the deep-dive modules, which are
   navigated by the presenter rather than driven by the runner. Shape:
   `{corpus, constants, identity_example, worked_example, sources[], windows,
-  comments, lexicon, retrieval, framing, audience}` — see `demo/snapshot/build_explainer_facts.py`
+  comments, lexicon, retrieval, framing, audience, stats}` — see `demo/snapshot/build_explainer_facts.py`
   for the producer and `frontend/src/components/demo/explain/facts.ts` for the
   mirror. `retrieval` additionally carries the clustering threshold sweep,
   which is **recomputed on every build** (six clusterings over the snapshot),
@@ -37,7 +37,11 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   verifier rejected. `audience` re-scores all 38,492 comments through
   `src/analysis/comments_scoring.py` and re-runs the aggregation with weights
   forced to 1.0, so the "what does the like-weighting actually change" number
-  is a counterfactual on the same estimator rather than an assertion.
+  is a counterfactual on the same estimator rather than an assertion. `stats`
+  re-runs the whole significance layer — bootstrap intervals, the beat matrix,
+  and the permutation change-point scan — and reports how many tests that adds
+  up to; only the detector's power table is read out of `demo_set.json` rather
+  than recomputed, because it costs ~20s and the narrated run already shows it.
 
 Every event also carries `ts` (epoch milliseconds).
 
@@ -53,8 +57,8 @@ back. Two kinds of module exist:
   diagrams of one subsystem, fed by `GET /facts`. No SSE, no runner state, no
   gates. They are readable while the run is mid-scene, and they still render
   (diagrams only, measured strips omitted) when `/facts` is unavailable.
-  Live: `scraping`, `algorithm`, `retrieval`, `framing`, `audience`. The
-  remaining two tiles are disabled and labelled "בבנייה".
+  Live: `scraping`, `algorithm`, `retrieval`, `framing`, `audience`, `stats`.
+  The remaining tile is disabled and labelled "בבנייה".
 
 ## The scene machine
 

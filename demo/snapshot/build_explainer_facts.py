@@ -1178,6 +1178,308 @@ def _audience_events(math) -> dict:
     }
 
 
+# ── the statistics layer ────────────────────────────────────────────────
+# Everything here is recomputed from the snapshot on every build, with one
+# stated exception: the detector's power table, which costs ~20s and is read
+# out of demo/data/demo_set.json instead — the same table the narrated run
+# already shows, so the wall and the run cannot disagree. A test recomputes one
+# of its rows live and asserts it still matches.
+
+# The two metrics the comparison runs on. Both are the pipeline's own outputs;
+# neither is invented for the demo.
+STAT_METRICS = [
+    ("dominance", "דומיננטיות לקסיקון", "mean_dominance"),
+    ("audience_p85", "אחוזון 85 של הקהל", "audience_p85"),
+]
+
+
+def _stat_constants() -> dict:
+    """Iteration counts and seeds read off the signatures, never re-typed."""
+    import inspect
+
+    from demo.core import framing as fr
+
+    boot = inspect.signature(fr.bootstrap_ci).parameters
+    perm = inspect.signature(fr.detect_change_point).parameters
+    return {
+        "bootstrap_iterations": int(boot["iterations"].default),
+        "bootstrap_seed": int(boot["seed"].default),
+        "bootstrap_min_n": 3,
+        "permutation_iterations": int(perm["iterations"].default),
+        "min_segment": fr.MIN_SEGMENT,
+        "min_cell_events": fr.MIN_CELL_EVENTS,
+        "alpha": 0.05,
+    }
+
+
+def _bootstrap_p(values: list[float], iterations: int, seed: int) -> float | None:
+    """Two-sided bootstrap p for 'the mean deviation is zero'.
+
+    bootstrap_ci already answers this at 95%, but a CI cannot say how far past
+    the line a result sits — and the multiplicity panel needs exactly that.
+    Same resampling, same seed, so the p and the interval describe one draw.
+    """
+    import numpy as np
+
+    if len(values) < 3:
+        return None
+    rng = np.random.default_rng(seed)
+    arr = np.asarray(values, dtype=float)
+    draws = rng.choice(arr, (iterations, len(arr)), replace=True).mean(axis=1)
+    return float(2 * min((draws <= 0).mean(), (draws >= 0).mean()))
+
+
+def build_stats(conn: sqlite3.Connection) -> dict:
+    import statistics
+
+    import numpy as np
+
+    from demo.core.framing import (
+        Snapshot,
+        bootstrap_ci,
+        build_event_clusters,
+        coverage_matrix,
+        detect_change_point,
+        outlet_deviation,
+        sampling_curve,
+        topic_framing_matrix,
+    )
+
+    consts = _stat_constants()
+    snap = Snapshot()
+    events = build_event_clusters(snap)
+    articles = snap.articles()
+    window_feats = snap.window_features()
+
+    # 1. the naive number: each outlet's raw mean, over everything crawled.
+    raw_snapshot: dict[str, list[float]] = {}
+    for article_id, row in articles.items():
+        feat = window_feats.get(article_id)
+        if feat and feat["dom"] is not None:
+            raw_snapshot.setdefault(row["source"], []).append(float(feat["dom"]))
+
+    # 2. the same naive number restricted to the event versions, so the two
+    #    methods are computed on exactly the same articles and the ranking
+    #    they produce can be compared without a sampling excuse.
+    metrics = []
+    for key, label_he, attr in STAT_METRICS:
+        raw_versions: dict[str, list[float]] = {}
+        values, medians, deviations = [], [], []
+        for event in events:
+            observed = [(v.source, float(getattr(v, attr))) for v in event.versions
+                        if getattr(v, attr) is not None]
+            if len(observed) < 2:
+                continue
+            median = float(np.median([x for _, x in observed]))
+            for source, value in observed:
+                raw_versions.setdefault(source, []).append(value)
+                values.append(value)
+                medians.append(median)
+                deviations.append(value - median)
+
+        devs = outlet_deviation(events, key)
+        rows = []
+        for source, dev_values in sorted(devs.items(), key=lambda kv: -len(kv[1])):
+            ci = bootstrap_ci(dev_values)
+            raw = raw_versions.get(source, [])
+            rows.append({
+                "source": source,
+                "source_he": source_he(source),
+                "n": len(dev_values),
+                "raw_mean": round(statistics.mean(raw), 4) if raw else None,
+                "mean": round(ci[0], 5) if ci else None,
+                "lo": round(ci[1], 5) if ci else None,
+                "hi": round(ci[2], 5) if ci else None,
+                "significant": bool(ci and (ci[1] > 0 or ci[2] < 0)),
+                "p": (lambda v: round(v, 5) if v is not None else None)(
+                    _bootstrap_p(dev_values, consts["bootstrap_iterations"],
+                                 consts["bootstrap_seed"])),
+            })
+
+        total_var = float(np.var(values, ddof=1)) if len(values) > 1 else 0.0
+        between = float(np.var(medians, ddof=1)) if len(medians) > 1 else 0.0
+        within = float(np.var(deviations, ddof=1)) if len(deviations) > 1 else 0.0
+        metrics.append({
+            "key": key,
+            "label_he": label_he,
+            "n": len(values),
+            "variance": {
+                "total": round(total_var, 6),
+                "between": round(between, 6),
+                "within": round(within, 6),
+                "between_share": round(between / total_var, 4) if total_var else None,
+                "within_share": round(within / total_var, 4) if total_var else None,
+            },
+            "outlets": rows,
+        })
+
+    # 3. how the interval narrows as evidence accumulates
+    devs = outlet_deviation(events, "dominance")
+    curve_source = max(devs, key=lambda s: len(devs[s]))
+    curve = [{"n": int(p["n"]), "mean": round(p["mean"], 5), "lo": round(p["lo"], 5),
+              "hi": round(p["hi"], 5), "width": round(p["width"], 5)}
+             for p in sampling_curve(devs[curve_source])]
+
+    # 4. the beat-level matrix, including the cells we refuse to report
+    cells_all, cells_meta = {}, []
+    for key, label_he, _attr in STAT_METRICS:
+        cells = topic_framing_matrix(events, key)
+        rows = []
+        for cell in sorted(cells.values(), key=lambda c: -c.n):
+            rows.append({
+                "source": cell.source,
+                "source_he": source_he(cell.source),
+                "topic_he": cell.topic_he,
+                "n": cell.n,
+                "mean": round(cell.ci[0], 5) if cell.ci else None,
+                "lo": round(cell.ci[1], 5) if cell.ci else None,
+                "hi": round(cell.ci[2], 5) if cell.ci else None,
+                "usable": cell.usable,
+                "significant": cell.significant,
+                # a cell whose interval clears zero but whose n is below the
+                # floor: the exact shape a false positive takes here
+                "tempting": bool(cell.ci and not cell.usable
+                                 and (cell.ci[1] > 0 or cell.ci[2] < 0)),
+            })
+        cells_all[key] = rows
+        cells_meta.append({
+            "key": key, "label_he": label_he, "total": len(rows),
+            "usable": sum(1 for r in rows if r["usable"]),
+            "significant": sum(1 for r in rows if r["significant"]),
+            "tempting": sum(1 for r in rows if r["tempting"]),
+        })
+
+    # 5. the change-point scan, pooled per outlet
+    scans = []
+    for key, label_he, attr in STAT_METRICS:
+        series: dict[str, list[tuple[str, float]]] = {}
+        for event in events:
+            observed = [(v.source, float(getattr(v, attr)), v.first_seen_at)
+                        for v in event.versions if getattr(v, attr) is not None]
+            if len(observed) < 2:
+                continue
+            median = float(np.median([x for _, x, _ in observed]))
+            for source, value, stamp in observed:
+                series.setdefault(source, []).append((stamp or "", value - median))
+        for source, points in sorted(series.items(), key=lambda kv: -len(kv[1])):
+            found = detect_change_point(points)
+            scans.append({
+                "metric": key, "metric_he": label_he,
+                "source": source, "source_he": source_he(source),
+                "n": len(points),
+                "too_short": found is None,
+                "at": found.at[:16] if found else None,
+                "before": round(found.before_mean, 5) if found else None,
+                "after": round(found.after_mean, 5) if found else None,
+                "shift": round(found.shift, 5) if found else None,
+                "statistic": round(found.statistic, 4) if found else None,
+                "p": round(found.p_value, 4) if found else None,
+                "detected": bool(found and found.detected),
+            })
+
+    # 6. the arithmetic of running all of the above at once
+    ci_tests = sum(1 for m in metrics for r in m["outlets"] if r["p"] is not None)
+    cell_tests = sum(m["usable"] for m in cells_meta)
+    scan_tests = sum(1 for s in scans if not s["too_short"])
+    tests = ci_tests + cell_tests + scan_tests
+    alpha = consts["alpha"]
+    bonferroni = alpha / max(tests, 1)
+    # `direction` travels with each hit so the closing sentence on the wall is
+    # written from the data rather than from whatever this snapshot happened to
+    # show when the panel was authored.
+    hits = [
+        *[{"what": f"{r['source_he']} · {m['label_he']}", "p": r["p"],
+           "source_he": r["source_he"], "metric_he": m["label_he"],
+           "direction": "below" if (r["mean"] or 0) < 0 else "above"}
+          for m in metrics for r in m["outlets"]
+          if r["p"] is not None and r["p"] < alpha],
+        *[{"what": f"{s['source_he']} · {s['metric_he']} · נקודת שינוי", "p": s["p"],
+           "source_he": s["source_he"], "metric_he": s["metric_he"],
+           "direction": "shift"}
+          for s in scans if s["detected"]],
+    ]
+    multiplicity = {
+        "ci_tests": ci_tests,
+        "cell_tests": cell_tests,
+        "scan_tests": scan_tests,
+        "tests": tests,
+        "alpha": alpha,
+        "bonferroni": round(bonferroni, 5),
+        "expected_false": round(tests * alpha, 2),
+        "hits": sorted(hits, key=lambda h: h["p"]),
+        "survivors": [h for h in sorted(hits, key=lambda h: h["p"])
+                      if h["p"] < bonferroni],
+    }
+
+    # 7. power — read, not recomputed. See the note at the top of this section.
+    power = {"source": "demo/data/demo_set.json", "rows": [], "iterations": 150}
+    demo_set = config.DATA_DIR / "demo_set.json"
+    if demo_set.exists():
+        profile = json.loads(demo_set.read_text(encoding="utf-8")).get("profile", {})
+        power["rows"] = [
+            {"n": r["n"],
+             "power_1sd": round(r["power_1sd"], 4),
+             "power_half_sd": round(r["power_half_sd"], 4)}
+            for r in profile.get("power_table", [])
+        ]
+
+    # 8. how the events are shaped — this is what limits everything above.
+    # In a two-version event the median IS the midpoint, so the two deviations
+    # are mechanically +d/2 and -d/2: not two independent observations, one
+    # comparison written down twice.
+    from collections import Counter
+    from itertools import combinations
+
+    sizes = Counter(len(e.versions) for e in events)
+    co: Counter = Counter()
+    for event in events:
+        for a, b in combinations(sorted({v.source for v in event.versions}), 2):
+            co[(a, b)] += 1
+    two_version = [e for e in events if len(e.versions) == 2]
+    top_pair = co.most_common(1)[0] if co else (("", ""), 0)
+    pairing = {
+        "sizes": [{"versions": k, "events": v} for k, v in sorted(sizes.items())],
+        "two_version": len(two_version),
+        "events": len(events),
+        "pairs": [{"a": a, "a_he": source_he(a), "b": b, "b_he": source_he(b),
+                   "events": n} for (a, b), n in co.most_common()],
+        "top_pair_two_version": sum(
+            1 for e in two_version
+            if {v.source for v in e.versions} == set(top_pair[0])),
+    }
+
+    in_snapshot: dict[str, int] = {}
+    for row in articles.values():
+        in_snapshot[row["source"]] = in_snapshot.get(row["source"], 0) + 1
+    coverage = [
+        {"source": s, "source_he": source_he(s), "covered": c["covered"],
+         "total_events": c["total_events"], "share": round(c["share"], 4),
+         "in_snapshot": in_snapshot.get(s, 0)}
+        for s, c in sorted(coverage_matrix(events, in_snapshot).items(),
+                           key=lambda kv: -kv[1]["covered"])
+    ]
+
+    return {
+        "constants": consts,
+        "events": len(events),
+        "raw_snapshot": [
+            {"source": s, "source_he": source_he(s), "n": len(v),
+             "mean": round(statistics.mean(v), 4)}
+            for s, v in sorted(raw_snapshot.items(), key=lambda kv: -len(kv[1]))
+        ],
+        "metrics": metrics,
+        "curve": {"source": curve_source, "source_he": source_he(curve_source),
+                  "points": curve},
+        "cells_meta": cells_meta,
+        "cells": cells_all,
+        "scans": scans,
+        "multiplicity": multiplicity,
+        "power": power,
+        "pairing": pairing,
+        "coverage": coverage,
+    }
+
+
 def main() -> int:
     if not config.SQLITE_PATH.exists():
         print(f"missing snapshot: {config.SQLITE_PATH}", file=sys.stderr)
@@ -1198,6 +1500,7 @@ def main() -> int:
             "retrieval": build_retrieval(conn),
             "framing": build_framing(),
             "audience": build_audience(conn),
+            "stats": build_stats(conn),
         }
     finally:
         conn.close()
@@ -1219,6 +1522,10 @@ def main() -> int:
     print(f"  audience: {a['comments']['zero_polar']}/{a['comments']['total']} comments "
           f"score 0 · like-weight inert on {a['weight']['inert']} · "
           f"hijacked {a['hijack']['hijacked']}/{a['hijack']['comparable']}")
+    m = facts["stats"]["multiplicity"]
+    print(f"  stats: {m['tests']} significance tests · {len(m['hits'])} below "
+          f"{m['alpha']} · {len(m['survivors'])} survive Bonferroni "
+          f"({m['bonferroni']})")
     return 0
 
 

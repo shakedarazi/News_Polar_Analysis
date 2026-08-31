@@ -87,7 +87,7 @@ export const MODULES: ModuleDef[] = [
     title_he: "הסטטיסטיקה",
     sub_he: "השוואה בתוך אירוע, בוטסטראפ, עוצמה",
     promise_he: "למה ממוצע גולמי לערוץ מודד בחירת סיפורים ולא מסגור",
-    ready: false,
+    ready: true,
   },
   {
     id: "economy",

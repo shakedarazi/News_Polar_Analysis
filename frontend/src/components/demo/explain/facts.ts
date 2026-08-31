@@ -413,6 +413,132 @@ export interface AudienceFacts {
   }[];
 }
 
+export interface OutletRow {
+  source: string;
+  source_he: string;
+  n: number;
+  /** the naive per-outlet mean over the same articles, for comparison */
+  raw_mean: number | null;
+  mean: number | null;
+  lo: number | null;
+  hi: number | null;
+  significant: boolean;
+  /** two-sided bootstrap p, null below the 3-observation floor */
+  p: number | null;
+}
+
+export interface TopicCellRow {
+  source: string;
+  source_he: string;
+  topic_he: string;
+  n: number;
+  mean: number | null;
+  lo: number | null;
+  hi: number | null;
+  usable: boolean;
+  significant: boolean;
+  /** interval clears zero but n is under the floor — a false positive's shape */
+  tempting: boolean;
+}
+
+export interface ChangeScan {
+  metric: string;
+  metric_he: string;
+  source: string;
+  source_he: string;
+  n: number;
+  too_short: boolean;
+  at: string | null;
+  before: number | null;
+  after: number | null;
+  shift: number | null;
+  statistic: number | null;
+  p: number | null;
+  detected: boolean;
+}
+
+export interface Hit {
+  what: string;
+  p: number;
+  source_he: string;
+  metric_he: string;
+  /** below/above the event median, or a change-point detection */
+  direction: "below" | "above" | "shift";
+}
+
+export interface StatsFacts {
+  constants: {
+    bootstrap_iterations: number;
+    bootstrap_seed: number;
+    bootstrap_min_n: number;
+    permutation_iterations: number;
+    min_segment: number;
+    min_cell_events: number;
+    alpha: number;
+  };
+  events: number;
+  raw_snapshot: { source: string; source_he: string; n: number; mean: number }[];
+  metrics: {
+    key: string;
+    label_he: string;
+    n: number;
+    variance: {
+      total: number;
+      between: number;
+      within: number;
+      between_share: number | null;
+      within_share: number | null;
+    };
+    outlets: OutletRow[];
+  }[];
+  curve: {
+    source: string;
+    source_he: string;
+    points: { n: number; mean: number; lo: number; hi: number; width: number }[];
+  };
+  cells_meta: {
+    key: string;
+    label_he: string;
+    total: number;
+    usable: number;
+    significant: number;
+    tempting: number;
+  }[];
+  cells: Record<string, TopicCellRow[]>;
+  scans: ChangeScan[];
+  multiplicity: {
+    ci_tests: number;
+    cell_tests: number;
+    scan_tests: number;
+    tests: number;
+    alpha: number;
+    bonferroni: number;
+    expected_false: number;
+    hits: Hit[];
+    survivors: Hit[];
+  };
+  power: {
+    source: string;
+    iterations: number;
+    rows: { n: number; power_1sd: number; power_half_sd: number }[];
+  };
+  pairing: {
+    sizes: { versions: number; events: number }[];
+    two_version: number;
+    events: number;
+    pairs: { a: string; a_he: string; b: string; b_he: string; events: number }[];
+    top_pair_two_version: number;
+  };
+  coverage: {
+    source: string;
+    source_he: string;
+    covered: number;
+    total_events: number;
+    share: number;
+    in_snapshot: number;
+  }[];
+}
+
 export interface Facts {
   available: true;
   corpus: { articles: number };
@@ -426,6 +552,7 @@ export interface Facts {
   retrieval: RetrievalFacts;
   framing: FramingFacts;
   audience: AudienceFacts;
+  stats: StatsFacts;
 }
 
 type FactsState =

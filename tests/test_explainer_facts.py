@@ -352,3 +352,143 @@ def test_thin_cells_are_carried_with_their_sample_size():
     assert any(cell["n"] < 10 for cell in a["deviation"]), (
         "the limits panel promises to show a cell too thin to report"
     )
+
+
+# ── the statistics layer ────────────────────────────────────────────────
+#
+# This is the module whose job is to take findings AWAY. The tests below are
+# the ones that would catch it quietly giving them back: a cell reported
+# despite a thin sample, a hit presented as surviving when it does not, or the
+# multiplicity arithmetic drifting away from the tests actually shown.
+
+
+def test_significance_floors_are_the_ones_the_code_enforces():
+    from demo.core.framing import MIN_CELL_EVENTS, MIN_SEGMENT, bootstrap_ci
+
+    # a cell below the floor is refused even with a perfectly clean signal
+    assert MIN_CELL_EVENTS >= 10
+    # and a change point must leave a real segment on both sides
+    assert MIN_SEGMENT >= 8
+    # the bootstrap refuses to invent an interval from two observations
+    assert bootstrap_ci([0.1, 0.2]) is None
+    assert bootstrap_ci([0.1, 0.2, 0.3]) is not None
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_stats_constants_track_the_demo_layer():
+    import inspect
+
+    from demo.core import framing as fr
+
+    c = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]["constants"]
+    boot = inspect.signature(fr.bootstrap_ci).parameters
+    assert c["bootstrap_iterations"] == boot["iterations"].default
+    assert c["bootstrap_seed"] == boot["seed"].default
+    assert c["min_cell_events"] == fr.MIN_CELL_EVENTS
+    assert c["min_segment"] == fr.MIN_SEGMENT
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_no_cell_under_the_floor_is_ever_marked_significant():
+    """The hard rule for this wall: a thin cell is never a finding, however
+    clean its interval looks."""
+    s = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]
+    floor = s["constants"]["min_cell_events"]
+    for rows in s["cells"].values():
+        for cell in rows:
+            assert cell["usable"] == (cell["n"] >= floor)
+            if not cell["usable"]:
+                assert not cell["significant"]
+            if cell["tempting"]:
+                assert not cell["usable"]
+                assert cell["lo"] is not None and cell["hi"] is not None
+                assert cell["lo"] > 0 or cell["hi"] < 0
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_tempting_cells_panel_has_something_to_show():
+    """The panel's claim is that a false positive's exact shape appears in this
+    snapshot. If it stops appearing, the panel is arguing from nothing."""
+    s = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]
+    tempting = [c for rows in s["cells"].values() for c in rows if c["tempting"]]
+    assert tempting, "no cell clears zero on a thin sample — rewrite the panel"
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_multiplicity_arithmetic_matches_the_tests_actually_run():
+    s = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]
+    m = s["multiplicity"]
+    assert m["ci_tests"] == sum(1 for met in s["metrics"]
+                                for r in met["outlets"] if r["p"] is not None)
+    assert m["cell_tests"] == sum(c["usable"] for c in s["cells_meta"])
+    assert m["scan_tests"] == sum(1 for x in s["scans"] if not x["too_short"])
+    assert m["tests"] == m["ci_tests"] + m["cell_tests"] + m["scan_tests"]
+    assert m["bonferroni"] == pytest.approx(m["alpha"] / m["tests"], rel=1e-3)
+    assert m["expected_false"] == pytest.approx(m["tests"] * m["alpha"], rel=1e-3)
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_every_hit_and_survivor_is_classified_by_its_own_p():
+    """The closing panel colours each hit. The colour must follow the number."""
+    m = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]["multiplicity"]
+    for hit in m["hits"]:
+        assert hit["p"] < m["alpha"]
+        assert hit["direction"] in {"below", "above", "shift"}
+    survivors = {h["what"] for h in m["survivors"]}
+    for hit in m["hits"]:
+        assert (hit["what"] in survivors) == (hit["p"] < m["bonferroni"])
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_bootstrap_p_and_interval_tell_the_same_story():
+    """Two views of one resampling — they may not disagree about zero."""
+    s = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]
+    alpha = s["constants"]["alpha"]
+    for metric in s["metrics"]:
+        for row in metric["outlets"]:
+            if row["p"] is None:
+                assert row["lo"] is None and row["hi"] is None
+                assert row["n"] < s["constants"]["bootstrap_min_n"]
+                continue
+            clears = row["lo"] > 0 or row["hi"] < 0
+            assert row["significant"] == clears
+            assert clears == (row["p"] < alpha)
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_variance_split_is_a_real_decomposition():
+    s = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]
+    for metric in s["metrics"]:
+        v = metric["variance"]
+        assert v["total"] > 0
+        assert 0 < v["between"] < v["total"]
+        assert 0 < v["within"] < v["total"]
+        # the whole argument of the first tab: story choice dominates
+        assert v["between_share"] > v["within_share"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_power_table_is_still_what_the_code_produces():
+    """The power table is READ from demo_set.json rather than recomputed (it
+    costs ~20s). Recompute one row live and hold the shortcut honest."""
+    from demo.core.framing import change_point_power
+
+    s = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]["power"]
+    if not s["rows"]:
+        pytest.skip("demo_set.json not present")
+    row = min(s["rows"], key=lambda r: r["n"])
+    live = change_point_power(row["n"], 1.0, iterations=s["iterations"])
+    assert round(live, 4) == row["power_1sd"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_pairing_explains_why_two_outlets_mirror_each_other():
+    """The 'not two independent observations' caveat has to be load-bearing."""
+    s = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["stats"]["pairing"]
+    assert sum(b["events"] for b in s["sizes"]) == s["events"]
+    two = next((b["events"] for b in s["sizes"] if b["versions"] == 2), 0)
+    assert s["two_version"] == two
+    assert s["two_version"] / s["events"] > 0.5, (
+        "most events are no longer pairs — the mirroring caveat needs rewriting"
+    )
+    assert s["top_pair_two_version"] <= s["two_version"]
