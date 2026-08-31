@@ -42,10 +42,16 @@ from src.crawling.sources.feed_dom import SOURCES  # noqa: E402
 from src.crawling.sources.reshet13 import DOM_SELECTORS as R13_SELECTORS  # noqa: E402
 from src.crawling.sources.reshet13 import NEWSFEED_URL  # noqa: E402
 from src.crawling.sources.ynet import RSS_FEEDS as YNET_FEEDS  # noqa: E402
-from src.lexicon.expand_lexicon import (  # noqa: E402
-    MIN_BASE_LENGTH,
-    SINGLE_PREFIXES,
-    WHITELISTED_PREFIX_PAIRS,
+# The article lexicon on the wall is the one pipeline/build_lexicon.py writes,
+# and that path runs through load_lexicon.save_expanded_lexicons — NOT through
+# expand_lexicon.py, which serves the separate polarization lexicon. The two
+# disagree on the two-prefix whitelist (ומ/וכ against כש), so importing from
+# the wrong one put a rule on screen that the shipped lexicon does not follow.
+from src.lexicon.load_lexicon import (  # noqa: E402
+    PREFIXES as SINGLE_PREFIXES,
+)
+from src.lexicon.load_lexicon import (  # noqa: E402
+    TWO_PREFIX_WHITELIST as WHITELISTED_PREFIX_PAIRS,
 )
 from src.nlp.sentence_splitter import MAX_WINDOW_TOKENS  # noqa: E402
 
@@ -75,6 +81,22 @@ def _extract_thresholds() -> dict[str, int]:
     }
 
 
+def _min_expandable_lemma_length(limit: int = 12) -> int:
+    """Shortest lemma the expander still adds prefixes to.
+
+    `_expand_word` returns the bare word for anything shorter, so the answer
+    is the first length whose expansion has more than one form. Probing the
+    function keeps this number tied to the code even though the code never
+    names it.
+    """
+    from src.lexicon.load_lexicon import _expand_word
+
+    for length in range(1, limit + 1):
+        if len(_expand_word("א" * length)) > 1:
+            return length
+    raise RuntimeError("no lemma length expands — the expander changed shape")
+
+
 def build_constants() -> dict:
     return {
         "retry": {
@@ -96,7 +118,10 @@ def build_constants() -> dict:
         "lexicon": {
             "single_prefixes": list(SINGLE_PREFIXES),
             "prefix_pairs": list(WHITELISTED_PREFIX_PAIRS),
-            "min_base_length": MIN_BASE_LENGTH,
+            # load_lexicon._expand_word inlines this threshold instead of
+            # naming it, so it is measured rather than imported: the shortest
+            # lemma length that still gets prefixed.
+            "min_base_length": _min_expandable_lemma_length(),
         },
         "categories_he": list(config.LEXICON_CATEGORY_NAMES_HE),
     }

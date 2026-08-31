@@ -49,15 +49,37 @@ def test_tracking_params_track_the_canonicaliser(constants):
 
 
 def test_lexicon_prefixes_track_the_expander(constants):
-    from src.lexicon.expand_lexicon import (
-        MIN_BASE_LENGTH,
-        SINGLE_PREFIXES,
-        WHITELISTED_PREFIX_PAIRS,
-    )
+    # load_lexicon, not expand_lexicon: pipeline/build_lexicon.py writes the
+    # article lexicon through save_expanded_lexicons, and expand_lexicon.py
+    # serves the separate polarization lexicon with a different pair list.
+    from src.lexicon.load_lexicon import PREFIXES, TWO_PREFIX_WHITELIST
 
-    assert constants["lexicon"]["single_prefixes"] == list(SINGLE_PREFIXES)
-    assert constants["lexicon"]["prefix_pairs"] == list(WHITELISTED_PREFIX_PAIRS)
-    assert constants["lexicon"]["min_base_length"] == MIN_BASE_LENGTH
+    assert constants["lexicon"]["single_prefixes"] == list(PREFIXES)
+    assert constants["lexicon"]["prefix_pairs"] == list(TWO_PREFIX_WHITELIST)
+
+
+def test_min_base_length_matches_what_the_expander_actually_does(constants):
+    # The threshold is inlined in _expand_word rather than named, so assert on
+    # behaviour: a lemma one character shorter must not gain any prefixed form.
+    from src.lexicon.load_lexicon import _expand_word
+
+    floor = constants["lexicon"]["min_base_length"]
+    assert len(_expand_word("א" * floor)) > 1
+    assert _expand_word("א" * (floor - 1)) == {"א" * (floor - 1)}
+
+
+def test_expanded_lexicon_on_disk_uses_those_pairs(constants):
+    # The strongest form of the check: the shipped lexicon must actually
+    # contain forms built from every pair the screen names, and none from a
+    # pair it does not.
+    from src.lexicon.load_lexicon import LEXICON_EXPANDED_DIR
+
+    path = LEXICON_EXPANDED_DIR / "lexicon_expanded.json"
+    if not path.is_file():
+        pytest.skip("expanded lexicon not built")
+    forms = set(json.loads(path.read_text(encoding="utf-8")))
+    for pair in constants["lexicon"]["prefix_pairs"]:
+        assert any(f.startswith(pair) for f in forms), pair
 
 
 def test_crawl_alert_thresholds_track_the_base_crawler(constants):
