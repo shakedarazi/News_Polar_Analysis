@@ -28,6 +28,6 @@ CATEGORY_DESCRIPTIONS: dict[str, str] = {
     "אחר": "כתבות שלא מתאימות בבירור לאף קטגוריה אחרת",
 }
 
-# Overridable so the same code works against OpenRouter (which needs
-# provider-prefixed ids like "openai/gpt-4o-mini") without a code change.
+# User-facing AI (summary / bias / Q&A) — official OpenAI model id.
+# Classify uses OPENAI_INGESTION_MODEL via src.nlp.openai_config instead.
 DEFAULT_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")

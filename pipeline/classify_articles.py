@@ -17,9 +17,9 @@ from src.db.classification import (
     save_classification,
 )
 from src.db.config import require_database_url
-from src.nlp.categories import CATEGORIES, DEFAULT_MODEL
+from src.nlp.categories import CATEGORIES
 from src.nlp.classify import classify_article
-from src.nlp.openai_config import require_openai_api_key
+from src.nlp.openai_config import get_ingestion_model, require_ingestion_openai_api_key
 
 
 def main() -> int:
@@ -40,7 +40,11 @@ def main() -> int:
         default=0,
         help="Stop starting new API calls after this many minutes (0 = no cap)",
     )
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="OpenAI model name")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Model id (default: OPENAI_INGESTION_MODEL / openai/gpt-4o-mini)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="List articles, do not call API")
     args = parser.parse_args()
 
@@ -48,7 +52,7 @@ def main() -> int:
 
     try:
         require_database_url()
-        require_openai_api_key()
+        require_ingestion_openai_api_key()
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -58,9 +62,10 @@ def main() -> int:
     limit = None if args.limit <= 0 else args.limit
     articles = iter_articles_for_classification(missing_only=missing_only, limit=limit)
 
+    model = args.model or get_ingestion_model()
     mode = "missing only" if missing_only else "all articles"
     print(f"Categories: {', '.join(CATEGORIES)}")
-    print(f"Model:      {args.model}")
+    print(f"Model:      {model}")
     print(f"Mode:       {mode}")
     print(f"Articles:   {len(articles)}")
     if args.max_minutes > 0:
@@ -93,7 +98,7 @@ def main() -> int:
                 title=article["title"],
                 text=article["text"],
                 source=article["source"],
-                model=args.model,
+                model=model,
             )
             save_classification(article["article_id"], result)
             print(
