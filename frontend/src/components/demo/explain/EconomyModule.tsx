@@ -14,12 +14,12 @@ import {
 } from "./kit";
 
 const TABS: TabDef[] = [
-  { id: "where", label_he: "איפה בכלל נדרש מודל" },
-  { id: "sent", label_he: "מה נשלח בפועל" },
-  { id: "rate", label_he: "כמה עולה תו בעברית" },
+  { id: "where", label_he: "שני שלבים משלמים" },
+  { id: "sent", label_he: "מה נשלח למודל" },
+  { id: "rate", label_he: "תווים לטוקן" },
   { id: "bill", label_he: "החשבון" },
-  { id: "cache", label_he: "המטמון" },
-  { id: "limits", label_he: "מה החשבון לא כולל" },
+  { id: "cache", label_he: "מה המטמון קונה" },
+  { id: "limits", label_he: "מה לא נספר" },
 ];
 
 interface Props {
@@ -137,9 +137,9 @@ function SplitBar({
 /* ── 1. where a model is needed at all ──────────────────────────── */
 
 const KIND_LABEL: Record<EconomyStage["kind"], string> = {
-  free: "קוד דטרמיניסטי",
-  local: "מודל מקומי",
-  paid: "קריאת API בתשלום",
+  free: "תשובה אחת בקוד",
+  local: "מודל שרץ כאן",
+  paid: "קריאה בתשלום",
 };
 
 function StageRow({ stage, model }: { stage: EconomyStage; model: string }) {
@@ -175,35 +175,31 @@ function Where({ facts }: Props) {
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[30%_1fr] gap-3">
       <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="השאלה שקובעת">
+        <Panel title="‏8 מתוך 10 שלבים לא קוראים למודל">
           <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
-            לפני &quot;כמה זה עלה&quot; יש שאלה זולה יותר: לאיזה שלב בכלל אין
-            תשובה דטרמיניסטית. ספירת מילים מהמילון, חיתוך חלונות, שקלול תגובות,
-            דמיון קוסינוס, bootstrap — לכולם יש תשובה מדויקת בקוד, ולכן אין להם
-            סיבה לעבור דרך מודל.
+            מודל שפה אינו דטרמיניסטי. איפה שיש תשובה מחושבת — עונה הקוד.
           </p>
           <p className="mt-2 text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
-            שתי שאלות נשארות: <b>מי מוצג כמבצע ולמי מיוחסת אחריות</b>, ו־
-            <b>מה ייחודי בגרסה הזאת ביחס לאחרות</b>. רק הן משלמות.
+            נשארו שתי שאלות פרשניות: <b>מי המבצע בכותרת</b>, ו<b>מה ייחודי
+            בגרסה הזאת</b>. רק הן משלמות.
           </p>
           {e && (
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Big
                 value={`${e.stages.filter((s) => s.kind === "paid").length}/${e.stages.length}`}
-                label="שלבים שמשלמים טוקנים"
+                label="שלבים שקוראים למודל"
                 tone="bad"
               />
               <Big value={usd(e.bill.usd)} label="כל שכבת המודל, פעם אחת" tone="good" />
             </div>
           )}
         </Panel>
-        <Panel title="מודל שלא עולה כסף">
+        <Panel title="מודל נוסף רץ כאן, בלי חשבון">
           {e ? (
             <>
               <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-                שלב הווקטורים הוא רשת נוירונים לכל דבר — אבל היא רצה על המחשב
-                הזה, בלי API ובלי מחיר לקריאה. {num(e.stages.find((s) => s.kind === "local")?.n ?? 0)}{" "}
-                וקטורים נבנו, והחשבון עליהם הוא חשמל וזמן, לא טוקנים.
+                {num(e.stages.find((s) => s.kind === "local")?.n ?? 0)}{" "}
+                וקטורים נבנו כאן, במחשב. רשת נוירונים בלי API, ולכן בלי חשבון.
               </p>
               <div className="mt-2">
                 <CodeRef path={e.constants.embed_model} />
@@ -216,8 +212,8 @@ function Where({ facts }: Props) {
       </div>
 
       <Panel
-        title="עשרת השלבים, ומה כל אחד עולה"
-        hint="הספירות נלקחות מהאריחים הקודמים — לא נספרות כאן מחדש"
+        title="שתי שורות בלבד נושאות מחיר"
+        hint="הספירות מגיעות מהמדידה, לא מהטבלה הזאת"
       >
         {e ? (
           <ol className="flex flex-col">
@@ -240,7 +236,7 @@ function Sent({ facts }: Props) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
-      <Panel title="הרכב הפרומפט" hint="תווים, כפי ששוחזרו מהמטמון">
+      <Panel title="ההנחיה הקבועה נשלחת שוב בכל קריאה" hint="תווים ששוחזרו מהקריאות ששולמו">
         {e ? (
           <div className="flex flex-col gap-3">
             <div>
@@ -292,11 +288,9 @@ function Sent({ facts }: Props) {
               />
             </div>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              ההנחיה זהה בכל קריאה ובכל זאת נשלחת מחדש בכל אחת מהן:{" "}
-              {num(e.prompt.system_chars_total)} תווים, שהם{" "}
-              <b>{pct(e.prompt.system_share_of_prompt)}</b> מתווי הקלט —
-              וממילא גם מהטוקנים ששולמו עליהם. בקריאת מסגור זו כמעט מחצית
-              מההודעה.
+              {num(e.prompt.system_chars_total)} תווים —{" "}
+              <b>{pct(e.prompt.system_share_of_prompt)}</b> מהקלט — הם אותה
+              הנחיה, שנשלחת מחדש בכל קריאה.
             </p>
           </div>
         ) : (
@@ -304,36 +298,35 @@ function Sent({ facts }: Props) {
         )}
       </Panel>
 
-      <Panel title="גבול החיתוך — הפתיח ולא הכתבה">
+      <Panel title="החיתוך חסך יותר טוקנים מכל מה ששולם">
         {e ? (
           <div className="flex flex-col gap-2.5">
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              המודל מקבל כותרת ואת {e.constants.lead_chars} התווים הראשונים
-              בלבד. זו לא קמצנות: המסגור נקבע בפתיח, והמאמת בודק את הביטויים
-              מול אותו חלון בדיוק — מה שלא נשלח גם לא יכול להיות מאומת.
+              המודל רואה כותרת ו־{e.constants.lead_chars} תווים. המסגור נקבע
+              בפתיח.
             </p>
             <div className="grid grid-cols-3 gap-2">
               <Big
                 value={num(Math.round(e.truncation.median_chars))}
-                label="חציון אורך כתבה בגרסאות שנשלחו"
+                label="אורך כתבה חציוני"
                 tone="muted"
               />
               <Big
                 value={pct(e.truncation.median_share_sent)}
-                label="מהכתבה החציונית באמת נשלח"
+                label="נשלח מהכתבה החציונית"
                 tone="accent"
               />
               <Big
                 value={`${e.truncation.over_cap}/${e.truncation.versions}`}
-                label="גרסאות שנחתכו בפועל"
+                label="גרסאות שנחתכו"
                 tone="warn"
               />
             </div>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              {num(e.truncation.dropped_chars)} תווים לא נשלחו. לפי שער
-              ההמרה שנמדד כאן זה כ־{num(e.truncation.dropped_tokens)} טוקנים —
-              החיתוך מנע יותר ממחצית מחשבון הקלט: {num(e.bill.prompt_tokens)}{" "}
-              במקום {num(e.truncation.would_be_prompt_tokens)}.
+              {num(e.truncation.dropped_chars)} תווים לא נשלחו מעולם — כ־
+              {num(e.truncation.dropped_tokens)} טוקנים. חשבון הקלט יצא{" "}
+              {num(e.bill.prompt_tokens)} במקום{" "}
+              {num(e.truncation.would_be_prompt_tokens)}.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Chip tone="good">נחסך {usd(e.truncation.dropped_usd)}</Chip>
@@ -347,11 +340,10 @@ function Sent({ facts }: Props) {
               </Chip>
             </div>
             <Caveat>
-              הקריאה הקונטרסטיבית אורזת כמה גרסאות בהודעה אחת, ולכן חותכת כל
-              אחת ב־{e.constants.contrast_lead_chars} תווים ולא ב־
-              {e.constants.lead_chars}. המאמת עדיין בודק מול{" "}
-              {e.constants.lead_chars} — חלון רחב יותר, כך שציטוט לעולם לא
-              נפסל על טקסט שהמודל כן קיבל.
+              קריאת ההשוואה אורזת כמה גרסאות בהודעה אחת, ולכן חותכת כל אחת
+              ב־{e.constants.contrast_lead_chars}. המאמת בודק מול{" "}
+              {e.constants.lead_chars} — חלון רחב יותר, ולכן ציטוט לא נפסל על
+              טקסט שהמודל קיבל.
             </Caveat>
           </div>
         ) : (
@@ -369,27 +361,25 @@ function Rate({ facts }: Props) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[38%_1fr] gap-3">
-      <Panel title="שער ההמרה, נמדד ולא נזכר">
+      <Panel title="השער נמדד, לא הונח">
         {e ? (
           <div className="flex flex-col gap-3">
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              קובץ השימוש מחזיק את מספר הטוקנים האמיתי שחויב, וכל הפרומפטים
-              שוחזרו מהמטמון ומאותה תמונת מצב. חלוקה של האחד בשני נותנת את
-              השער של הקורפוס הזה — לא כלל אצבע.
+              תווים ששוחזרו, חלקי טוקנים שחויבו. השער של הקורפוס הזה, לא כלל
+              אצבע.
             </p>
             <div className="grid grid-cols-2 gap-2">
-              <Big value={e.rate.chars_per_token.toFixed(2)} label="תווים לטוקן — צד הקלט" />
+              <Big value={e.rate.chars_per_token.toFixed(2)} label="תווים לטוקן בקלט" />
               <Big
                 value={e.rate.output_chars_per_token.toFixed(2)}
-                label="תווים לטוקן — צד הפלט"
+                label="תווים לטוקן בפלט"
                 tone="muted"
               />
             </div>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              שתי מדידות בלתי תלויות, פער של {pct(e.rate.gap, 1)}. הפער ידוע:
-              במטמון נשמרת התשובה <b>לאחר פענוח</b>, בלי גדרות קוד ובלי
-              רווחים מיותרים, ולכן היא מעט קצרה מהתשובה שחויבה. לכן שני
-              המספרים מוצגים בנפרד ולא ממוצעים לאחד.
+              פער של {pct(e.rate.gap, 1)} בין קלט לפלט: המטמון שומר את התשובה{" "}
+              <b>אחרי פענוח</b>, קצרה מעט מזו שחויבה. לכן שני המספרים נשארים
+              בנפרד.
             </p>
           </div>
         ) : (
@@ -398,7 +388,7 @@ function Rate({ facts }: Props) {
       </Panel>
 
       <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="מה זה אומר בפועל">
+        <Panel title="שלוש דוגמאות בשער הזה">
           {e ? (
             <div className="flex flex-col gap-2">
               {e.rate.examples.map((x) => (
@@ -425,7 +415,7 @@ function Rate({ facts }: Props) {
               <div className="mt-1 grid grid-cols-2 gap-2">
                 <div className="rounded-xl border border-[var(--dk-border)] p-2.5">
                   <div className="text-[14px] text-[var(--dk-ink-3)]">
-                    סך תווי הקלט ששוחזרו
+                    תווי קלט ששוחזרו
                   </div>
                   <div dir="ltr" className="font-mono text-[19px] font-bold">
                     {num(e.rate.prompt_chars)}
@@ -433,7 +423,7 @@ function Rate({ facts }: Props) {
                 </div>
                 <div className="rounded-xl border border-[var(--dk-border)] p-2.5">
                   <div className="text-[14px] text-[var(--dk-ink-3)]">
-                    טוקני הקלט שחויבו בפועל
+                    טוקני קלט שחויבו
                   </div>
                   <div dir="ltr" className="font-mono text-[19px] font-bold">
                     {num(e.rate.prompt_tokens)}
@@ -441,41 +431,40 @@ function Rate({ facts }: Props) {
                 </div>
               </div>
               <Caveat>
-                השער נמדד על עברית של חדשות, כולל תקורת פורמט השיחה. הוא לא
-                תקף לשפה אחרת, ולא למודל אחר — הוא תיאור של הקורפוס הזה מול
-                המחירון של {e.constants.model}.
+                נמדד על עברית עיתונאית מול {e.constants.model}, וכולל את תקורת
+                פורמט השיחה. לא תקף לשפה אחרת ולא למודל אחר.
               </Caveat>
             </div>
           ) : (
             <Missing />
           )}
         </Panel>
-        <Panel title="שלושת הברזים" hint="כל אחד מהם נמדד, לא נאמד">
+        <Panel title="שלושה ברזים, אחד עדיין פתוח" hint="כל אחד מהם נמדד, לא נאמד">
           {e ? (
             <ol className="flex flex-col gap-2">
               <Lever
                 n={1}
                 title="ההנחיה הקבועה"
                 tokens={`${num(e.prompt.system_tokens)} טוקנים שולמו`}
-                body={`אותו טקסט, ${e.bill.calls} פעמים. זה ${pct(
+                body={`אותו טקסט, ${e.bill.calls} פעמים. ${pct(
                   e.prompt.system_share_of_prompt,
-                )} מהקלט — והברז היחיד מהשלושה שנשאר פתוח.`}
+                )} מהקלט.`}
                 tone="bad"
               />
               <Lever
                 n={2}
                 title={`החיתוך ב־${e.constants.lead_chars} תווים`}
                 tokens={`${num(e.truncation.dropped_tokens)} טוקנים נחסכו`}
-                body={`יותר ממה ששולם בפועל: בלי החיתוך חשבון הקלט היה ${num(
+                body={`בלי החיתוך: ${num(
                   e.truncation.would_be_prompt_tokens,
-                )} במקום ${num(e.bill.prompt_tokens)}.`}
+                )} טוקנים במקום ${num(e.bill.prompt_tokens)}.`}
                 tone="good"
               />
               <Lever
                 n={3}
                 title="תקרות הפלט"
                 tokens={`${e.bill.completion_per_call} טוקנים לקריאה בממוצע`}
-                body={`התקרות (${e.constants.framing_max_tokens} ו־${e.constants.contrast_max_tokens}) גבוהות מהממוצע בפועל, ולכן הן רשת ביטחון ולא בלם. ובכל זאת: הפלט הוא ${pct(
+                body={`${e.constants.framing_max_tokens} ו־${e.constants.contrast_max_tokens} — רשת ביטחון, לא בלם. הפלט הוא ${pct(
                   e.bill.completion_bill_share,
                 )} מהחשבון.`}
                 tone="warn"
@@ -530,17 +519,17 @@ function Bill({ facts }: Props) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
-      <Panel title="החשבון כולו">
+      <Panel title="הפלט הוא הצד היקר של החשבון">
         {e ? (
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-3 gap-2">
-              <Big value={num(e.bill.calls)} label="קריאות מודל, אי פעם" tone="muted" />
-              <Big value={num(e.bill.total_tokens)} label="טוקנים בסך הכל" tone="muted" />
+              <Big value={num(e.bill.calls)} label="כל קריאות המודל" tone="muted" />
+              <Big value={num(e.bill.total_tokens)} label="טוקנים, קלט ופלט" tone="muted" />
               <Big value={usd(e.bill.usd)} label="עלות כוללת" tone="good" />
             </div>
             <div>
               <div className="mb-1 text-[15px] font-bold">
-                היכן הכסף — לא היכן הטוקנים
+                אותו חשבון: פעם בטוקנים, פעם בכסף
               </div>
               <SplitBar
                 parts={[
@@ -574,13 +563,10 @@ function Bill({ facts }: Props) {
               </div>
               <p className="mt-2 text-[15px] leading-snug text-[var(--dk-ink-2)]">
                 הפלט הוא {pct(e.bill.completion_token_share)} מהטוקנים ו־
-                <b>{pct(e.bill.completion_bill_share)}</b> מהחשבון, כי טוקן
-                פלט עולה פי {(e.bill.price_completion_per_m / e.bill.price_prompt_per_m).toFixed(0)}.
-                לכן תקרת הפלט (
-                <span dir="ltr">
-                  {e.constants.framing_max_tokens}/{e.constants.contrast_max_tokens}
-                </span>
-                ) היא הבלם האמיתי, לא אורך הפתיח.
+                <b>{pct(e.bill.completion_bill_share)}</b> מהחשבון. טוקן פלט
+                עולה פי{" "}
+                {(e.bill.price_completion_per_m / e.bill.price_prompt_per_m).toFixed(0)}{" "}
+                מטוקן קלט.
               </p>
             </div>
           </div>
@@ -589,7 +575,7 @@ function Bill({ facts }: Props) {
         )}
       </Panel>
 
-      <Panel title="לפי סוג קריאה" hint="פיצול נגזר — ראו את ההערה">
+      <Panel title="שני סוגי הקריאות עולים כמעט אותו סכום" hint="הסכום מדוד, החלוקה נגזרת">
         {e ? (
           <div className="flex flex-col gap-2">
             {e.split.map((s) => (
@@ -625,12 +611,12 @@ function Bill({ facts }: Props) {
             ))}
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
               {e.split[0]?.calls} קריאות מסגור ו־{e.split[1]?.calls} קריאות
-              קונטרסט עולות כמעט אותו דבר: הקריאה הקונטרסטיבית מקבלת כמה
-              גרסאות ומחזירה משפט וציטוט לכל אחת, ולכן היא יקרה פי{" "}
+              השוואה עולות כמעט אותו סכום. ההשוואה אורזת כמה גרסאות, ולכן יקרה
+              פי{" "}
               {(
                 (e.split[1]?.per_call_usd ?? 0) / (e.split[0]?.per_call_usd || 1)
               ).toFixed(1)}{" "}
-              מקריאת מסגור.
+              לקריאה.
             </p>
             <div className="grid grid-cols-4 gap-2">
               {e.per_unit.map((u) => (
@@ -651,10 +637,8 @@ function Bill({ facts }: Props) {
               ))}
             </div>
             <Caveat>
-              קובץ השימוש מחזיק סכום אחד, לא פיצול. טוקני הקלט חולקו לפי
-              התווים שנמדדו בכל סוג קריאה, וטוקני הפלט לפי אורך התשובות
-              השמורות — כלומר בהנחה שאותו שער חל על שני הסוגים. הסכום מדוד,
-              החלוקה נגזרת.
+              קובץ השימוש מחזיק סכום אחד. הקלט חולק לפי התווים שנמדדו בכל סוג
+              קריאה, הפלט לפי אורך התשובות השמורות. הסכום מדוד, החלוקה נגזרת.
             </Caveat>
           </div>
         ) : (
@@ -672,28 +656,32 @@ function CacheTab({ facts }: Props) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[40%_1fr] gap-3">
-      <Panel title="מה המטמון באמת קונה">
+      <Panel
+        title="המטמון כמעט לא חוסך כסף"
+        hint={
+          e
+            ? `בהנחת יום של ${e.cache.show_hours} שעות ולולאה כל ${e.cache.loop_minutes} דקות`
+            : undefined
+        }
+      >
         {e ? (
           <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-2">
               <Big
                 value={`${e.cache.entries}/${e.bill.calls}`}
-                label="פריטים במטמון מול קריאות ששולמו"
+                label="תשובות שמורות מכל הקריאות"
                 tone="good"
               />
               <Big value={String(e.cache.showtime_calls)} label="קריאות מודל בזמן התצוגה" tone="good" />
             </div>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              לולאה נרטיבית אחת מציגה {e.cache.calls_per_loop} תשובות מודל.
-              יום תצוגה של {e.cache.show_hours} שעות, לולאה כל{" "}
-              {e.cache.loop_minutes} דקות, הוא {e.cache.loops} לולאות — ובלי
-              מטמון {usd(e.cache.day_usd)}.
+              {usd(e.cache.day_usd)} — כל מה שיום תצוגה היה עולה בלי מטמון.{" "}
+              {e.cache.loops} לולאות, {e.cache.calls_per_loop} תשובות בכל אחת.
             </p>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              כלומר המטמון כמעט לא חוסך כסף. מה שהוא קונה זה שני דברים שאי
-              אפשר לקנות בכסף על הרצפה של תערוכה: <b>ריצה בלי רשת</b>, ו־
-              <b>אותה תוצאה בדיוק בכל לולאה</b>. מודל בטמפרטורה{" "}
-              {e.constants.temperature} עדיין יכול להשתנות בין גרסאות; קובץ לא.
+              מה שהוא כן קונה: <b>ריצה בלי רשת</b>, ו<b>אותה תוצאה בכל לולאה</b>.
+              מודל בטמפרטורה {e.constants.temperature} עדיין יכול להשתנות. קובץ
+              לא משתנה.
             </p>
           </div>
         ) : (
@@ -701,7 +689,7 @@ function CacheTab({ facts }: Props) {
         )}
       </Panel>
 
-      <Panel title="איפה יושב המטמון">
+      <Panel title="המפתח הוא זהות הפריט, לא נוסח ההנחיה">
         {e ? (
           <div className="flex flex-col gap-2.5">
             <div className="flex items-stretch gap-2">
@@ -719,10 +707,8 @@ function CacheTab({ facts }: Props) {
               />
             </div>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              המפתח הוא הזהות של הפריט, לא גיבוב של הפרומפט. זו החלטה עם
-              מחיר: שינוי בניסוח ההנחיה <b>לא</b> מבטל את המטמון, ולכן הכנה
-              חוזרת אחרי עריכת פרומפט מחייבת מחיקה ידנית. בתמורה, המטמון שורד
-              שינויי קוד ביום התצוגה.
+              המפתח הוא מזהה הכתבה או האירוע, לא נוסח ההנחיה. שינוי בהנחיה{" "}
+              <b>לא</b> מבטל את המטמון — מוחקים אותו ידנית.
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <Chip tone={e.bill.covered ? "good" : "warn"}>
@@ -738,10 +724,10 @@ function CacheTab({ facts }: Props) {
               formula="usd = (in × 0.15 + out × 0.60) / 1e6"
               range="מצטבר על פני ריצות הכנה"
               reads={[
-                { value: "showtime", means: "אפס — התצוגה קוראת קובץ, לא API" },
+                { value: "showtime", means: "אפס. התצוגה קוראת קובץ, לא API" },
                 {
                   value: "prepare",
-                  means: "מה שבניית המטמון עלתה; זה המספר הכנה היחיד שיש",
+                  means: "מה שבניית המטמון עלתה. זה כל החשבון",
                 },
               ]}
               measured={
@@ -767,33 +753,29 @@ function Limits({ facts }: Props) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
-      <Panel title="אילו הכל היה עובר במודל" hint="אומדן, על בסיס השער שנמדד">
+      <Panel title="מה שיקר הוא ההנחיה, לא המודל" hint="אומדן לפי השער שנמדד">
         {e ? (
           <div className="flex flex-col gap-2.5">
             <div className="grid grid-cols-2 gap-2">
               <Big value={usd(e.bill.usd)} label="הארכיטקטורה שנבנתה" tone="good" />
-              <Big value={usd(e.strawman.usd)} label={`אותו קורפוס, הכל מודל — פי ${e.strawman.ratio}`} tone="bad" />
+              <Big value={usd(e.strawman.usd)} label={`אותו קורפוס דרך מודל · פי ${e.strawman.ratio}`} tone="bad" />
             </div>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              האומדן: קריאה אחת לכל כתבה ולכל תגובה —{" "}
-              {num(e.strawman.calls)} קריאות. והנה הנקודה: המודל לא יקר. מה
-              שיקר זה לשלם את ההנחיה הקבועה {num(e.strawman.calls)} פעמים —{" "}
-              <b>{pct(e.strawman.system_share)}</b> מתווי הקלט באומדן הזה הם
-              אותה הנחיה שחוזרת.
+              {num(e.strawman.calls)} קריאות באומדן, אחת לכל כתבה ולכל תגובה.{" "}
+              <b>{pct(e.strawman.system_share)}</b> מהקלט בהן הוא אותה הנחיה.
+              המודל לא יקר. יקר לשלם אותה הנחיה {num(e.strawman.calls)} פעמים.
             </p>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              בקצב של תמונת המצב ({e.strawman.days} ימים,{" "}
-              {num(e.strawman.articles)} כתבות): כ־{usd(e.strawman.month_usd)}{" "}
-              בחודש מול {usd(e.strawman.agents_month_usd)} לשכבת הסוכנים.
+              בקצב תמונת המצב ({e.strawman.days} ימים,{" "}
+              {num(e.strawman.articles)} כתבות) זה כ־{usd(e.strawman.month_usd)}{" "}
+              בחודש, מול {usd(e.strawman.agents_month_usd)} לשכבת הסוכנים.
             </p>
             <Caveat>
-              שני אומדנים לאותו קש: הסצנה הנרטיבית משתמשת בהנחה עגולה של{" "}
+              שני אומדנים לאותו תרחיש. הסצנה סופרת כתבות בלבד ({usd(e.strawman.scene.usd)}{" "}
+              על {num(e.strawman.scene.articles)} כתבות,{" "}
               {e.strawman.scene.prompt_per_article}+
-              {e.strawman.scene.completion_per_article} טוקנים לכתבה על{" "}
-              {num(e.strawman.scene.articles)} כתבות ומגיעה ל־
-              {usd(e.strawman.scene.usd)}. הלוח הזה סופר גם את{" "}
-              {num(e.strawman.comments)} התגובות ומשתמש בשער שנמדד, ולכן
-              גדול ממנה בהרבה. שניהם אומדנים, ואף אחד מהם לא רץ.
+              {e.strawman.scene.completion_per_article} טוקנים לכתבה). כאן
+              נספרות גם {num(e.strawman.comments)} התגובות. אף אחד מהם לא רץ.
             </Caveat>
           </div>
         ) : (
@@ -801,7 +783,7 @@ function Limits({ facts }: Props) {
         )}
       </Panel>
 
-      <Panel title="מה החשבון הזה לא כולל">
+      <Panel title="ההוצאה הגדולה במערכת היא מסווג הקטגוריות">
         {e ? (
           <div className="flex flex-col gap-2">
             {e.excluded.map((x) => (
@@ -828,10 +810,8 @@ function Limits({ facts }: Props) {
               </div>
             ))}
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              השורה הראשונה היא ההודאה החשובה: הצרכן הגדול ביותר של טוקנים
-              במערכת אינו שכבת הסוכנים אלא מסווג הקטגוריות הצנוע — לא כי הוא
-              מתוחכם, אלא כי הוא רץ על <b>כל</b> כתבה במקום רק על אירועים
-              חוצי־ערוצים.
+              מסווג הקטגוריות צורך יותר טוקנים משכבת הסוכנים כולה — הוא רץ על{" "}
+              <b>כל</b> כתבה.
             </p>
           </div>
         ) : (

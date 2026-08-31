@@ -571,6 +571,69 @@ export interface EconomyExcluded {
   estimate: boolean;
 }
 
+/** The repair loop: what the verifier deleted, and what the loop won back. */
+export interface RepairGuard {
+  key: string;
+  title_he: string;
+  detail_he: string;
+}
+
+export interface RepairAttemptRow {
+  n: number;
+  calls: number;
+  accepted: number;
+  detail_he: string;
+}
+
+export interface RepairFacts {
+  constants: {
+    model: string;
+    max_attempts: number;
+    max_attempts_measured: number;
+    max_tokens: number;
+    lead_chars: number;
+    contrast_lead_chars: number;
+  };
+  verifier: {
+    quotes_total: number;
+    quotes_rejected: number;
+    terms_total: number;
+    terms_rejected: number;
+  };
+  loop: {
+    candidates_framing: number;
+    candidates_contrast: number;
+    entered: number;
+    calls: number;
+    fixed_fully: number;
+    unchanged: number;
+    violations_before: number;
+    violations_after: number;
+    regrounded: number;
+    nulled: number;
+    destroyed: number;
+  };
+  attempts: RepairAttemptRow[];
+  bill: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    usd: number;
+    per_item_usd: number;
+    layer_usd: number;
+    total_usd: number;
+    share_of_layer: number;
+  };
+  guards: RepairGuard[];
+  regression: { destroyed_before_guard: number; destroyed_now: number };
+  stage: { events: number; recovered: number };
+  example: {
+    source: string;
+    before: string;
+    after: string;
+    headline: string;
+  } | null;
+}
+
 export interface EconomyFacts {
   constants: {
     model: string;
@@ -707,6 +770,7 @@ export interface Facts {
   audience: AudienceFacts;
   stats: StatsFacts;
   economy: EconomyFacts;
+  repair: RepairFacts;
 }
 
 type FactsState =

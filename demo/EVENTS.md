@@ -28,7 +28,7 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   nothing to do with the SSE stream: it backs the deep-dive modules, which are
   navigated by the presenter rather than driven by the runner. Shape:
   `{corpus, constants, identity_example, worked_example, sources[], windows,
-  comments, lexicon, retrieval, framing, audience, stats, economy}` — see `demo/snapshot/build_explainer_facts.py`
+  comments, lexicon, retrieval, framing, audience, stats, economy, repair}` — see `demo/snapshot/build_explainer_facts.py`
   for the producer and `frontend/src/components/demo/explain/facts.ts` for the
   mirror. `retrieval` additionally carries the clustering threshold sweep,
   which is **recomputed on every build** (six clusterings over the snapshot),
@@ -48,6 +48,12 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   snapshot and divides those characters by the billed token counts in
   `llm_usage.json`, which is where the 2.54 chars/token rate comes from — every
   estimate in that tile is then derived at the rounded rate the wall prints.
+  `repair` is built after `economy`, because it reports its own bill as a share
+  of the model layer's and that total is `economy`'s to state. It reads
+  `demo/data/repair_log.json`, written by `demo/snapshot/run_repair.py` at
+  prepare time — including the attempts that were rejected, which is what lets
+  the tile say the second attempt earned nothing rather than only showing the
+  first attempt's wins.
 
 Every event also carries `ts` (epoch milliseconds).
 
@@ -64,7 +70,7 @@ back. Two kinds of module exist:
   gates. They are readable while the run is mid-scene, and they still render
   (diagrams only, measured strips omitted) when `/facts` is unavailable.
   Live: `scraping`, `algorithm`, `retrieval`, `framing`, `audience`, `stats`,
-  `economy` — every tile on the hub. A tile with `ready: false` renders dimmed,
+  `repair`, `economy` — every tile on the hub. A tile with `ready: false` renders dimmed,
   non-clickable and badged "בבנייה"; none is in that state now.
 
 ## The scene machine

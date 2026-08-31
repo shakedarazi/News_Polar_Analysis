@@ -42,7 +42,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from demo import config  # noqa: E402
 from demo.core.framing import (EXTRACT_LEAD_CHARS,  # noqa: E402
                                LEX_CATEGORIES_HE, ContrastExtractor, Event,
-                               FramingExtractor, Snapshot,
+                               FramingExtractor, Repairer, Snapshot,
                                attach_comment_profiles, bootstrap_ci,
                                build_event_clusters, category_mix_deviation,
                                change_point_power, coverage_matrix,
@@ -111,7 +111,9 @@ def showcase_score(event: Event) -> tuple[int, int, int]:
 
 
 def version_payload(snap: Snapshot, version, article: dict[str, Any],
-                    framing: dict[str, Any] | None) -> dict[str, Any]:
+                    framing: dict[str, Any] | None,
+                    repairer: Repairer | None = None,
+                    allow_network: bool = False) -> dict[str, Any]:
     text = article["text"] or ""
     payload: dict[str, Any] = {
         "article_id": version.article_id,
@@ -144,6 +146,20 @@ def version_payload(snap: Snapshot, version, article: dict[str, Any],
         payload["framing"] = {**framing, "loaded_terms": verdict.kept_terms}
         payload["framing_dropped"] = verdict.dropped_terms
         payload["framing_actor_grounded"] = verdict.actor_grounded
+        # The repair loop runs after the verifier, never instead of it:
+        # `framing_dropped` stays the record of what the extractor got wrong,
+        # and anything the loop wins back is listed separately so the screen
+        # can label it as recovered rather than as originally correct.
+        if repairer is not None and verdict.violations:
+            fixed = repairer.repair_framing(version.article_id, framing,
+                                            version.title, text,
+                                            allow_network=allow_network)
+            if fixed is not framing:
+                after = verify_framing(fixed, version.title, text)
+                recovered = [t for t in after.kept_terms
+                             if t not in verdict.kept_terms]
+                payload["framing"] = {**fixed, "loaded_terms": after.kept_terms}
+                payload["framing_repaired"] = recovered
     return payload
 
 
@@ -187,7 +203,8 @@ def build_intake(event: Event, events: list[Event],
 def build_showcase(snap: Snapshot, event: Event, events: list[Event],
                    articles: dict[str, Any], framer: FramingExtractor,
                    contraster: ContrastExtractor,
-                   allow_network: bool) -> dict[str, Any]:
+                   allow_network: bool,
+                   repairer: Repairer | None = None) -> dict[str, Any]:
     attach_comment_profiles(snap, event)
     kw_found, kw_total = keyword_recall(snap, event)
 
@@ -196,15 +213,32 @@ def build_showcase(snap: Snapshot, event: Event, events: list[Event],
         article = articles[version.article_id]
         framing = framer.extract(version.article_id, version.title,
                                  article["text"], allow_network=allow_network)
-        versions.append(version_payload(snap, version, article, framing))
+        versions.append(version_payload(snap, version, article, framing,
+                                        repairer, allow_network))
 
     sibling_texts = [(v.source, v.title, articles[v.article_id]["text"])
                      for v in event.versions[:CONTRAST_VERSIONS]]
     contrast = contraster.extract(event.event_id, sibling_texts,
                                   allow_network=allow_network)
-    contrast_raw, contrast_rejected = contrast, []
+    contrast_raw, contrast_rejected, contrast_repaired = contrast, [], []
     if contrast:
-        contrast, contrast_rejected = verify_contrast(contrast, sibling_texts)
+        verified, contrast_rejected = verify_contrast(contrast, sibling_texts)
+        contrast = verified
+        # Same order as the framing side: verify, then try to recover. A source
+        # lands in `contrast_repaired` only if the deterministic verifier
+        # accepted a quote it had just thrown out.
+        if repairer is not None and contrast_rejected:
+            fixed = repairer.repair_contrast(event.event_id, contrast_raw,
+                                             sibling_texts,
+                                             allow_network=allow_network)
+            if fixed is not contrast_raw:
+                after, _ = verify_contrast(fixed, sibling_texts)
+                had = {i.get("source") for i in verified.get("per_source") or []
+                       if i.get("evidence")}
+                contrast_repaired = [i.get("source")
+                                     for i in after.get("per_source") or []
+                                     if i.get("evidence") and i.get("source") not in had]
+                contrast = after
 
     return {
         "event_id": event.event_id,
@@ -219,6 +253,7 @@ def build_showcase(snap: Snapshot, event: Event, events: list[Event],
         "contrast": contrast,
         "contrast_raw": contrast_raw,
         "contrast_rejected": contrast_rejected,
+        "contrast_repaired": contrast_repaired,
     }
 
 
@@ -399,6 +434,10 @@ def main() -> None:
 
     framer = FramingExtractor()
     contraster = ContrastExtractor()
+    # Prepare-time only. At showtime the caches are complete, so the loop
+    # replays them and makes no call; if a cache entry is missing the loop
+    # returns the pre-repair object and the screen degrades to a blank quote.
+    repairer = Repairer()
     # Framing is extracted for EVERY version of every event, not just the ones
     # that reach the screen: the verifier's rejection rate is only meaningful
     # as a statement about the extractor, and three hand-picked stories cannot
@@ -433,16 +472,21 @@ def main() -> None:
     showcases = []
     for event in ranked:
         showcases.append(build_showcase(snap, event, events, articles, framer,
-                                        contraster, not args.offline))
+                                        contraster, not args.offline,
+                                        repairer))
         print(f"  showcase: {event.headline[:55]}… "
               f"({len(event.sources)} sources, {event.total_comments} comments, "
               f"keyword {showcases[-1]['keyword_found']}/{showcases[-1]['keyword_total']})")
-    if framer.calls or contraster.calls:
+    if framer.calls or contraster.calls or repairer.calls:
         framer.save()
         contraster.save()
-        print(f"model calls: {framer.calls + contraster.calls}, "
+        repairer.save()
+        print(f"model calls: {framer.calls + contraster.calls + repairer.calls}, "
               f"{framer.failures + contraster.failures} failures, "
-              f"${framer.cost_usd() + contraster.cost_usd():.4f}")
+              f"${framer.cost_usd() + contraster.cost_usd() + repairer.cost_usd():.4f}")
+    repaired = sum(len(s["contrast_repaired"]) for s in showcases)
+    if repaired:
+        print(f"repair loop: {repaired} evidence quotes recovered on stage")
     usage = accumulate_usage(framer, contraster)
 
     profile = build_profile(events, articles)

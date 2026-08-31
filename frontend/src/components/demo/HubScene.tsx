@@ -17,7 +17,8 @@ export type ModuleId =
   | "framing"
   | "audience"
   | "stats"
-  | "economy";
+  | "economy"
+  | "repair";
 
 export interface ModuleDef {
   id: ModuleId;
@@ -90,6 +91,14 @@ export const MODULES: ModuleDef[] = [
     ready: true,
   },
   {
+    id: "repair",
+    icon: "🔁",
+    title_he: "לולאת התיקון",
+    sub_he: "מה המאמת מחק, ומה הוחזר",
+    promise_he: "23 מתוך 30 תוקנו בניסיון אחד — והניסיון השני תיקן אפס",
+    ready: true,
+  },
+  {
     id: "economy",
     icon: "🪙",
     title_he: "כלכלת טוקנים",
@@ -113,7 +122,7 @@ export function HubScene({ onEnter }: HubSceneProps) {
         </p>
       </header>
 
-      <div className="grid min-h-0 flex-1 grid-cols-4 grid-rows-2 gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-3 grid-rows-3 gap-3">
         {MODULES.map((m, i) => (
           <button
             key={m.id}

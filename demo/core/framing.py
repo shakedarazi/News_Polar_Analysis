@@ -921,3 +921,274 @@ def verify_contrast(result: dict[str, Any],
             item = {**item, "evidence": None}
         kept.append(item)
     return {**result, "per_source": kept}, violations
+
+
+# ---------------------------------------------------------------------------
+# The repair loop — the third agent, and the only one allowed a second opinion.
+#
+# The verifier is deterministic and it only ever *deletes*: a quote that is not
+# in the source text becomes NULL, and the sentence loses its evidence. That is
+# safe but lossy — 26 of 68 events lost at least one quote this way. The repair
+# loop is the recovery path: it hands the model back its own rejected output
+# together with the exact reason the verifier gave, and asks for a corrected
+# quote. Three rules make it safe to put on a screen:
+#
+#   1. The same deterministic verifier judges the repair. The model does not
+#      get to certify itself, so a repair cannot launder an invented quote.
+#   2. A repair is accepted only if the violation count strictly drops. A
+#      regression is discarded and the pre-repair output stands.
+#   3. Every attempt is cached and logged. Showtime replays the file; if the
+#      repair cache is missing or the network is down, the pipeline degrades
+#      to exactly the pre-repair behaviour — a missing quote, never a wrong
+#      one.
+#
+# The attempt cap was measured, not guessed. The loop was first run at
+# REPAIR_ATTEMPTS_MEASURED=2 over the whole corpus: attempt 1 fixed 24 of 30
+# items, attempt 2 fixed 0 of the remaining 6 and cost 6 extra calls. So the
+# production cap is 1, and the 6 wasted calls are what buying that answer cost.
+# demo/data/repair_log.json is the evidence and keeps the attempt-2 rows.
+# ---------------------------------------------------------------------------
+
+REPAIR_MAX_TOKENS = 500
+REPAIR_ATTEMPTS_MEASURED = 2
+MAX_REPAIR_ATTEMPTS = 1
+
+CONTRAST_REPAIR_SYSTEM = (
+    "בדיקה אוטומטית פסלה ציטוטים בתשובה קודמת שלך: הם לא הופיעו מילה במילה "
+    "בטקסט של אותו מקור. תקבל את הטקסטים המקוריים ואת רשימת הפסילות. "
+    "החזר JSON בלבד: {\"per_source\":[{\"source\":\"...\",\"evidence\":"
+    "\"ציטוט שמועתק מילה במילה מהכותרת או מהפתיח של אותו מקור\"}]}. "
+    "העתק, אל תנסח מחדש. אם אין בטקסט קטע שמדגים את האמירה — החזר null "
+    "עבור אותו מקור. תשובה עם null עדיפה על ציטוט שהומצא."
+)
+
+FRAMING_REPAIR_SYSTEM = (
+    "בדיקה אוטומטית פסלה שדות בתשובה קודמת שלך: הם לא הופיעו מילה במילה "
+    "בכותרת או בפתיח. תקבל את הטקסט ואת רשימת הפסילות. "
+    "החזר JSON בלבד: {\"loaded_terms\":[...],\"actor\":\"...\"}. "
+    "כל מילה טעונה חייבת להיות מועתקת מהטקסט. אם אין מילה טעונה — החזר "
+    "רשימה ריקה. רשימה ריקה עדיפה על מילה שהומצאה."
+)
+
+
+@dataclass
+class RepairAttempt:
+    """One pass of the loop, kept whether it helped or not.
+
+    The rejected attempts are the interesting ones: a loop that only reports
+    its successes is a demo, not a measurement.
+    """
+
+    key: str
+    kind: str                 # "framing" | "contrast"
+    attempt: int
+    violations_before: int
+    violations_after: int
+    accepted: bool
+    prompt_tokens: int
+    completion_tokens: int
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "key": self.key, "kind": self.kind, "attempt": self.attempt,
+            "violations_before": self.violations_before,
+            "violations_after": self.violations_after,
+            "accepted": self.accepted,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+        }
+
+
+def build_contrast_repair_prompt(versions: list[tuple[str, str, str]],
+                                 violations: list[str]) -> str:
+    """The rejected quote plus the text it was supposed to come from.
+
+    The same CONTRAST_LEAD_CHARS window is re-sent: repairing against a wider
+    window would let the model "fix" a quote by reaching into text the first
+    call never saw, which the verifier would then accept — a correct-looking
+    answer produced by moving the goalposts.
+    """
+    blocks = [f"--- מקור: {source}\nכותרת: {title}\n"
+              f"פתיח: {(lead or '')[:CONTRAST_LEAD_CHARS]}"
+              for source, title, lead in versions]
+    return ("הפסילות:\n" + "\n".join(f"- {v}" for v in violations)
+            + "\n\nהטקסטים:\n" + "\n\n".join(blocks))
+
+
+def build_framing_repair_prompt(title: str, lead: str,
+                                violations: list[str]) -> str:
+    return ("הפסילות:\n" + "\n".join(f"- {v}" for v in violations)
+            + f"\n\nכותרת: {title}\nפתיח: {(lead or '')[:EXTRACT_LEAD_CHARS]}")
+
+
+class Repairer(_CachedLLM):
+    """Runs the loop and records it. Never raises, never blocks the pipeline."""
+
+    cache_name = "repair_cache.json"
+
+    def __init__(self, cache_path: Path | None = None,
+                 attempts: int = MAX_REPAIR_ATTEMPTS) -> None:
+        super().__init__(cache_path)
+        self.log: list[RepairAttempt] = []
+        self.attempts = attempts
+        self._last_cost = (0, 0)
+
+    def _attempt(self, key: str, kind: str, attempt: int, system: str,
+                 user: str) -> dict[str, Any] | None:
+        """One model call, with its token cost attributed to this loop."""
+        before_p, before_c = self.prompt_tokens, self.completion_tokens
+        raw = self._chat(system, user, REPAIR_MAX_TOKENS)
+        self._last_cost = (self.prompt_tokens - before_p,
+                           self.completion_tokens - before_c)
+        if raw is None:
+            return None
+        return _json_object(raw)
+
+    def repair_contrast(self, event_id: str,
+                        result: dict[str, Any],
+                        versions: list[tuple[str, str, str]],
+                        allow_network: bool = True) -> dict[str, Any]:
+        """Return the best contrast result the loop could reach.
+
+        The contract is deliberately total: callers get a usable object back in
+        every case — a repaired one, or the one they passed in.
+        """
+        cache_key = f"contrast:{event_id}"
+        hit = self.cache.get(cache_key)
+        if hit is not None:
+            self.log.extend(RepairAttempt(**a) for a in hit.get("log", []))
+            return hit["result"]
+
+        _, violations = verify_contrast(result, versions)
+        if not violations or not allow_network:
+            return result
+
+        attempts: list[RepairAttempt] = []
+        current, current_violations = result, violations
+        for n in range(1, self.attempts + 1):
+            data = self._attempt(
+                cache_key, "contrast", n, CONTRAST_REPAIR_SYSTEM,
+                build_contrast_repair_prompt(versions, current_violations))
+            p_tok, c_tok = self._last_cost
+            if data is None:
+                attempts.append(RepairAttempt(cache_key, "contrast", n,
+                                              len(current_violations),
+                                              len(current_violations), False,
+                                              p_tok, c_tok))
+                break
+            merged = _merge_evidence(current, data,
+                                     _rejected_sources(current, versions))
+            _, after = verify_contrast(merged, versions)
+            # Fewer violations is not enough on its own: a patch that answers
+            # `null` everywhere also has zero violations. A repair counts only
+            # if it removes damage without removing evidence.
+            accepted = (len(after) < len(current_violations)
+                        and _grounded_sources(merged, versions)
+                        >= _grounded_sources(current, versions))
+            attempts.append(RepairAttempt(cache_key, "contrast", n,
+                                          len(current_violations), len(after),
+                                          accepted, p_tok, c_tok))
+            if accepted:
+                current, current_violations = merged, after
+            if not current_violations:
+                break
+
+        self.cache[cache_key] = {"result": current,
+                                 "log": [a.as_dict() for a in attempts]}
+        self.log.extend(attempts)
+        return current
+
+    def repair_framing(self, article_id: str, framing: dict[str, Any],
+                       title: str, text: str,
+                       allow_network: bool = True) -> dict[str, Any]:
+        cache_key = f"framing:{article_id}"
+        hit = self.cache.get(cache_key)
+        if hit is not None:
+            self.log.extend(RepairAttempt(**a) for a in hit.get("log", []))
+            return hit["result"]
+
+        verdict = verify_framing(framing, title, text)
+        if verdict.clean or not allow_network:
+            return framing
+
+        attempts: list[RepairAttempt] = []
+        current, current_violations = framing, verdict.violations
+        for n in range(1, self.attempts + 1):
+            data = self._attempt(
+                cache_key, "framing", n, FRAMING_REPAIR_SYSTEM,
+                build_framing_repair_prompt(title, text, current_violations))
+            p_tok, c_tok = self._last_cost
+            if data is None:
+                attempts.append(RepairAttempt(cache_key, "framing", n,
+                                              len(current_violations),
+                                              len(current_violations), False,
+                                              p_tok, c_tok))
+                break
+            merged = {**current}
+            if isinstance(data.get("loaded_terms"), list):
+                merged["loaded_terms"] = [t for t in data["loaded_terms"]
+                                          if isinstance(t, str) and t.strip()]
+            if isinstance(data.get("actor"), str) and data["actor"].strip():
+                merged["actor"] = data["actor"]
+            verdict_after = verify_framing(merged, title, text)
+            after = verdict_after.violations
+            # Same guard as the contrastive side: an empty `loaded_terms` list
+            # has no violations either. A repair may not buy a clean verdict by
+            # deleting the finding.
+            accepted = (len(after) < len(current_violations)
+                        and len(verdict_after.kept_terms)
+                        >= len(verify_framing(current, title, text).kept_terms))
+            attempts.append(RepairAttempt(cache_key, "framing", n,
+                                          len(current_violations), len(after),
+                                          accepted, p_tok, c_tok))
+            if accepted:
+                current, current_violations = merged, after
+            if not current_violations:
+                break
+
+        self.cache[cache_key] = {"result": current,
+                                 "log": [a.as_dict() for a in attempts]}
+        self.log.extend(attempts)
+        return current
+
+
+def _grounded_sources(result: dict[str, Any],
+                      versions: list[tuple[str, str, str]]) -> set[str]:
+    """Sources whose quote survives the verifier."""
+    verified, _ = verify_contrast(result, versions)
+    return {i.get("source") for i in verified.get("per_source") or []
+            if i.get("evidence")}
+
+
+def _rejected_sources(result: dict[str, Any],
+                      versions: list[tuple[str, str, str]]) -> set[str]:
+    """Sources that had a quote and lost it to the verifier."""
+    had = {i.get("source") for i in result.get("per_source") or []
+           if i.get("evidence")}
+    return had - _grounded_sources(result, versions)
+
+
+def _merge_evidence(result: dict[str, Any], patch: dict[str, Any],
+                    allowed: set[str]) -> dict[str, Any]:
+    """Apply only the `evidence` field, and only for `allowed` sources.
+
+    Two things the repair call is not allowed to touch. It cannot rewrite
+    `distinctive` — that sentence was produced with all the siblings in context
+    and the repair prompt does not reproduce that setting, so letting it drift
+    would change the finding while claiming to fix a citation. And it cannot
+    touch a source the verifier did not reject: the first version of this loop
+    let it, and the model answered `null` for quotes that were already
+    grounded, destroying 13 good citations while the violation count went down.
+    A repair may only act where there is damage to repair.
+    """
+    fixes = {}
+    for item in patch.get("per_source") or []:
+        if isinstance(item, dict) and item.get("source") in allowed:
+            fixes[item["source"]] = item.get("evidence")
+    out = []
+    for item in result.get("per_source") or []:
+        source = item.get("source")
+        if source in fixes:
+            item = {**item, "evidence": fixes[source]}
+        out.append(item)
+    return {**result, "per_source": out}

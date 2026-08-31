@@ -1485,6 +1485,7 @@ def build_stats(conn: sqlite3.Connection) -> dict:
 # ── the token economy ───────────────────────────────────────────────────
 
 USAGE_PATH = config.DATA_DIR / "llm_usage.json"
+REPAIR_LOG_PATH = config.DATA_DIR / "repair_log.json"
 
 # The show-day projection's only assumption, kept here so it is one number in
 # one place rather than a sentence on a slide: an exhibition shift and how
@@ -1714,34 +1715,34 @@ def build_economy(conn: sqlite3.Connection, facts: dict) -> dict:
     stages = [
         {"key": "crawl", "label_he": "איסוף", "kind": "free",
          "n": facts["corpus"]["articles"], "unit_he": "כתבות",
-         "detail_he": "בקשות HTTP, חילוץ טקסט, זיהוי כפילויות לפי sha256"},
+         "detail_he": "מוריד דפים, מחלץ טקסט, ומזהה כפילויות לפי sha256"},
         {"key": "windows", "label_he": "חלונות", "kind": "free",
          "n": facts["windows"]["total"], "unit_he": "חלונות",
-         "detail_he": "פיצול משפטים מבוסס חוקים, חיתוך ב־60 טוקנים"},
+         "detail_he": "מפצל למשפטים לפי חוקים, וחותך כל חלון ב־60 טוקנים"},
         {"key": "comments", "label_he": "תגובות", "kind": "free",
          "n": facts["comments"]["total"], "unit_he": "תגובות",
-         "detail_he": "איסוף ואז ניקוד יחס לפי מילון — חיפוש במילון, לא מודל"},
-        {"key": "lexicon", "label_he": "לקסיקון", "kind": "free",
+         "detail_he": "סופר בכל תגובה מילים מהמילון. חיפוש ברשימה, לא מודל"},
+        {"key": "lexicon", "label_he": "מילון", "kind": "free",
          "n": facts["lexicon"]["article_expanded"], "unit_he": "צורות",
-         "detail_he": "הורחב פעם אחת אופליין; בזמן ריצה זו בדיקת שייכות לקבוצה"},
+         "detail_he": "הורחב פעם אחת מראש. בזמן ריצה נשאלת רק שאלת שייכות"},
         {"key": "embed", "label_he": "וקטורים", "kind": "local",
          "n": facts["retrieval"]["vectors"], "unit_he": "וקטורים",
-         "detail_he": f"{config.EMBED_MODEL} רץ על המחשב הזה — מודל, אבל בלי API ובלי חיוב"},
+         "detail_he": f"{config.EMBED_MODEL} רץ על המחשב הזה. מודל אמיתי, בלי חשבון"},
         {"key": "cluster", "label_he": "אשכול אירועים", "kind": "free",
          "n": facts["retrieval"]["events"]["total"], "unit_he": "אירועים",
-         "detail_he": "דמיון קוסינוס וסף — אריתמטיקה על הווקטורים"},
+         "detail_he": "מודד זווית בין וקטורים ומשווה לסף. אריתמטיקה בלבד"},
         {"key": "framing", "label_he": "חילוץ מסגור", "kind": "paid",
          "n": f_calls, "unit_he": "קריאות",
-         "detail_he": "מי מוצג כמבצע ולמי מיוחסת אחריות — אין לזה תשובה דטרמיניסטית"},
+         "detail_he": "שואל מי מוצג כמבצע ולמי מיוחסת אחריות. לקוד אין תשובה"},
         {"key": "contrast", "label_he": "ניתוח קונטרסטיבי", "kind": "paid",
          "n": c_calls, "unit_he": "קריאות",
-         "detail_he": "מה ייחודי בכל גרסה ביחס לאחרות — שאלה שגרסה בודדת לא עונה עליה"},
+         "detail_he": "שואל מה ייחודי בכל גרסה. גרסה בודדת לא עונה על זה"},
         {"key": "verify", "label_he": "אימות", "kind": "free",
          "n": verifier["terms_total"] + verifier["quotes_total"], "unit_he": "בדיקות",
-         "detail_he": "כל ביטוי וכל ציטוט מהמודל מחפשים בטקסט המקורי — התאמת מחרוזות"},
+         "detail_he": "מחפש כל ביטוי וכל ציטוט בטקסט המקורי. השוואת מחרוזות"},
         {"key": "stats", "label_he": "סטטיסטיקה", "kind": "free",
          "n": facts["stats"]["multiplicity"]["tests"], "unit_he": "בדיקות",
-         "detail_he": "bootstrap, מבחני תמורות, תיקון מרובה — numpy, לא טוקנים"},
+         "detail_he": "דגימות חוזרות, ערבוב תוויות, תיקון לריבוי בדיקות. numpy"},
     ]
     for stage in stages:
         stage["usd"] = next((s["usd"] for s in split if s["key"] == stage["key"]), 0.0)
@@ -1822,25 +1823,25 @@ def build_economy(conn: sqlite3.Connection, facts: dict) -> dict:
     classify_completion = round(n_articles * per_call_completion)
     excluded = [
         {"key": "classify", "label_he": "סיווג קטגוריה בפייפליין",
-         "detail_he": f"{CLASSIFY_MODEL} על כותרת ו־{MAX_TEXT_CHARS} תווים ראשונים, "
-                      f"לכל כתבה — רץ בענן כל 6 שעות, הרבה לפני שכבת הסוכנים",
+         "detail_he": f"{CLASSIFY_MODEL} מקבל כותרת ו־{MAX_TEXT_CHARS} תווים ראשונים "
+                      f"מכל כתבה. רץ בענן כל 6 שעות, על כל כתבה שנאספה",
          "n": labeled, "unit_he": "כתבות שכבר תויגו",
          "prompt_tokens": classify_tokens,
          "usd": round(_usd(classify_tokens, classify_completion), 4),
          "estimate": True},
         {"key": "enrich", "label_he": "סיכום והערכת הטיה",
-         "detail_he": "נוצרים לפי בקשה מהאתר ונשמרים במטמון — לא רצים בלוח זמנים, "
+         "detail_he": "נוצרים לפי בקשה מהאתר ונשמרים. הם לא רצים בלוח זמנים, "
                       "ולכן אין להם חשבון קבוע",
          "n": None, "unit_he": None, "prompt_tokens": None, "usd": None,
          "estimate": False},
         {"key": "embed", "label_he": "זמן המעבד של מודל הווקטורים",
-         "detail_he": f"{config.EMBED_MODEL} לא עולה טוקנים, אבל כן עולה חשמל וזמן — "
-                      "זה לא מופיע בשום שורה כאן",
+         "detail_he": f"{config.EMBED_MODEL} לא צורך טוקנים. הוא כן צורך חשמל וזמן, "
+                      "ואלה לא נספרים בשום שורה",
          "n": facts["retrieval"]["vectors"], "unit_he": "וקטורים",
          "prompt_tokens": None, "usd": None, "estimate": False},
         {"key": "dev", "label_he": "ריצות פיתוח שנזרקו",
-         "detail_he": "הקובץ מצטבר על פני ריצות הכנה, אבל ניסויי פרומפט שנמחקו "
-                      "לא נספרו — המספר הוא של המטמון שנשאר",
+         "detail_he": "קובץ השימוש מצטבר על פני ריצות הכנה. ניסויי הנחיה שנמחקו "
+                      "לא נספרו, והמספר מתאר את המטמון שנשאר",
          "n": None, "unit_he": None, "prompt_tokens": None, "usd": None,
          "estimate": False},
     ]
@@ -1883,6 +1884,187 @@ def _snapshot_days(span) -> float:
     return round((end - start).total_seconds() / 86400, 2)
 
 
+def build_repair(facts: dict) -> dict:
+    """The repair loop: what the verifier's deletions cost, and what came back.
+
+    The verifier is deterministic and only ever deletes, so its rejection rate
+    is also a loss rate — every rejected quote is a sentence that reaches the
+    screen without evidence. This tile measures the recovery path, including
+    the two outcomes that are easy to conflate: a quote that now grounds, and a
+    quote the model honestly refused to invent. Only the first is a recovery.
+
+    Everything here is read off demo/data/repair_log.json, which is written by
+    demo/snapshot/run_repair.py at prepare time. No model is called.
+    """
+    from demo.core.framing import (CONTRAST_LEAD_CHARS, EXTRACT_LEAD_CHARS,
+                                   MAX_REPAIR_ATTEMPTS,
+                                   REPAIR_ATTEMPTS_MEASURED,
+                                   REPAIR_MAX_TOKENS, ContrastExtractor,
+                                   Snapshot, _normalise, build_event_clusters)
+    from demo.snapshot.prepare_demo import CONTRAST_VERSIONS
+
+    log = json.loads(REPAIR_LOG_PATH.read_text(encoding="utf-8"))
+    attempts = log["attempts"]
+
+    # ---- the cap, measured rather than guessed
+    by_attempt: dict[int, dict[str, int]] = {}
+    for row in attempts:
+        slot = by_attempt.setdefault(row["attempt"], {"calls": 0, "accepted": 0})
+        slot["calls"] += 1
+        slot["accepted"] += int(row["accepted"])
+    attempt_rows = [
+        {
+            "n": n,
+            "calls": slot["calls"],
+            "accepted": slot["accepted"],
+            "detail_he": (
+                f"תיקן {slot['accepted']} מתוך {slot['calls']}"
+                if slot["accepted"]
+                else f"תיקן 0 מתוך {slot['calls']}. זה מה שעלה לדעת"
+            ),
+        }
+        for n, slot in sorted(by_attempt.items())
+    ]
+
+    # ---- the bill, and what it is next to
+    layer_usd = round(facts["economy"]["bill"]["usd"], 6)
+    usd = round(log["usd"], 6)
+    entered = log["items_entered"]
+
+    # ---- one real before/after, chosen for being legible rather than flattering
+    example = _repair_example(ContrastExtractor(), Snapshot(),
+                              build_event_clusters, CONTRAST_VERSIONS,
+                              _normalise, EXTRACT_LEAD_CHARS)
+
+    # ---- what reaches the three stories on the wall
+    demo_set = json.loads(config.DEMO_SET_PATH.read_text(encoding="utf-8"))
+    on_stage = sum(len(s.get("contrast_repaired") or [])
+                   for s in demo_set["showcase_events"])
+
+    verifier = facts["framing"]["verifier"]
+    return {
+        "constants": {
+            "model": facts["economy"]["constants"]["model"],
+            "max_attempts": MAX_REPAIR_ATTEMPTS,
+            "max_attempts_measured": REPAIR_ATTEMPTS_MEASURED,
+            "max_tokens": REPAIR_MAX_TOKENS,
+            "lead_chars": EXTRACT_LEAD_CHARS,
+            "contrast_lead_chars": CONTRAST_LEAD_CHARS,
+        },
+        "verifier": {
+            "quotes_total": verifier["quotes_total"],
+            "quotes_rejected": verifier["quotes_rejected"],
+            "terms_total": verifier["terms_total"],
+            "terms_rejected": verifier["terms_rejected"],
+        },
+        "loop": {
+            "candidates_framing": log["candidates"]["framing"],
+            "candidates_contrast": log["candidates"]["contrast"],
+            "entered": entered,
+            "calls": log["calls"],
+            "fixed_fully": log["fixed_fully"],
+            "unchanged": log["unchanged"],
+            "violations_before": log["violations_before"],
+            "violations_after": log["violations_after"],
+            "regrounded": log["quotes_regrounded"],
+            "nulled": log["quotes_nulled_honestly"],
+            "destroyed": log["valid_quotes_destroyed"],
+        },
+        "attempts": attempt_rows,
+        "bill": {
+            "prompt_tokens": log["prompt_tokens"],
+            "completion_tokens": log["completion_tokens"],
+            "usd": usd,
+            "per_item_usd": round(usd / entered, 8) if entered else 0.0,
+            "layer_usd": layer_usd,
+            "total_usd": round(layer_usd + usd, 6),
+            "share_of_layer": round(usd / layer_usd, 4) if layer_usd else 0.0,
+        },
+        "guards": [
+            {
+                "key": "verifier_judges",
+                "title_he": "אותו מאמת שופט גם את התיקון",
+                "detail_he": ("המודל לא מאשר את עצמו. תיקון עובר את אותה בדיקת "
+                              "העתקה מילה במילה, ולכן לא יכול להלבין ציטוט מומצא."),
+            },
+            {
+                "key": "same_window",
+                "title_he": "התיקון מקבל את אותו חלון טקסט",
+                "detail_he": (f"{CONTRAST_LEAD_CHARS} תווים, כמו הקריאה שנפסלה. "
+                              "חלון רחב יותר היה מאשר ציטוט מטקסט שהקריאה "
+                              "הראשונה לא ראתה."),
+            },
+            {
+                "key": "no_regression",
+                "title_he": "תיקון שמוחק ראיה נדחה",
+                "detail_he": ("פחות הפרות זה לא מספיק — תשובה שכולה null גם היא "
+                              "בלי הפרות. תיקון מתקבל רק אם מספר הציטוטים "
+                              "המאומתים לא ירד."),
+            },
+            {
+                "key": "fallback",
+                "title_he": "בלי הלולאה חוזרים למצב הקודם",
+                "detail_he": ("אין רשת או שהתיקון נכשל — הציטוט נשאר ריק, "
+                              "בדיוק כמו לפני. אף פעם לא ציטוט שגוי."),
+            },
+        ],
+        # The guard above exists because the first version of the loop did not
+        # have it. Recorded here as a finding, not recomputed: the run that
+        # produced it was discarded when the rule changed.
+        "regression": {
+            "destroyed_before_guard": 13,
+            "destroyed_now": log["valid_quotes_destroyed"],
+        },
+        "stage": {"events": len(demo_set["showcase_events"]),
+                  "recovered": on_stage},
+        "example": example,
+    }
+
+
+def _repair_example(contraster, snap, cluster_fn, versions_cap, normalise,
+                    lead_chars) -> dict | None:
+    """A real rejected quote and the quote that replaced it.
+
+    Preference goes to a repair that ends on sentence punctuation and is long
+    enough to read as a quote: the model often fixes a stitched citation by
+    truncating it to the verbatim prefix, and a fragment cut mid-word is a true
+    example that teaches nobody anything from across a room.
+    """
+    cache_path = config.DATA_DIR / "repair_cache.json"
+    if not cache_path.exists():
+        return None
+    cache = json.loads(cache_path.read_text(encoding="utf-8"))
+    articles = snap.articles()
+    events = {e.event_id: e for e in cluster_fn(snap)}
+    best = None
+    for key, entry in cache.items():
+        if not key.startswith("contrast:"):
+            continue
+        event = events.get(key.split(":", 1)[1])
+        original = contraster.cached(key.split(":", 1)[1])
+        if event is None or original is None:
+            continue
+        hay = {v.source: normalise(f"{v.title} "
+                                   f"{(articles[v.article_id]['text'] or '')[:lead_chars]}")
+               for v in event.versions[:versions_cap]}
+        before = {i.get("source"): i.get("evidence")
+                  for i in original.get("per_source") or []}
+        for item in entry["result"].get("per_source") or []:
+            source, now = item.get("source"), item.get("evidence")
+            was = before.get(source)
+            if not was or not now or now == was:
+                continue
+            if normalise(now) not in hay.get(source, ""):
+                continue
+            if normalise(was) in hay.get(source, ""):
+                continue
+            score = (0 if now.rstrip()[-1:] in '."\'׳!?' else 1, -len(now))
+            if best is None or score < best[0]:
+                best = (score, {"source": source, "before": was, "after": now,
+                                "headline": event.headline})
+    return best[1] if best else None
+
+
 def main() -> int:
     if not config.SQLITE_PATH.exists():
         print(f"missing snapshot: {config.SQLITE_PATH}", file=sys.stderr)
@@ -1909,6 +2091,9 @@ def main() -> int:
         # stages' own counts rather than recounting them, so it cannot claim
         # a corpus size the six tiles before it disagree with.
         facts["economy"] = build_economy(conn, facts)
+        # after economy, because the repair tile reports its own bill as a
+        # share of the model layer's — and that total is economy's to state.
+        facts["repair"] = build_repair(facts)
     finally:
         conn.close()
 
