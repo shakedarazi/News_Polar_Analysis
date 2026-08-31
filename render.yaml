@@ -12,14 +12,14 @@ services:
         value: 3.11.9
       - key: DATABASE_URL
         sync: false
-      # A real OpenAI key, distinct from the OpenRouter key the ingestion
-      # workflow uses — the two workloads never share a process, so each gets
-      # its own credential from its own environment. Deliberately no
-      # OPENAI_BASE_URL/OPENAI_MODEL here: their absence is what makes
-      # src/nlp/openai_config.py talk to api.openai.com and default to the
-      # bare "gpt-4o-mini" model id this key expects. Setting them would
-      # override the dashboard on every deploy and send this key to OpenRouter.
       - key: OPENAI_API_KEY
         sync: false
+      # OPENAI_API_KEY is an OpenRouter key — these route it there instead of
+      # api.openai.com (see src/nlp/openai_config.py). Not secret, so they're
+      # provisioned automatically instead of requiring manual dashboard entry.
+      - key: OPENAI_BASE_URL
+        value: https://openrouter.ai/api/v1
+      - key: OPENAI_MODEL
+        value: openai/gpt-4o-mini
       - key: CORS_ORIGINS
         sync: false

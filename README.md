@@ -141,24 +141,10 @@ PYTHONPATH=. pytest tests/ -q
 cd frontend && npm run lint && npm run build
 ```
 
-> **Note on `OPENAI_API_KEY`:** the deployed system uses **two different keys**, one per workload, so that the
-> on-demand AI features an end user can trigger from the site never draw on the same quota as the unattended
-> 6-hourly ingestion:
->
-> | Workload | Key | Configured in |
-> |---|---|---|
-> | Site AI (`qa`, `summarize`, `bias`) — on demand, in the API process | real OpenAI (`sk-...`) | Render env vars |
-> | Ingestion (`classify`) — scheduled, in the Actions runner | OpenRouter (`sk-or-v1-...`) | GitHub Actions secret |
->
-> No code knows about this split. `src/nlp/openai_config.py` just reads `OPENAI_API_KEY` / `OPENAI_BASE_URL` from
-> its own environment, and the two workloads never share a process — the API never imports `classify`, and Render
-> never runs ingestion. Routing follows from which env vars are present: the Actions workflow sets
-> `OPENAI_BASE_URL` / `OPENAI_MODEL` to OpenRouter's values, and Render deliberately sets neither, which is what
-> makes it fall through to `api.openai.com` and the bare `gpt-4o-mini` model id.
->
-> Locally there's only one environment, so `.env` holds a single key that serves both — OpenRouter is the simplest
-> choice there. To use a real OpenAI key locally instead, unset `OPENAI_BASE_URL` and `OPENAI_MODEL` (or set
-> `OPENAI_MODEL=gpt-4o-mini`), since provider model ids differ.
+> **Note on `OPENAI_API_KEY`:** in this project it's actually an **OpenRouter** key (`sk-or-v1-...`), not a real
+> OpenAI one. `src/nlp/openai_config.py` routes every OpenAI SDK call through `OPENAI_BASE_URL` /
+> `OPENAI_MODEL` (`https://openrouter.ai/api/v1` / `openai/gpt-4o-mini`) instead of `api.openai.com`. If you swap
+> in a real OpenAI key, unset both (or set `OPENAI_MODEL=gpt-4o-mini`).
 
 ## 🚀 Deployment & Operations
 
@@ -176,16 +162,13 @@ This section is the source of truth for how the system actually runs in the clou
 ### Secrets / env vars
 
 - **GitHub Actions repo secrets** (Settings → Secrets and variables → Actions): `DATABASE_URL`, `OPENAI_API_KEY`
-  — consumed only by the ingestion workflow. This `OPENAI_API_KEY` is the **OpenRouter** one.
+  — consumed only by the ingestion workflow.
 - **Render service env vars**: `DATABASE_URL`, `OPENAI_API_KEY`, `CORS_ORIGINS` — all marked `sync: false` in
-  `render.yaml`, so they must be filled in by hand in the Render dashboard (not auto-provisioned). This
-  `OPENAI_API_KEY` is the **real OpenAI** one; despite sharing a name it is a different key from the secret above.
+  `render.yaml`, so they must be filled in by hand in the Render dashboard (not auto-provisioned).
 - **Vercel project env var**: `NEXT_PUBLIC_API_URL` — the Render service's public URL.
 
-`OPENAI_BASE_URL` / `OPENAI_MODEL` aren't secret and are baked into `.github/workflows/ingestion.yml` — nothing to
-configure by hand for them there. They are intentionally **absent** from `render.yaml`: adding them back would
-re-provision OpenRouter routing on every deploy, overriding the dashboard and sending the OpenAI key to the wrong
-host (a 401). Their absence is load-bearing, not an oversight.
+`OPENAI_BASE_URL` / `OPENAI_MODEL` aren't secret and are already baked into both `.github/workflows/ingestion.yml`
+and `render.yaml` — nothing to configure by hand for them (see the OpenRouter note above).
 
 ### One-time provisioning
 
