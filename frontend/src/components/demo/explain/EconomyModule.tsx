@@ -15,7 +15,6 @@ const TABS: TabDef[] = [
   { id: "tiers", label_he: "שני שלבים משלמים" },
   { id: "sent", label_he: "מה נשלח למודל" },
   { id: "bill", label_he: "החשבון" },
-  { id: "limits", label_he: "מה לא נספר" },
 ];
 
 interface Props {
@@ -41,7 +40,6 @@ export function EconomyModule({ facts }: Props) {
       {tab === "tiers" && <Tiers facts={facts} />}
       {tab === "sent" && <Sent facts={facts} />}
       {tab === "bill" && <Bill facts={facts} />}
-      {tab === "limits" && <Limits facts={facts} />}
     </div>
   );
 }
@@ -292,6 +290,13 @@ function Sent({ facts }: Props) {
               <b>{pct(e.prompt.system_share_of_prompt)}</b> מהקלט — הם אותה
               הנחיה, שנשלחת מחדש בכל קריאה.
             </p>
+            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
+              התכלת היא התוכן, ורק באחת מהשתיים הוא מאוחזר. המסגור מקבל את
+              הכתבה שלו. ההשוואה מקבלת{" "}
+              {e.constants.contrast_versions} גרסאות שהאחזור בחר מתוך{" "}
+              {num(facts?.retrieval.corpus.indexed ?? 0)} — <b>RAG</b>, כי אין
+              דרך לענות מכתבה אחת מה ייחודי בגרסה הזאת.
+            </p>
           </div>
         ) : (
           <Missing />
@@ -497,82 +502,15 @@ function Bill({ facts }: Props) {
               קובץ השימוש מחזיק סכום אחד. הקלט חולק לפי התווים שנמדדו בכל סוג
               קריאה, הפלט לפי אורך התשובות השמורות. הסכום מדוד, החלוקה נגזרת.
             </Caveat>
-          </div>
-        ) : (
-          <Missing />
-        )}
-      </Panel>
-    </div>
-  );
-}
-
-/* ── 4. the strawman, and the exclusions ────────────────────────── */
-
-function Limits({ facts }: Props) {
-  const e = facts?.economy;
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
-      <Panel title="מה שיקר הוא ההנחיה, לא המודל" hint="אומדן לפי השער שנמדד">
-        {e ? (
-          <div className="flex flex-col gap-2.5">
-            <div className="grid grid-cols-2 gap-2">
-              <Big value={usd(e.bill.usd)} label="הארכיטקטורה שנבנתה" tone="good" />
-              <Big value={usd(e.strawman.usd)} label={`אותו קורפוס דרך מודל · פי ${e.strawman.ratio}`} tone="bad" />
-            </div>
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              {num(e.strawman.calls)} קריאות באומדן, אחת לכל כתבה ולכל תגובה.{" "}
-              <b>{pct(e.strawman.system_share)}</b> מהקלט בהן הוא אותה הנחיה.
-              המודל לא יקר. יקר לשלם אותה הנחיה {num(e.strawman.calls)} פעמים.
-            </p>
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              בקצב תמונת המצב ({e.strawman.days} ימים,{" "}
-              {num(e.strawman.articles)} כתבות) זה כ־{usd(e.strawman.month_usd)}{" "}
-              בחודש, מול {usd(e.strawman.agents_month_usd)} לשכבת הסוכנים.
-            </p>
             <Caveat>
-              שני אומדנים לאותו תרחיש. הסצנה סופרת כתבות בלבד ({usd(e.strawman.scene.usd)}{" "}
-              על {num(e.strawman.scene.articles)} כתבות,{" "}
-              {e.strawman.scene.prompt_per_article}+
-              {e.strawman.scene.completion_per_article} טוקנים לכתבה). כאן
-              נספרות גם {num(e.strawman.comments)} התגובות. אף אחד מהם לא רץ.
+              החשבון הזה הוא שכבת הסוכנים בלבד. מחוצה לו:{" "}
+              {e.excluded
+                .filter((x) => x.usd !== null)
+                .map((x) => `${x.label_he} ~${usd(x.usd as number)}`)
+                .join(" · ")}
+              . מסווג הקטגוריות לבדו גדול משכבת הסוכנים כולה, כי הוא רץ על{" "}
+              <b>כל</b> כתבה ולא רק על אירועים חוצי־ערוצים.
             </Caveat>
-          </div>
-        ) : (
-          <Missing />
-        )}
-      </Panel>
-
-      <Panel title="ההוצאה הגדולה במערכת היא מסווג הקטגוריות">
-        {e ? (
-          <div className="flex flex-col gap-2">
-            {e.excluded.map((x) => (
-              <div
-                key={x.key}
-                className="rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/40 px-3 py-2"
-              >
-                <div className="flex items-baseline gap-2">
-                  <span className="text-[15.5px] font-bold">{x.label_he}</span>
-                  {x.usd !== null && (
-                    <Chip tone="warn">
-                      <span dir="ltr">~{usd(x.usd)}</span>
-                    </Chip>
-                  )}
-                  {x.n !== null && x.unit_he && (
-                    <span className="text-[13px] text-[var(--dk-ink-3)]">
-                      {num(x.n)} {x.unit_he}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-0.5 text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-                  {x.detail_he}
-                </p>
-              </div>
-            ))}
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              מסווג הקטגוריות צורך יותר טוקנים משכבת הסוכנים כולה — הוא רץ על{" "}
-              <b>כל</b> כתבה.
-            </p>
           </div>
         ) : (
           <Missing />

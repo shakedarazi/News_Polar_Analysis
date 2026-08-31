@@ -521,6 +521,168 @@ def build_retrieval(conn: sqlite3.Connection) -> dict:
         "sweep": sweep,
         "example": example,
         "duplicates": duplicates,
+        "slots": _slot_policies(snap, events, articles),
+    }
+
+
+def _slot_policies(snap, events, articles) -> dict:
+    """How current a news retrieval index has to be, and what keeps it that way.
+
+    The live index has no window and no eviction: it holds every indexed
+    article, 1.1 MB, a full dot product per query. At 4.8 days of corpus that
+    is the right call, and the honest thing to show is what changes when the
+    corpus is a year instead of a week.
+
+    Two measurements, in the order the decision is actually made. First the
+    data's own time constant — how long after a story breaks its other versions
+    still arrive — because that, not memory, is what sets the window. Then a
+    replay of the real arrival order through a K-slot index under four textbook
+    policies, to see which one a rolling window should be implemented as.
+
+    Deterministic: the random-replacement arm is seeded, everything else is a
+    pure function of arrival order.
+    """
+    import random
+    from datetime import datetime
+
+    # Only articles that are actually in the index enter the stream. The set is
+    # taken from the index itself rather than re-derived from a length rule, so
+    # this table cannot drift from the vectors it describes.
+    order = sorted((a for a in articles.values()
+                    if a["article_id"] in snap.vec_by_id),
+                   key=lambda a: (a["first_seen_at"] or "", a["article_id"]))
+    position = {a["article_id"]: i for i, a in enumerate(order)}
+    fire_at: dict[int, list] = {}
+    for event in events:
+        ids = [v.article_id for v in event.versions if v.article_id in position]
+        if len(ids) < 2:
+            continue
+        last = max(ids, key=lambda x: position[x])
+        fire_at.setdefault(position[last], []).append((last, ids))
+
+    def replay(k: int, policy: str, seed: int = 7) -> tuple[int, int]:
+        rng = random.Random(seed)
+        resident: dict[str, None] = {}   # insertion order doubles as FIFO order
+        used: dict[str, int] = {}
+        recency: dict[str, int] = {}
+        clock = 0
+        found = total = 0
+
+        def touch(aid: str) -> None:
+            nonlocal clock
+            clock += 1
+            recency[aid] = clock
+            used[aid] = used.get(aid, 0) + 1
+
+        def evict() -> None:
+            if policy == "fifo":
+                victim = next(iter(resident))
+            elif policy == "lru":
+                victim = min(resident, key=lambda a: recency.get(a, 0))
+            elif policy == "lfu":
+                victim = min(resident,
+                             key=lambda a: (used.get(a, 0), recency.get(a, 0)))
+            else:
+                victim = rng.choice(list(resident))
+            resident.pop(victim, None)
+
+        for i, article in enumerate(order):
+            aid = article["article_id"]
+            if aid not in resident:
+                if len(resident) >= k:
+                    evict()
+                resident[aid] = None
+            touch(aid)
+            for query_id, ids in fire_at.get(i, []):
+                siblings = [x for x in ids if x != query_id]
+                total += len(siblings)
+                for sibling in siblings:
+                    if sibling in resident:
+                        found += 1
+                        touch(sibling)
+        return found, total
+
+    policies = [
+        {"key": "fifo", "label_he": "הנכנס הראשון יוצא ראשון",
+         "note_he": "בלי חשבונאות לכל גישה"},
+        {"key": "lru", "label_he": "הכי מזמן שהיה בשימוש",
+         "note_he": "שעון גישה לכל פריט"},
+        {"key": "lfu", "label_he": "הכי מעט בשימוש",
+         "note_he": "מונה גישות לכל פריט"},
+        {"key": "rr", "label_he": "פינוי אקראי",
+         "note_he": "ממוצע 20 ריצות, בסיס להשוואה"},
+    ]
+    sizes = [50, 100, 200, 400, len(order) // 2, len(order)]
+    sizes = sorted({s for s in sizes if 0 < s <= len(order)})
+    # The random arm is stochastic, so one seed is an anecdote: at some K a
+    # lucky draw beats every deterministic policy. It is averaged over
+    # RR_SEEDS runs and labelled as a mean; the other three are deterministic
+    # and run once.
+    rr_seeds = 20
+    rows = []
+    for k in sizes:
+        row = {"k": k}
+        for policy in policies:
+            if policy["key"] == "rr":
+                results = [replay(k, "rr", seed)[0] for seed in range(rr_seeds)]
+                row["rr"] = round(sum(results) / len(results))
+                row["total"] = replay(k, "fifo")[1]
+            else:
+                found, total = replay(k, policy["key"])
+                row[policy["key"]] = found
+                row["total"] = total
+        rows.append(row)
+
+    # ---- the time constant: how long a story keeps collecting versions
+    def parsed(value):
+        try:
+            return datetime.fromisoformat(value) if value else None
+        except ValueError:
+            return None
+
+    arrivals = [parsed(a["first_seen_at"]) for a in order]
+    arrivals = [a for a in arrivals if a]
+    corpus_hours = ((max(arrivals) - min(arrivals)).total_seconds() / 3600
+                    if len(arrivals) > 1 else 0.0)
+    per_day = len(arrivals) / (corpus_hours / 24) if corpus_hours else 0.0
+
+    spans = []
+    for event in events:
+        stamps = [parsed(articles[v.article_id]["first_seen_at"])
+                  for v in event.versions if v.article_id in articles]
+        stamps = [s for s in stamps if s]
+        if len(stamps) >= 2:
+            spans.append((max(stamps) - min(stamps)).total_seconds() / 3600)
+    spans.sort()
+
+    def quantile(q: float) -> float:
+        if not spans:
+            return 0.0
+        return round(spans[min(len(spans) - 1, int(len(spans) * q))], 1)
+
+    windows = [{"hours": w,
+                "covered": round(sum(1 for s in spans if s <= w) / len(spans), 4)
+                if spans else 0.0,
+                "slots": int(round(per_day * w / 24))}
+               for w in (6, 12, 24, 48, 72, 168)]
+
+    return {
+        "policies": policies,
+        "rows": rows,
+        "corpus": len(order),
+        "freshness": {
+            "events": len(spans),
+            "corpus_days": round(corpus_hours / 24, 1),
+            "per_day": round(per_day),
+            "p50_hours": quantile(0.50),
+            "p75_hours": quantile(0.75),
+            "p90_hours": quantile(0.90),
+            "windows": windows,
+        },
+        # what the live system does today — stated so the table above cannot be
+        # mistaken for a description of it
+        "current": {"window_hours": None, "policy": None,
+                    "resident": len(order)},
     }
 
 

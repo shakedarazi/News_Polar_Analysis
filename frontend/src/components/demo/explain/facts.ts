@@ -143,6 +143,23 @@ export interface RetrievalNeighbour {
   kept: boolean;
 }
 
+/** A bounded-index replay: which slot a rolling news window should give up. */
+export interface RetrievalSlots {
+  policies: { key: string; label_he: string; note_he: string }[];
+  rows: Record<string, number>[];
+  corpus: number;
+  freshness: {
+    events: number;
+    corpus_days: number;
+    per_day: number;
+    p50_hours: number;
+    p75_hours: number;
+    p90_hours: number;
+    windows: { hours: number; covered: number; slots: number }[];
+  };
+  current: { window_hours: number | null; policy: string | null; resident: number };
+}
+
 export interface RetrievalFacts {
   model: string;
   dims: number;
@@ -213,6 +230,7 @@ export interface RetrievalFacts {
       id_b: string;
     }[];
   };
+  slots: RetrievalSlots;
 }
 
 export interface FramingOutput {
