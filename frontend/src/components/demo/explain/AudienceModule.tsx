@@ -195,6 +195,12 @@ function Dictionary({ facts }: Props) {
               אופליין — כך אפשר לומר על כל מספר מאיזו מילה הוא בא ומי הכניס
               אותה.
             </p>
+            <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
+              מה זה קונה: כששואלים למה{" "}
+              <b>{r.top_affective[0]?.word}</b> נספרת, התשובה היא מדידה שפורסמה
+              ולא הטעם שלנו — וזה ההבדל בין מדד שאפשר להגן עליו לבין דעה עם
+              מספרים.
+            </p>
           </div>
         ) : (
           <Missing />
@@ -265,7 +271,7 @@ function Measures({ facts }: Props) {
 
   return (
     <Stage cols="grid-cols-[52%_1fr]">
-      <Panel title="כל מה שנמדד, ומה כל מספר מספר על הקהל">
+      <Panel title="שבעה מספרים, ולכל אחד תפקיד אחד" hint="כל טווח נאמר עם שני הקצוות שלו">
         {c && g && h && q !== undefined ? (
           <div className="flex flex-col gap-3">
             <table className="w-full text-[16px]">
@@ -282,43 +288,45 @@ function Measures({ facts }: Props) {
                   {
                     f: "polar_count",
                     what: "מילים מהמילון בתגובה",
-                    range: "0 ומעלה",
-                    learn: "כמה מהדיון מנוסח בשפה מקטבת",
+                    range: "0 = אף אחת · בלי תקרה",
+                    learn: "ספירה גולמית — מודדת גם אורך, ולכן אינה הציון",
                   },
                   {
                     f: "comment_len",
                     what: "מילים בתגובה",
-                    range: `1 ומעלה · חציון ${c.len_median}`,
-                    learn: "המכנה שמנטרל אורך — בלעדיו נמדד מי כתב ארוך",
+                    range: `1 = מילה אחת · חציון ${c.len_median} · הארוכה ${c.len_max}`,
+                    learn: "המכנה שמנטרל אורך — בלעדיו מדדנו מי כתב יותר",
                   },
                   {
                     f: "polar_ratio",
                     what: "החלק הטעון מתוך התגובה",
-                    range: "0 – 1",
+                    range: "0 = נקייה · 1 = כל מילה טעונה",
                     learn: "עוצמת התגובה הבודדת, בלי קשר לאורכה",
                   },
                   {
                     f: "engagement_weight",
                     what: "כמה קוראים אהבו אותה",
-                    range: `1 עד ${peak ? peak.weight.toFixed(1) : "—"}`,
-                    learn: "כמה משקל היא מקבלת בציון הכתבה",
+                    range: peak
+                      ? `1 = בלי לייקים · ${peak.weight.toFixed(1)} = ${num(peak.likes)} לייקים, השיא בסנאפשוט`
+                      : "1 ומעלה",
+                    learn: "כמה מהציון של הכתבה התגובה הזו רשאית לקבוע",
                   },
                   {
                     f: "audience_mean",
                     what: "הממוצע המשוקלל של הכתבה",
-                    range: `0 – 1 · חציון ${g.mean_median.toFixed(4)}`,
-                    learn: "כמה טעון הדיון כולו, כולל השותקים",
+                    range: `0 = איש לא נגע במילון · 1 = כולם · חציון ${g.mean_median.toFixed(4)}`,
+                    learn: "כמה טעון הדיון כולו — כולל מי שלא אמר כלום",
                   },
                   {
                     f: "audience_p85",
                     what: "הקצה העליון של הדיון",
-                    range: `0 – 1 · חציון ${g.p85_median.toFixed(4)}`,
-                    learn: "כמה טעון הקול החזק בכתבה",
+                    range: `0 = גם הקצה נקי · 1 = הקצה כולו טעון · חציון ${g.p85_median.toFixed(4)}`,
+                    learn: "כמה טעון הקול החזק — וזה הציון שמוצג באתר",
                   },
                   {
                     f: "נושא התגובות",
                     what: "לאיזו קטגוריה נופלות כל התגובות יחד",
-                    range: "7 קטגוריות",
+                    range: "אחת מ־7 קטגוריות",
                     learn: `ב־${h.hijacked} מ־${h.comparable} הכתבות הוא שונה מנושא הכתבה`,
                   },
                 ].map((row) => (
@@ -370,7 +378,8 @@ function Measures({ facts }: Props) {
             <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
               אחוזון {qLabel(q)} — הערך שמתחתיו נמצאות {qLabel(q)}% מהתגובות —
               שואל במקום זה כמה טעון הקצה הקולני. אותן תגובות, שתי קריאות, פי{" "}
-              {factor}.
+              {factor}. הרווח: אותו צינור ואותם נתונים, אפס עלות נוספת — רק
+              שאלה אחרת.
             </p>
             <div className="grid grid-cols-2 gap-2.5">
               <MetricCard
@@ -399,12 +408,14 @@ function Measures({ facts }: Props) {
               />
             </div>
             <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
-              בשתי הקריאות תגובה אהודה שוקלת יותר, לפי{" "}
+              תגובה אהודה שוקלת יותר, והשאלה היא כמה. שקלול לפי מספר הלייקים
+              עצמו היה נותן לתגובה עם {num(peak.likes)} לייקים את משקלן של{" "}
+              {num(peak.likes + 1)} תגובות, וכתבה שלמה הייתה נקבעת בשורה אחת.{" "}
               <code dir="ltr" className="font-mono text-[16px]">
                 1 + ln(1 + likes)
-              </code>
-              : התגובה עם {num(peak.likes)} לייקים שוקלת {peak.weight.toFixed(1)}{" "}
-              ולא {num(peak.likes + 1)}, ולכן שורה ויראלית אחת לא קובעת כתבה.
+              </code>{" "}
+              מקצץ אותה ל־{peak.weight.toFixed(1)}: הקהל עדיין נשמע, אף אחד לא
+              קונה את הכתבה.
             </p>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-3)]">
               ‏{noLikes.map((s) => s.source_he).join(" ו־")} לא חושפים ספירת
