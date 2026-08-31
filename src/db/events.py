@@ -87,6 +87,53 @@ def _bias_distribution(rows: list[dict]) -> dict[str, int] | None:
     return counts or None
 
 
+def _count_bias_labels(
+    ids_by_event: dict[str, list[str]], label_by_article: dict[str, str]
+) -> dict[str, dict[str, int]]:
+    """Tally bias labels per event. Events with no labelled article are
+    omitted entirely, matching get_event_detail()'s `bias_distribution: None`."""
+    distributions: dict[str, dict[str, int]] = {}
+    for event_id, article_ids in ids_by_event.items():
+        counts: dict[str, int] = {}
+        for article_id in article_ids:
+            label = label_by_article.get(article_id)
+            if label:
+                counts[label] = counts.get(label, 0) + 1
+        if counts:
+            distributions[event_id] = counts
+    return distributions
+
+
+def get_events_bias_distributions(events: list[dict]) -> dict[str, dict[str, int]]:
+    """Bias-label counts for many events, in a single query.
+
+    Events from get_events() already carry their own `article_ids`, so a
+    caller that only needs the bias mix must not go back through
+    get_event_detail(): that re-runs the whole clustering pass per event
+    (get_event_article_ids) and then fetches the full timeline payload. Doing
+    that once per event is what made GET /api/alerts take ~24s.
+    """
+    ids_by_event = {e["event_id"]: e["article_ids"] for e in events}
+    all_ids = sorted({aid for ids in ids_by_event.values() for aid in ids})
+    if not all_ids:
+        return {}
+
+    require_database_url()
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT article_id, bias_label
+                FROM articles
+                WHERE article_id = ANY(%s) AND bias_label IS NOT NULL
+                """,
+                (all_ids,),
+            )
+            label_by_article = {row[0]: row[1] for row in cur.fetchall()}
+
+    return _count_bias_labels(ids_by_event, label_by_article)
+
+
 def list_events(
     *,
     category: str | None = None,

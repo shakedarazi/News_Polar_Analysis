@@ -106,9 +106,9 @@ def _fetch_window_articles(previous_start: datetime) -> list[dict]:
             return [dict(zip(columns, r)) for r in cur.fetchall()]
 
 
-def _event_candidates(current_start: datetime) -> list[dict]:
+def _event_candidates(current_start: datetime, events: list[dict] | None = None) -> list[dict]:
     candidates = []
-    for event in get_events(limit=100):
+    for event in get_events(limit=100) if events is None else events:
         members = event["members"]
         current_ids = {m["article_id"] for m in members if m["first_seen_at"] >= current_start}
         if not current_ids:
@@ -250,14 +250,19 @@ def _finalize(item: dict, rank: int, now: datetime) -> dict:
     }
 
 
-def get_trending_topics(limit: int = DEFAULT_LIMIT) -> list[dict]:
+def get_trending_topics(limit: int = DEFAULT_LIMIT, *, events: list[dict] | None = None) -> list[dict]:
+    """`events` lets a caller that already ran get_events() hand the result in
+    rather than paying for a second clustering pass over the whole corpus.
+    It must be get_events(limit=100) output — the same thing this would fetch."""
     require_database_url()
     now = datetime.now(timezone.utc)
     current_start = now - timedelta(hours=CURRENT_WINDOW_HOURS)
     previous_start = current_start - timedelta(hours=COMPARISON_WINDOW_HOURS)
 
     articles = _fetch_window_articles(previous_start)
-    candidates = _event_candidates(current_start) + _entity_candidates(articles, current_start)
+    candidates = _event_candidates(current_start, events) + _entity_candidates(
+        articles, current_start
+    )
 
     for c in candidates:
         growth_pct = (

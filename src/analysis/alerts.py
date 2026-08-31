@@ -58,12 +58,12 @@ def _today_key() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
-def detect_topic_spikes() -> list[dict]:
+def detect_topic_spikes(events: list[dict] | None = None) -> list[dict]:
     """Despite the name (kept for dedup_key/alert_type stability), this now
     covers both trending event and trending entity/phrase items — see
     src/db/trending.py, which no longer groups by generic category."""
     candidates = []
-    for item in get_trending_topics(limit=12):
+    for item in get_trending_topics(limit=12, events=events):
         if item["current_count"] < TOPIC_SPIKE_MIN_ARTICLES:
             continue
         is_spike = item["direction"] == "new" or (
@@ -223,17 +223,26 @@ def detect_sentiment_shifts() -> list[dict]:
     return candidates
 
 
-def detect_event_polarization() -> list[dict]:
-    from src.db.events import get_event_detail
+def detect_event_polarization(events: list[dict] | None = None) -> list[dict]:
+    from src.db.events import get_events_bias_distributions
+
+    # Only the bias mix is needed here, and get_events() already returns each
+    # event's article_ids — so this asks for all of them in one query rather
+    # than calling get_event_detail() per event (which re-clusters the whole
+    # corpus every time; see get_events_bias_distributions).
+    gated = [
+        e
+        for e in (get_events(limit=30) if events is None else events)
+        if e["source_count"] >= POLARIZATION_MIN_DISTINCT_LABELS
+    ]
+    distributions = get_events_bias_distributions(gated)
 
     candidates = []
-    for event in get_events(limit=30):
-        if event["source_count"] < POLARIZATION_MIN_DISTINCT_LABELS:
+    for event in gated:
+        distribution = distributions.get(event["event_id"])
+        if not distribution:
             continue
-        detail = get_event_detail(event["event_id"])
-        if not detail or not detail["bias_distribution"]:
-            continue
-        distinct_labels = [label for label, count in detail["bias_distribution"].items() if count > 0]
+        distinct_labels = [label for label, count in distribution.items() if count > 0]
         if len(distinct_labels) < POLARIZATION_MIN_DISTINCT_LABELS:
             continue
         labels_str = ", ".join(distinct_labels)
@@ -257,10 +266,10 @@ def detect_event_polarization() -> list[dict]:
     return candidates
 
 
-def detect_new_developing_events() -> list[dict]:
+def detect_new_developing_events(events: list[dict] | None = None) -> list[dict]:
     now = datetime.now(timezone.utc)
     candidates = []
-    for event in get_events(limit=30):
+    for event in get_events(limit=30) if events is None else events:
         if event["source_count"] < DEVELOPING_EVENT_MIN_SOURCES:
             continue
         age_hours = (now - event["last_seen_at"]).total_seconds() / 3600.0
@@ -287,10 +296,16 @@ def detect_new_developing_events() -> list[dict]:
 
 
 def detect_all_alerts() -> list[dict]:
+    # Three of these detectors need the event clustering, and re-deriving it
+    # per detector meant three full passes over the corpus per request. It is
+    # computed once here and handed down; get_events() sorts by last_seen_at
+    # before truncating, so events[:30] is exactly get_events(limit=30).
+    # Each detector still works standalone with events=None.
+    events = get_events(limit=100)
     return [
-        *detect_topic_spikes(),
+        *detect_topic_spikes(events),
         *detect_source_activity(),
         *detect_sentiment_shifts(),
-        *detect_event_polarization(),
-        *detect_new_developing_events(),
+        *detect_event_polarization(events[:30]),
+        *detect_new_developing_events(events[:30]),
     ]
