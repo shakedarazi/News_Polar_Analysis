@@ -6,19 +6,15 @@ import {
   Caveat,
   Chip,
   CodeRef,
-  MetricCard,
-  Node,
   Panel,
   SubNav,
   type TabDef,
 } from "./kit";
 
 const TABS: TabDef[] = [
-  { id: "where", label_he: "שני שלבים משלמים" },
+  { id: "tiers", label_he: "שני שלבים משלמים" },
   { id: "sent", label_he: "מה נשלח למודל" },
-  { id: "rate", label_he: "תווים לטוקן" },
   { id: "bill", label_he: "החשבון" },
-  { id: "cache", label_he: "מה המטמון קונה" },
   { id: "limits", label_he: "מה לא נספר" },
 ];
 
@@ -27,28 +23,24 @@ interface Props {
 }
 
 /**
- * Module: the token economy — what the model layer cost, and where no model
- * was used at all.
+ * Module: the token economy.
  *
- * The interesting number here is not the total; a few cents impresses nobody
- * and proves nothing. What the module argues is the shape of the bill: eight
- * of ten stages never call a model, more than a third of the prompt spend is
- * instruction text re-sent on every call, a fifth of the tokens are half the
- * money, and the strawman this architecture avoids is two orders of magnitude
- * away — not because the model is expensive, but because calling it per item
- * pays the fixed overhead 39,670 times.
+ * The interesting number is not the total; a few cents impresses nobody. What
+ * the module argues is the shape of the bill — which tier each stage belongs
+ * to, that a third of the prompt spend is instruction text re-sent on every
+ * call, that a fifth of the tokens are half the money, and that the strawman
+ * this architecture avoids is two orders of magnitude away because calling a
+ * model per item pays the fixed overhead 39,670 times.
  */
 export function EconomyModule({ facts }: Props) {
-  const [tab, setTab] = useState("where");
+  const [tab, setTab] = useState("tiers");
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <SubNav tabs={TABS} active={tab} onSelect={setTab} />
-      {tab === "where" && <Where facts={facts} />}
+      {tab === "tiers" && <Tiers facts={facts} />}
       {tab === "sent" && <Sent facts={facts} />}
-      {tab === "rate" && <Rate facts={facts} />}
       {tab === "bill" && <Bill facts={facts} />}
-      {tab === "cache" && <CacheTab facts={facts} />}
       {tab === "limits" && <Limits facts={facts} />}
     </div>
   );
@@ -134,7 +126,15 @@ function SplitBar({
   );
 }
 
-/* ── 1. where a model is needed at all ──────────────────────────── */
+function Missing() {
+  return (
+    <p className="text-[15px] text-[var(--dk-ink-3)]">
+      אין קובץ מדידות — הדיאגרמות מוצגות בלי המספרים.
+    </p>
+  );
+}
+
+/* ── 1. the tiers ───────────────────────────────────────────────── */
 
 const KIND_LABEL: Record<EconomyStage["kind"], string> = {
   free: "תשובה אחת בקוד",
@@ -169,12 +169,12 @@ function StageRow({ stage, model }: { stage: EconomyStage; model: string }) {
   );
 }
 
-function Where({ facts }: Props) {
+function Tiers({ facts }: Props) {
   const e = facts?.economy;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[30%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
+    <div className="grid min-h-0 flex-1 grid-cols-[32%_1fr] gap-3">
+      <div className="flex min-h-0 flex-col gap-3">
         <Panel title="‏8 מתוך 10 שלבים לא קוראים למודל">
           <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
             מודל שפה אינו דטרמיניסטי. איפה שיש תשובה מחושבת — עונה הקוד.
@@ -236,7 +236,7 @@ function Sent({ facts }: Props) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
-      <Panel title="ההנחיה הקבועה נשלחת שוב בכל קריאה" hint="תווים ששוחזרו מהקריאות ששולמו">
+      <Panel title="ההנחיה הקבועה נשלחת שוב בכל קריאה">
         {e ? (
           <div className="flex flex-col gap-3">
             <div>
@@ -298,7 +298,10 @@ function Sent({ facts }: Props) {
         )}
       </Panel>
 
-      <Panel title="החיתוך חסך יותר טוקנים מכל מה ששולם">
+      <Panel
+        title="החיתוך חסך יותר טוקנים מכל מה ששולם"
+        hint={e ? `שער ההמרה נמדד: ${e.rate.chars_per_token.toFixed(2)} תווים לטוקן` : undefined}
+      >
         {e ? (
           <div className="flex flex-col gap-2.5">
             <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
@@ -340,10 +343,10 @@ function Sent({ facts }: Props) {
               </Chip>
             </div>
             <Caveat>
-              קריאת ההשוואה אורזת כמה גרסאות בהודעה אחת, ולכן חותכת כל אחת
-              ב־{e.constants.contrast_lead_chars}. המאמת בודק מול{" "}
-              {e.constants.lead_chars} — חלון רחב יותר, ולכן ציטוט לא נפסל על
-              טקסט שהמודל קיבל.
+              השער נמדד: {num(e.rate.prompt_chars)} תווים ששוחזרו חלקי{" "}
+              {num(e.rate.prompt_tokens)} טוקנים שחויבו. בצד הפלט הוא{" "}
+              {e.rate.output_chars_per_token.toFixed(2)} — פער של{" "}
+              {pct(e.rate.gap, 1)}, כי המטמון שומר את התשובה אחרי פענוח.
             </Caveat>
           </div>
         ) : (
@@ -354,165 +357,7 @@ function Sent({ facts }: Props) {
   );
 }
 
-/* ── 3. the exchange rate ───────────────────────────────────────── */
-
-function Rate({ facts }: Props) {
-  const e = facts?.economy;
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[38%_1fr] gap-3">
-      <Panel title="השער נמדד, לא הונח">
-        {e ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              תווים ששוחזרו, חלקי טוקנים שחויבו. השער של הקורפוס הזה, לא כלל
-              אצבע.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Big value={e.rate.chars_per_token.toFixed(2)} label="תווים לטוקן בקלט" />
-              <Big
-                value={e.rate.output_chars_per_token.toFixed(2)}
-                label="תווים לטוקן בפלט"
-                tone="muted"
-              />
-            </div>
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              פער של {pct(e.rate.gap, 1)} בין קלט לפלט: המטמון שומר את התשובה{" "}
-              <b>אחרי פענוח</b>, קצרה מעט מזו שחויבה. לכן שני המספרים נשארים
-              בנפרד.
-            </p>
-          </div>
-        ) : (
-          <Missing />
-        )}
-      </Panel>
-
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="שלוש דוגמאות בשער הזה">
-          {e ? (
-            <div className="flex flex-col gap-2">
-              {e.rate.examples.map((x) => (
-                <div
-                  key={x.label_he}
-                  className="flex items-center gap-3 rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/50 px-3 py-2"
-                >
-                  <span className="flex-1 text-[15.5px]">{x.label_he}</span>
-                  <span
-                    dir="ltr"
-                    className="w-[110px] text-left font-mono text-[14.5px] text-[var(--dk-ink-2)]"
-                  >
-                    {num(x.chars)} chars
-                  </span>
-                  <span className="text-[var(--dk-ink-3)]">←</span>
-                  <span
-                    dir="ltr"
-                    className="w-[96px] text-left font-mono text-[16px] font-bold text-[var(--dk-accent)]"
-                  >
-                    ~{num(x.tokens)} tok
-                  </span>
-                </div>
-              ))}
-              <div className="mt-1 grid grid-cols-2 gap-2">
-                <div className="rounded-xl border border-[var(--dk-border)] p-2.5">
-                  <div className="text-[14px] text-[var(--dk-ink-3)]">
-                    תווי קלט ששוחזרו
-                  </div>
-                  <div dir="ltr" className="font-mono text-[19px] font-bold">
-                    {num(e.rate.prompt_chars)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-[var(--dk-border)] p-2.5">
-                  <div className="text-[14px] text-[var(--dk-ink-3)]">
-                    טוקני קלט שחויבו
-                  </div>
-                  <div dir="ltr" className="font-mono text-[19px] font-bold">
-                    {num(e.rate.prompt_tokens)}
-                  </div>
-                </div>
-              </div>
-              <Caveat>
-                נמדד על עברית עיתונאית מול {e.constants.model}, וכולל את תקורת
-                פורמט השיחה. לא תקף לשפה אחרת ולא למודל אחר.
-              </Caveat>
-            </div>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-        <Panel title="שלושה ברזים, אחד עדיין פתוח" hint="כל אחד מהם נמדד, לא נאמד">
-          {e ? (
-            <ol className="flex flex-col gap-2">
-              <Lever
-                n={1}
-                title="ההנחיה הקבועה"
-                tokens={`${num(e.prompt.system_tokens)} טוקנים שולמו`}
-                body={`אותו טקסט, ${e.bill.calls} פעמים. ${pct(
-                  e.prompt.system_share_of_prompt,
-                )} מהקלט.`}
-                tone="bad"
-              />
-              <Lever
-                n={2}
-                title={`החיתוך ב־${e.constants.lead_chars} תווים`}
-                tokens={`${num(e.truncation.dropped_tokens)} טוקנים נחסכו`}
-                body={`בלי החיתוך: ${num(
-                  e.truncation.would_be_prompt_tokens,
-                )} טוקנים במקום ${num(e.bill.prompt_tokens)}.`}
-                tone="good"
-              />
-              <Lever
-                n={3}
-                title="תקרות הפלט"
-                tokens={`${e.bill.completion_per_call} טוקנים לקריאה בממוצע`}
-                body={`${e.constants.framing_max_tokens} ו־${e.constants.contrast_max_tokens} — רשת ביטחון, לא בלם. הפלט הוא ${pct(
-                  e.bill.completion_bill_share,
-                )} מהחשבון.`}
-                tone="warn"
-              />
-            </ol>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-      </div>
-    </div>
-  );
-}
-
-
-/** One measured cost lever: what it is, what it moved, and in which direction. */
-function Lever({
-  n,
-  title,
-  tokens,
-  body,
-  tone,
-}: {
-  n: number;
-  title: string;
-  tokens: string;
-  body: string;
-  tone: "good" | "bad" | "warn";
-}) {
-  return (
-    <li className="flex items-start gap-3 rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/40 px-3 py-2">
-      <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--dk-border)] font-mono text-[13px] text-[var(--dk-ink-3)]">
-        {n}
-      </span>
-      <div className="flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-[15.5px] font-bold">{title}</span>
-          <Chip tone={tone}>{tokens}</Chip>
-        </div>
-        <p className="mt-0.5 text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-          {body}
-        </p>
-      </div>
-    </li>
-  );
-}
-
-/* ── 4. the bill ────────────────────────────────────────────────── */
+/* ── 3. the bill ────────────────────────────────────────────────── */
 
 function Bill({ facts }: Props) {
   const e = facts?.economy;
@@ -566,9 +411,21 @@ function Bill({ facts }: Props) {
                 <b>{pct(e.bill.completion_bill_share)}</b> מהחשבון. טוקן פלט
                 עולה פי{" "}
                 {(e.bill.price_completion_per_m / e.bill.price_prompt_per_m).toFixed(0)}{" "}
-                מטוקן קלט.
+                מטוקן קלט, ולכן הבלם הוא תקרת הפלט (
+                <span dir="ltr">
+                  {e.constants.framing_max_tokens}/{e.constants.contrast_max_tokens}
+                </span>
+                ) ולא אורך הפתיח.
               </p>
             </div>
+            <Caveat>
+              הסכום שולם פעם אחת, בזמן ההכנה. בזמן התצוגה יש{" "}
+              {e.cache.showtime_calls} קריאות מודל: המסך מנגן{" "}
+              {e.cache.entries} תשובות שמורות. מה שזה קונה הוא ריצה בלי רשת
+              ואותה תוצאה בכל לולאה, לא כסף — בהנחת יום של{" "}
+              {e.cache.show_hours} שעות ולולאה כל {e.cache.loop_minutes} דקות
+              ({e.cache.loops} לולאות) המטמון חוסך {usd(e.cache.day_usd)}.
+            </Caveat>
           </div>
         ) : (
           <Missing />
@@ -649,104 +506,7 @@ function Bill({ facts }: Props) {
   );
 }
 
-/* ── 5. the cache ───────────────────────────────────────────────── */
-
-function CacheTab({ facts }: Props) {
-  const e = facts?.economy;
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[40%_1fr] gap-3">
-      <Panel
-        title="המטמון כמעט לא חוסך כסף"
-        hint={
-          e
-            ? `בהנחת יום של ${e.cache.show_hours} שעות ולולאה כל ${e.cache.loop_minutes} דקות`
-            : undefined
-        }
-      >
-        {e ? (
-          <div className="flex flex-col gap-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Big
-                value={`${e.cache.entries}/${e.bill.calls}`}
-                label="תשובות שמורות מכל הקריאות"
-                tone="good"
-              />
-              <Big value={String(e.cache.showtime_calls)} label="קריאות מודל בזמן התצוגה" tone="good" />
-            </div>
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              {usd(e.cache.day_usd)} — כל מה שיום תצוגה היה עולה בלי מטמון.{" "}
-              {e.cache.loops} לולאות, {e.cache.calls_per_loop} תשובות בכל אחת.
-            </p>
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              מה שהוא כן קונה: <b>ריצה בלי רשת</b>, ו<b>אותה תוצאה בכל לולאה</b>.
-              מודל בטמפרטורה {e.constants.temperature} עדיין יכול להשתנות. קובץ
-              לא משתנה.
-            </p>
-          </div>
-        ) : (
-          <Missing />
-        )}
-      </Panel>
-
-      <Panel title="המפתח הוא זהות הפריט, לא נוסח ההנחיה">
-        {e ? (
-          <div className="flex flex-col gap-2.5">
-            <div className="flex items-stretch gap-2">
-              <Node
-                title="framing_cache.json"
-                mono
-                wide
-                sub={`${e.cache.framing} תשובות · מפתח: article_id`}
-              />
-              <Node
-                title="contrast_cache.json"
-                mono
-                wide
-                sub={`${e.cache.contrast} תשובות · מפתח: event_id`}
-              />
-            </div>
-            <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-              המפתח הוא מזהה הכתבה או האירוע, לא נוסח ההנחיה. שינוי בהנחיה{" "}
-              <b>לא</b> מבטל את המטמון — מוחקים אותו ידנית.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Chip tone={e.bill.covered ? "good" : "warn"}>
-                {e.bill.covered
-                  ? "כל קריאה ששולמה נשמרה"
-                  : "יש קריאות ששולמו בלי פריט במטמון"}
-              </Chip>
-              <CodeRef path="demo/data/llm_usage.json" />
-            </div>
-            <MetricCard
-              name="עלות ההכנה"
-              field="llm_usage.json"
-              formula="usd = (in × 0.15 + out × 0.60) / 1e6"
-              range="מצטבר על פני ריצות הכנה"
-              reads={[
-                { value: "showtime", means: "אפס. התצוגה קוראת קובץ, לא API" },
-                {
-                  value: "prepare",
-                  means: "מה שבניית המטמון עלתה. זה כל החשבון",
-                },
-              ]}
-              measured={
-                <span dir="ltr">
-                  {num(e.bill.calls)} calls · {num(e.bill.total_tokens)} tok ·{" "}
-                  {usd(e.bill.usd)}
-                </span>
-              }
-            />
-          </div>
-        ) : (
-          <Missing />
-        )}
-      </Panel>
-    </div>
-  );
-}
-
-/* ── 6. the strawman, and the exclusions ────────────────────────── */
+/* ── 4. the strawman, and the exclusions ────────────────────────── */
 
 function Limits({ facts }: Props) {
   const e = facts?.economy;
@@ -819,13 +579,5 @@ function Limits({ facts }: Props) {
         )}
       </Panel>
     </div>
-  );
-}
-
-function Missing() {
-  return (
-    <p className="text-[15px] text-[var(--dk-ink-3)]">
-      אין קובץ מדידות — הדיאגרמות מוצגות בלי המספרים.
-    </p>
   );
 }
