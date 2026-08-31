@@ -86,7 +86,7 @@ export const MODULES: ModuleDef[] = [
     id: "stats",
     icon: "📊",
     title_he: "הסטטיסטיקה",
-    sub_he: "השוואה בתוך אירוע, בוטסטראפ, עוצמה",
+    sub_he: "השוואה בתוך אירוע, בוטסטראפ, ומה שורד",
     promise_he: "למה ממוצע גולמי לערוץ מודד בחירת סיפורים ולא מסגור",
     ready: true,
   },
