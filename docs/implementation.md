@@ -1,3 +1,18 @@
+> ## ⚠️ מסמך היסטורי — הקוד שהוא מתאר נמחק
+>
+> המסמך הזה מתאר את `src/features/`, ‏`src/lexicon/deterministic_matcher.py`
+> ו־`scripts/process_one_article.py` — פרוסה אנכית מ־`919beff` (יולי 2026)
+> **שמעולם לא חוברה לפייפליין**. הוא נפתח ב"מה שנבנה בפועל בקוד", וזה לא היה
+> נכון: הצינור החי הוא `pipeline/analyze_articles.py` ו־`src/analysis/`, שאינם
+> מוזכרים כאן אף פעם.
+>
+> המסגרת הדו־צירית של Simchon עצמה **כן** חיה עכשיו, במימוש אחר:
+> `src/analysis/polarization_scoring.py`. ההבדל המהותי הוא ההתאמה — כאן היא
+> הפשטת תחיליות וסיומות בזמן ריצה, ושם היא חיפוש במילון שהורחב אופליין.
+>
+> לקרוא במקום: `docs/adr/0004-three-lexicons-and-why-the-two-polarity-ones-stay-apart.md`
+> ו־`CLAUDE.md`. מה לעשות עם המסמך הזה — מחיקה או כתיבה מחדש — עדיין פתוח.
+
 # מימוש נוכחי — News Polar Analysis
 
 מסמך זה מתעד את מה שנבנה בפועל בקוד (נכון לגרסה `0.5.0-deterministic`).
