@@ -110,6 +110,69 @@ def _format_articles_context(articles: list[dict]) -> str:
 
 _REFUSAL = "אין לי מספיק מידע במסד הנתונים כדי לענות על כך."
 
+# What the assistant can actually do, phrased as example questions. Grounded in
+# real capabilities (stats, per-source comparison, categories, polarity) — it
+# describes the system, so it introduces no outside knowledge about the world
+# and does not weaken the "answer only from the database" rule.
+_CAPABILITIES = (
+    "אני עוזר הניתוח של NewsLens, ואני עונה רק על סמך הכתבות והנתונים שבמסד הנתונים "
+    "של המערכת. אפשר לשאול אותי דברים כמו:\n"
+    "• כמה כתבות יש במערכת ומאילו מקורות?\n"
+    "• מה מדד הקיטוב הממוצע של הארץ לעומת ynet?\n"
+    "• אילו כתבות הכי קיטוביות בתגובות שלהן?\n"
+    "• כמה כתבות יש בכל קטגוריה?\n"
+    "• מה הנושא הכי מסוקר?"
+)
+
+_GREETING_REPLY = "היי! " + _CAPABILITIES
+_THANKS_REPLY = "בשמחה! " + _CAPABILITIES
+
+# Matched against the whole normalised question, never as a substring — so
+# "מה קורה בתחום הביטחון?" stays a real data question and is not swallowed
+# here just because it opens with "מה קורה".
+_GREETINGS = {
+    "היי", "הי", "הייי", "שלום", "אהלן", "הלו", "יו", "מה נשמע", "היי מה נשמע",
+    "שלום מה נשמע", "מה שלומך", "מה קורה", "מה המצב", "מה חדש", "בוקר טוב",
+    "ערב טוב", "לילה טוב", "צהריים טובים", "hi", "hello", "hey", "yo",
+    "good morning", "good evening",
+}
+
+_THANKS = {"תודה", "תודה רבה", "thanks", "thank you", "מגניב", "אחלה", "סבבה", "יופי"}
+
+_CAPABILITY_QUESTIONS = {
+    "מי אתה", "מה אתה", "מה אתה יודע", "מה אתה יכול", "מה אתה יכול לעשות",
+    "מה אתה יודע לעשות", "במה אתה יכול לעזור", "איך אתה יכול לעזור",
+    "מה אפשר לשאול", "מה אפשר לשאול אותך", "מה השאלות שאפשר לשאול",
+    "עזרה", "help", "מה זה", "מה המערכת הזאת", "מה זאת המערכת",
+    "מה הכוונה", "מה זאת אומרת", "לא הבנתי", "תסביר", "תסביר לי",
+}
+
+
+def _normalise(question: str) -> str:
+    """Lowercase, drop punctuation/niqqud-free padding, collapse whitespace."""
+    stripped = re.sub(r"[?!.,;:\-–—\"'`׳״]+", " ", question.lower())
+    return re.sub(r"\s+", " ", stripped).strip()
+
+
+def _conversational_reply(question: str) -> str | None:
+    """Answer small talk about the assistant itself, without an LLM call.
+
+    These are not questions about the world, so refusing them taught users the
+    assistant was broken; they are also not questions about the data, so they
+    must not reach the model, which is instructed to refuse anything outside
+    the supplied context. Returns None for everything else.
+    """
+    normalised = _normalise(question)
+    if not normalised:
+        return None
+    if normalised in _GREETINGS:
+        return _GREETING_REPLY
+    if normalised in _THANKS:
+        return _THANKS_REPLY
+    if normalised in _CAPABILITY_QUESTIONS:
+        return _CAPABILITIES
+    return None
+
 
 def _build_system_prompt() -> str:
     return (
@@ -127,6 +190,15 @@ def _build_system_prompt() -> str:
         "3. אם הנתונים שסופקו לא כוללים מידע מספיק כדי לענות על שאלה שכן נוגעת "
         f'לתחום המערכת, גם אז השב בדיוק: "{_REFUSAL}"\n'
         "4. אל תנחש, אל תשלים פערים מהיגיון כללי, ואל תמציא מספרים או עובדות.\n\n"
+        # Without this the model treated only the article list as "the data"
+        # and refused aggregate questions ("מה הנושא הכי מסוקר?") that the
+        # stats block answers outright — the refusal then looked like a bug.
+        "חשוב, וגובר על נטייה להשיב שאין מידע: בלוק 'נתוני סיכום כלליים' הוא מקור "
+        "מלא ותקף בפני עצמו, לא רק רקע. שאלות מצרפיות נענות ממנו ישירות — כמה כתבות "
+        "יש, ההתפלגות לפי מקור או לפי קטגוריה, איזה נושא הכי מסוקר (= הקטגוריה עם הכי "
+        "הרבה כתבות), איזה מקור הכי פעיל, והקיטוב הממוצע הכללי או לפי מקור. ענה עליהן "
+        "מתוך הבלוק הזה גם אם רשימת הכתבות שסופקה אינה רלוונטית לשאלה או ריקה. "
+        f'אל תשיב "{_REFUSAL}" כאשר המספר המבוקש מופיע שם.\n\n'
         "כאשר יש מספיק מידע רלוונטי: ענה בעברית, בקצרה ובבהירות, בהתבסס אך ורק "
         "על מה שסופק.\n\n"
         'החזר JSON בלבד עם השדות: "answer" (מחרוזת) ו-"used_article_ids" '
@@ -136,12 +208,17 @@ def _build_system_prompt() -> str:
 
 
 def answer_question(question: str) -> QaResult:
-    require_openai_api_key()
-
     question = question.strip()[:MAX_QUESTION_CHARS]
     if not question:
         raise ValueError("Question is empty")
 
+    # Before any retrieval or LLM call: greetings and "what can you do" are
+    # answered directly. Cheap, instant, and deterministic.
+    conversational = _conversational_reply(question)
+    if conversational:
+        return QaResult(answer=conversational, sources=[])
+
+    require_openai_api_key()
     stats = get_dashboard_stats()
     tokens = _extract_tokens(question)
     articles = search_articles_for_qa(tokens, limit=MAX_CONTEXT_ARTICLES)
