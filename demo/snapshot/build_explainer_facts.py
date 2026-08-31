@@ -1059,6 +1059,110 @@ def _audience_quantile_default(weighted_quantile) -> float:
     return float(inspect.signature(weighted_quantile).parameters["quantile"].default)
 
 
+# The research the comment lexicon comes from: Simchon, Brady & Van Bavel
+# (2022), "Troll and divide: the language of online polarization", PNAS Nexus
+# 1(1) pgac019. Their dictionary was not written by hand — it was found by
+# looking at which words travel only inside one political camp, and the
+# hierarchical clustering of it split in two: `issue` (what the argument is
+# about) and `affective` (hostility toward the other side). The English source
+# lives under data/lexicon/source/ and the Hebrew adaptation in
+# data/lexicon/polarization.csv, with a per-lemma provenance label.
+#
+# IMPORTANT and stated on the wall: the two-axis reading below is computed here,
+# over the snapshot's comment text. The score the pipeline stores (`polar_ratio`)
+# runs on the separate single-axis comment list, so the two are reported as two
+# different measurements and never blended.
+def _audience_research(conn: sqlite3.Connection) -> dict:
+    import csv
+    from collections import Counter, defaultdict
+
+    from src.lexicon.expand_lexicon import (
+        SINGLE_PREFIXES,
+        WHITELISTED_PREFIX_PAIRS,
+        expand_lexicon,
+    )
+    from src.lexicon.load_polarization_lexicon import load_lexicon
+    from src.nlp.normalize import normalize_text
+    from src.nlp.tokenize import tokenize
+
+    csv_path = REPO_ROOT / "data" / "lexicon" / "polarization.csv"
+    rows = list(csv.DictReader(csv_path.open(encoding="utf-8")))
+    provenance = Counter(r["notes"] for r in rows)
+
+    source_words = sum(
+        1 for line in (REPO_ROOT / "data" / "lexicon" / "source" / "final_dict.csv")
+        .read_text(encoding="utf-8").splitlines()[1:] if line.strip())
+
+    base = load_lexicon()
+    expanded = expand_lexicon(base)
+
+    # Every surface form is credited back to the lemma it was expanded from, so
+    # the words on the wall are dictionary entries and not prefix variants.
+    surface_to_lemma: dict[str, str] = {}
+    for lemma in base:
+        surface_to_lemma.setdefault(lemma, lemma)
+        for prefix in tuple(SINGLE_PREFIXES) + tuple(WHITELISTED_PREFIX_PAIRS):
+            surface_to_lemma.setdefault(prefix + lemma, lemma)
+
+    per_lemma: dict[str, Counter] = defaultdict(Counter)
+    hits = Counter()
+    comments = only = both_axes = 0
+    axis_comments = Counter()
+    for row in conn.execute("SELECT text FROM comments"):
+        comments += 1
+        seen = Counter()
+        for token in tokenize(normalize_text(row["text"] or "")):
+            component = expanded.get(token)
+            if component is None:
+                continue
+            seen[component] += 1
+            hits[component] += 1
+            per_lemma[component][surface_to_lemma.get(token, token)] += 1
+        if not seen:
+            continue
+        only += 1
+        if len(seen) == 2:
+            both_axes += 1
+        for component in seen:
+            axis_comments[component] += 1
+
+    shipped = {
+        line.strip()
+        for line in (REPO_ROOT / "data" / "comment_lexicon_base" / "polar_words.txt")
+        .read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+
+    def top(component: str) -> list[dict]:
+        return [{"word": w, "n": n} for w, n in per_lemma[component].most_common(6)]
+
+    return {
+        "citation": "Simchon, Brady & Van Bavel (2022), PNAS Nexus",
+        "source_words": source_words,
+        "lemmas": len(base),
+        "lemmas_affective": sum(1 for c in base.values() if c == "affective"),
+        "lemmas_issue": sum(1 for c in base.values() if c == "issue"),
+        "provenance": {
+            "simchon": provenance.get("simchon", 0),
+            "israeli": provenance.get("israeli-supplement", 0),
+            "media": provenance.get("media-v2", 0),
+            "review": provenance.get("ai-review", 0),
+        },
+        "forms": len(expanded),
+        "comments": comments,
+        "with_any": only,
+        "with_affective": axis_comments["affective"],
+        "with_issue": axis_comments["issue"],
+        "with_both": both_axes,
+        "hits_affective": hits["affective"],
+        "hits_issue": hits["issue"],
+        "top_affective": top("affective"),
+        "top_issue": top("issue"),
+        "shipped_lemmas": len(shipped),
+        "shipped_shared": len(shipped & set(base)),
+    }
+
+
 def build_audience(conn: sqlite3.Connection) -> dict:
     import math
     import statistics
@@ -1217,6 +1321,7 @@ def build_audience(conn: sqlite3.Connection) -> dict:
             "single_token": ratio_one_lengths.get(1, 0),
             "examples": ratio_one_examples,
         },
+        "research": _audience_research(conn),
         "example": _audience_example(per_article, raw_by_id, sources, titles,
                                     polar, normalize_text, tokenize,
                                     _weighted_mean, _weighted_quantile,

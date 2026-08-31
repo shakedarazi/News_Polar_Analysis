@@ -331,6 +331,37 @@ export interface AudienceWalkStep {
 export interface AudienceFacts {
   polar_lexicon_forms: number;
   quantile: number;
+  /**
+   * The published dictionary the comment layer descends from, and the two-axis
+   * reading of the snapshot's own comments computed against it. Kept separate
+   * from `comments` on purpose: `polar_ratio` is the single-axis score the
+   * pipeline stores, this is the issue/affective split of the same text.
+   */
+  research: {
+    citation: string;
+    source_words: number;
+    lemmas: number;
+    lemmas_affective: number;
+    lemmas_issue: number;
+    provenance: {
+      simchon: number;
+      israeli: number;
+      media: number;
+      review: number;
+    };
+    forms: number;
+    comments: number;
+    with_any: number;
+    with_affective: number;
+    with_issue: number;
+    with_both: number;
+    hits_affective: number;
+    hits_issue: number;
+    top_affective: { word: string; n: number }[];
+    top_issue: { word: string; n: number }[];
+    shipped_lemmas: number;
+    shipped_shared: number;
+  };
   comments: {
     total: number;
     articles: number;
