@@ -11,6 +11,7 @@ import {
   MetricCard,
   Node,
   Panel,
+  Stage,
   SubNav,
   type TabDef,
 } from "./kit";
@@ -99,7 +100,7 @@ function WhyLexicon({ facts }: Props) {
   const maxDom = Math.max(1, ...(w?.dominance_hist.map((b) => b.n) ?? [1]));
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
+    <Stage cols="grid-cols-[46%_1fr]">
       <Panel
         title={
           w
@@ -181,7 +182,7 @@ function WhyLexicon({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -195,7 +196,7 @@ function LexiconPanel({ facts }: Props) {
   const low = lx?.per_category.reduce((a, b) => (b.base < a.base ? b : a));
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
+    <Stage cols="grid-cols-[46%_1fr]">
       <Panel
         title={
           lx
@@ -291,7 +292,7 @@ function LexiconPanel({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -331,7 +332,7 @@ function WindowCut({ facts }: Props) {
   const ex = facts?.worked_example;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+    <Stage cols="grid-cols-[44%_1fr]">
       <Panel title="יחידת הניתוח היא המשפט, לא הכתבה" hint="src/nlp/sentence_splitter.py">
         {cap ? (
           <div className="flex flex-col gap-3">
@@ -413,7 +414,7 @@ function WindowCut({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -429,7 +430,7 @@ function Dominance({ facts }: Props) {
     .reduce((s, b) => s + b.n, 0);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
+    <Stage cols="grid-cols-[42%_1fr]">
       <Panel title="‏1.0 יכול להיות מילת לקסיקון אחת">
         {w && one !== undefined && mixed !== undefined ? (
           <div className="flex flex-col gap-3">
@@ -528,6 +529,6 @@ function Dominance({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }

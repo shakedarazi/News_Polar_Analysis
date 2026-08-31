@@ -13,6 +13,30 @@ import type { ReactNode } from "react";
 
 /* ── layout ─────────────────────────────────────────────────────── */
 
+/**
+ * The panels of one tab: sized to their own content, centred as a block.
+ *
+ * Stretching every card to the full wall height left a dead band inside each
+ * one — a panel with 220px of content held 590px of nothing. A card that ends
+ * where its content ends reads as composed instead of unfinished.
+ *
+ * `cols` must be a literal Tailwind class (`grid-cols-[46%_1fr]`), not a
+ * template string, or the class never reaches the stylesheet.
+ */
+export function Stage({
+  cols,
+  children,
+}: {
+  cols: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 items-center overflow-hidden">
+      <div className={`grid max-h-full w-full ${cols} gap-3`}>{children}</div>
+    </div>
+  );
+}
+
 export function Panel({
   title,
   hint,

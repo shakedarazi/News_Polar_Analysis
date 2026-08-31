@@ -7,6 +7,7 @@ import {
   Chip,
   CodeRef,
   Panel,
+  Stage,
   SubNav,
   type TabDef,
 } from "./kit";
@@ -171,7 +172,7 @@ function Tiers({ facts }: Props) {
   const e = facts?.economy;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[32%_1fr] gap-3">
+    <Stage cols="grid-cols-[32%_1fr]">
       <div className="flex min-h-0 flex-col gap-3">
         <Panel title="‏8 מתוך 10 שלבים לא קוראים למודל">
           <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
@@ -223,7 +224,7 @@ function Tiers({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -233,7 +234,7 @@ function Sent({ facts }: Props) {
   const e = facts?.economy;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
+    <Stage cols="grid-cols-[42%_1fr]">
       <Panel title="ההנחיה הקבועה נשלחת שוב בכל קריאה">
         {e ? (
           <div className="flex flex-col gap-3">
@@ -358,7 +359,7 @@ function Sent({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -368,7 +369,7 @@ function Bill({ facts }: Props) {
   const e = facts?.economy;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+    <Stage cols="grid-cols-[44%_1fr]">
       <Panel title="הפלט הוא הצד היקר של החשבון">
         {e ? (
           <div className="flex flex-col gap-3">
@@ -516,6 +517,6 @@ function Bill({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }

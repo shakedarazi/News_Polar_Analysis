@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import type { ChangeScan, Facts, OutletRow, TopicCellRow } from "./facts";
-import { Caveat, Chip, CodeRef, Panel, SubNav, type TabDef } from "./kit";
+import {
+  Caveat,
+  Chip,
+  CodeRef,
+  Panel,
+  Stage,
+  SubNav,
+  type TabDef,
+} from "./kit";
 
 const TABS: TabDef[] = [
   { id: "why", label_he: "סטייה מהחציון" },
@@ -172,7 +180,7 @@ function WhyNotRaw({ facts }: Props) {
   const lowDev = ranked.find((r) => r.devRank === 1);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
+    <Stage cols="grid-cols-[42%_1fr]">
       <Panel
         title={
           between !== null
@@ -279,7 +287,7 @@ function WhyNotRaw({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -337,7 +345,7 @@ function Interval({ facts }: Props) {
   );
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+    <Stage cols="grid-cols-[44%_1fr]">
       <Panel
         title={c ? `‏${num(c.bootstrap_iterations)} דגימות מחדש במקום הנחת התפלגות` : "הבוטסטראפ"}
         hint={c ? `זרע ${c.bootstrap_seed} · אותם מספרים בכל לולאה` : undefined}
@@ -479,7 +487,7 @@ function Interval({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -530,7 +538,7 @@ function Change({ facts }: Props) {
   const half = s?.power.rows.map((r) => r.power_half_sd) ?? [];
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[52%_1fr] gap-3">
+    <Stage cols="grid-cols-[52%_1fr]">
       <Panel
         title={
           c
@@ -636,7 +644,7 @@ function Change({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -688,7 +696,7 @@ function Claim({ facts }: Props) {
   const tempting = (s?.cells["dominance"] ?? []).filter((r) => r.tempting);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+    <Stage cols="grid-cols-[44%_1fr]">
       <Panel
         title={
           meta && s
@@ -826,6 +834,6 @@ function Claim({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }

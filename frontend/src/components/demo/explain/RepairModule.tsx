@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import type { Facts } from "./facts";
-import { Caveat, Chip, CodeRef, Panel, SubNav, type TabDef } from "./kit";
+import {
+  Caveat,
+  Chip,
+  CodeRef,
+  Panel,
+  Stage,
+  SubNav,
+  type TabDef,
+} from "./kit";
 
 const TABS: TabDef[] = [
   { id: "loss", label_he: "מה המאמת מוחק" },
@@ -97,7 +105,7 @@ function Loss({ facts }: Props) {
   const r = facts?.repair;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
+    <Stage cols="grid-cols-[42%_1fr]">
       <Panel title="מאמת שרק מוחק הוא גם פונקציית הפסד">
         {r ? (
           <div className="flex flex-col gap-3">
@@ -166,7 +174,7 @@ function Loss({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -176,7 +184,7 @@ function Gain({ facts }: Props) {
   const r = facts?.repair;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
+    <Stage cols="grid-cols-[46%_1fr]">
       <Panel title="14 ציטוטים חזרו, 15 קיבלו null בכנות">
         {r ? (
           <div className="flex flex-col gap-3">
@@ -260,7 +268,7 @@ function Gain({ facts }: Props) {
           )}
         </Panel>
       </div>
-    </div>
+    </Stage>
   );
 }
 
@@ -270,7 +278,7 @@ function Guards({ facts }: Props) {
   const r = facts?.repair;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[52%_1fr] gap-3">
+    <Stage cols="grid-cols-[52%_1fr]">
       <Panel title="ארבעה כללים, כל אחד בגלל כשל">
         {r ? (
           <ol className="flex flex-col gap-2">
@@ -347,6 +355,6 @@ function Guards({ facts }: Props) {
           )}
         </Panel>
       </div>
-    </div>
+    </Stage>
   );
 }

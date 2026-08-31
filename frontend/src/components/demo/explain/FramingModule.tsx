@@ -8,6 +8,7 @@ import {
   CodeRef,
   Node,
   Panel,
+  Stage,
   SubNav,
   type TabDef,
 } from "./kit";
@@ -81,7 +82,7 @@ function WhyModel({ facts }: Props) {
   const zeroTerms = d?.terms_per_article.find((t) => t.terms === 0)?.n ?? 0;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
+    <Stage cols="grid-cols-[42%_1fr]">
       <Panel
         title="מילון לא יודע מי מוצג כמבצע"
         hint={
@@ -172,7 +173,7 @@ function WhyModel({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -199,7 +200,7 @@ function Output({ facts }: Props) {
   const a = f?.acronyms;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+    <Stage cols="grid-cols-[44%_1fr]">
       <Panel title="‏JSON תקין לא מבטיח שהתוכן נכון">
         <div className="flex flex-col gap-3">
           <p className="text-[15.5px] leading-snug text-[var(--dk-ink-2)]">
@@ -262,7 +263,7 @@ function Output({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -274,7 +275,7 @@ function Ground({ facts }: Props) {
   const ex = f?.term_example;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[40%_1fr] gap-3">
+    <Stage cols="grid-cols-[40%_1fr]">
       <Panel title="קבוע אחד לחילוץ ולאימות, אחרי אישור שווא">
         {f ? (
           <div className="flex flex-col gap-3">
@@ -380,7 +381,7 @@ function Ground({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -446,7 +447,7 @@ function Rejects({ facts }: Props) {
   const bad = v?.quote_reasons.find((r) => r.kind === "paraphrase")?.n ?? 0;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
+    <Stage cols="grid-cols-[46%_1fr]">
       <Panel
         title={
           v
@@ -547,7 +548,7 @@ function Rejects({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 

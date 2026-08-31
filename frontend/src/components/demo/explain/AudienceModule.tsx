@@ -9,6 +9,7 @@ import {
   CodeRef,
   MetricCard,
   Panel,
+  Stage,
   SubNav,
   type TabDef,
 } from "./kit";
@@ -107,7 +108,7 @@ function Score({ facts }: Props) {
   const maxRatio = Math.max(1, ...(c?.ratio_hist.map((b) => b.n) ?? [1]));
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[47%_1fr] gap-3">
+    <Stage cols="grid-cols-[47%_1fr]">
       <Panel
         title={
           art
@@ -217,7 +218,7 @@ function Score({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -235,7 +236,7 @@ function Weight({ facts }: Props) {
   const noLikeArticles = noLikes.reduce((t, s) => t + s.articles, 0);
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+    <Stage cols="grid-cols-[44%_1fr]">
       <Panel
         title={
           peak
@@ -374,7 +375,7 @@ function Weight({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -397,7 +398,7 @@ function Tail({ facts }: Props) {
   const last = e ? e.walk[e.walk.length - 2] : undefined;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[45%_1fr] gap-3">
+    <Stage cols="grid-cols-[45%_1fr]">
       <Panel
         title={
           q !== undefined && factor
@@ -546,7 +547,7 @@ function Tail({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -560,7 +561,7 @@ function Limits({ facts }: Props) {
   const maxPair = Math.max(1, ...(h?.pairs.map((p) => p.n) ?? [1]));
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[52%_1fr] gap-3">
+    <Stage cols="grid-cols-[52%_1fr]">
       <Panel
         title={
           h
@@ -656,6 +657,6 @@ function Limits({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }

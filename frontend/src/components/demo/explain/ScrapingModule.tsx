@@ -9,6 +9,7 @@ import {
   Ladder,
   Node,
   Panel,
+  Stage,
   SubNav,
   type TabDef,
 } from "./kit";
@@ -73,7 +74,7 @@ function Discovery({ facts }: Props) {
   const empty = sources.filter((s) => s.articles === 0).length;
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
+    <Stage cols="grid-cols-[46%_1fr]">
       <Panel
         title="אנחנו קוראים את רשימת הפרסום של האתר, לא סורקים אותו"
         hint="src/crawling/sources/"
@@ -155,7 +156,7 @@ function Discovery({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -168,7 +169,7 @@ function Extract({ facts }: Props) {
   const ynet = facts?.sources.find((s) => s.id === "ynet");
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[52%_1fr] gap-3">
+    <Stage cols="grid-cols-[52%_1fr]">
       <Panel
         title="אתר משנה את העיצוב שלו, והאיסוף לא נשבר"
         hint="src/crawling/extractors.py"
@@ -275,7 +276,7 @@ function Extract({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
 
@@ -321,7 +322,7 @@ function Run({ facts }: Props) {
   const ynet = facts?.sources.find((s) => s.id === "ynet");
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
+    <Stage cols="grid-cols-[46%_1fr]">
       <Panel
         title="התזמון גר ב־GitHub Actions, ולכן ה־API חופשי להירדם"
         hint=".github/workflows/ingestion.yml"
@@ -387,6 +388,6 @@ function Run({ facts }: Props) {
           <Missing />
         )}
       </Panel>
-    </div>
+    </Stage>
   );
 }
