@@ -95,7 +95,7 @@ export const MODULES: ModuleDef[] = [
     title_he: "כלכלת טוקנים",
     sub_he: "מטמון, עלות, ומה נחסך",
     promise_he: "איפה בכלל נדרש מודל, וכמה עלתה כל השכבה",
-    ready: false,
+    ready: true,
   },
 ];
 

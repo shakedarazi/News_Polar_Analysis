@@ -28,7 +28,7 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   nothing to do with the SSE stream: it backs the deep-dive modules, which are
   navigated by the presenter rather than driven by the runner. Shape:
   `{corpus, constants, identity_example, worked_example, sources[], windows,
-  comments, lexicon, retrieval, framing, audience, stats}` — see `demo/snapshot/build_explainer_facts.py`
+  comments, lexicon, retrieval, framing, audience, stats, economy}` — see `demo/snapshot/build_explainer_facts.py`
   for the producer and `frontend/src/components/demo/explain/facts.ts` for the
   mirror. `retrieval` additionally carries the clustering threshold sweep,
   which is **recomputed on every build** (six clusterings over the snapshot),
@@ -42,6 +42,12 @@ backend (`demo/server.py`, port **8010**) and the kiosk dashboard
   and the permutation change-point scan — and reports how many tests that adds
   up to; only the detector's power table is read out of `demo_set.json` rather
   than recomputed, because it costs ~20s and the narrated run already shows it.
+  `economy` is built LAST and is handed the rest of `facts`, so its per-stage
+  counts are the ones the other tiles measured rather than a second count of
+  the same corpus. It reconstructs all 214 prompts from the caches and the
+  snapshot and divides those characters by the billed token counts in
+  `llm_usage.json`, which is where the 2.54 chars/token rate comes from — every
+  estimate in that tile is then derived at the rounded rate the wall prints.
 
 Every event also carries `ts` (epoch milliseconds).
 
@@ -57,8 +63,9 @@ back. Two kinds of module exist:
   diagrams of one subsystem, fed by `GET /facts`. No SSE, no runner state, no
   gates. They are readable while the run is mid-scene, and they still render
   (diagrams only, measured strips omitted) when `/facts` is unavailable.
-  Live: `scraping`, `algorithm`, `retrieval`, `framing`, `audience`, `stats`.
-  The remaining tile is disabled and labelled "בבנייה".
+  Live: `scraping`, `algorithm`, `retrieval`, `framing`, `audience`, `stats`,
+  `economy` — every tile on the hub. A tile with `ready: false` renders dimmed,
+  non-clickable and badged "בבנייה"; none is in that state now.
 
 ## The scene machine
 

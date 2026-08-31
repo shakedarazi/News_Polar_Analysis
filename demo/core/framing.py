@@ -58,6 +58,19 @@ KEYWORD_JACCARD = 0.25
 # of the true 93% on the first measurement run).
 EXTRACT_LEAD_CHARS = 500
 
+# The contrast prompt packs several versions into one message, so it pays for
+# each lead it includes; 400 is the per-version slice it can afford. The
+# verifier still checks quotes against EXTRACT_LEAD_CHARS, a superset, so a
+# quote can never be rejected for sitting in text the model did receive.
+CONTRAST_LEAD_CHARS = 400
+
+# Output caps. The framing answer is five short fields; the contrast answer is
+# a sentence and a quote per version, so it needs room for up to
+# CONTRAST_VERSIONS of them. These bound the expensive half of the bill —
+# completion tokens cost 4x prompt tokens.
+FRAMING_MAX_TOKENS = 260
+CONTRAST_MAX_TOKENS = 700
+
 
 @dataclass
 class Version:
@@ -739,7 +752,8 @@ class FramingExtractor(_CachedLLM):
             return None
         raw = self._chat(
             FRAMING_SYSTEM,
-            f"כותרת: {title}\nפתיח: {(text or '')[:EXTRACT_LEAD_CHARS]}", 260)
+            f"כותרת: {title}\nפתיח: {(text or '')[:EXTRACT_LEAD_CHARS]}",
+            FRAMING_MAX_TOKENS)
         parsed = self._parse(raw or "")
         if parsed is None:
             self.failures += 1
@@ -782,7 +796,8 @@ class ContrastExtractor(_CachedLLM):
             return hit
         if not allow_network:
             return None
-        raw = self._chat(CONTRAST_SYSTEM, build_contrast_prompt(versions), 700)
+        raw = self._chat(CONTRAST_SYSTEM, build_contrast_prompt(versions),
+                         CONTRAST_MAX_TOKENS)
         parsed = self._parse(raw or "")
         if parsed is None:
             self.failures += 1
@@ -880,7 +895,8 @@ def build_contrast_prompt(versions: list[tuple[str, str, str]]) -> str:
     """versions is [(source, title, lead), ...] — the retrieved siblings."""
     blocks = []
     for source, title, lead in versions:
-        blocks.append(f"--- מקור: {source}\nכותרת: {title}\nפתיח: {(lead or '')[:400]}")
+        blocks.append(f"--- מקור: {source}\nכותרת: {title}\n"
+                      f"פתיח: {(lead or '')[:CONTRAST_LEAD_CHARS]}")
     return "\n\n".join(blocks)
 
 

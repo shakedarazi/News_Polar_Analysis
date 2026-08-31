@@ -25,6 +25,7 @@ import { RetrievalModule } from "./explain/RetrievalModule";
 import { FramingModule } from "./explain/FramingModule";
 import { AudienceModule } from "./explain/AudienceModule";
 import { StatsModule } from "./explain/StatsModule";
+import { EconomyModule } from "./explain/EconomyModule";
 
 interface DemoDashboardProps {
   forceMock: boolean;
@@ -196,6 +197,9 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
         )}
         {view.kind === "module" && view.id === "stats" && (
           <StatsModule facts={factsOrNull} />
+        )}
+        {view.kind === "module" && view.id === "economy" && (
+          <EconomyModule facts={factsOrNull} />
         )}
         {view.kind === "run" && (
           <>

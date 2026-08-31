@@ -539,6 +539,159 @@ export interface StatsFacts {
   }[];
 }
 
+export interface EconomyStage {
+  key: string;
+  label_he: string;
+  kind: "free" | "local" | "paid";
+  n: number;
+  unit_he: string;
+  detail_he: string;
+  usd: number;
+}
+
+export interface EconomySplit {
+  key: string;
+  label_he: string;
+  calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  usd: number;
+  per_call_usd: number;
+  derived: boolean;
+}
+
+export interface EconomyExcluded {
+  key: string;
+  label_he: string;
+  detail_he: string;
+  n: number | null;
+  unit_he: string | null;
+  prompt_tokens: number | null;
+  usd: number | null;
+  estimate: boolean;
+}
+
+export interface EconomyFacts {
+  constants: {
+    model: string;
+    temperature: number;
+    embed_model: string;
+    price_prompt_per_m: number;
+    price_completion_per_m: number;
+    lead_chars: number;
+    contrast_lead_chars: number;
+    contrast_versions: number;
+    framing_max_tokens: number;
+    contrast_max_tokens: number;
+  };
+  bill: {
+    calls: number;
+    cached_outputs: number;
+    covered: boolean;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    prompt_usd: number;
+    completion_usd: number;
+    usd: number;
+    reported_usd: number;
+    completion_per_call: number;
+    completion_token_share: number;
+    completion_bill_share: number;
+    price_prompt_per_m: number;
+    price_completion_per_m: number;
+  };
+  stages: EconomyStage[];
+  rate: {
+    prompt_chars: number;
+    prompt_tokens: number;
+    chars_per_token: number;
+    output_chars: number;
+    completion_tokens: number;
+    output_chars_per_token: number;
+    gap: number;
+    examples: { label_he: string; chars: number; tokens: number }[];
+  };
+  prompt: {
+    framing: {
+      calls: number;
+      system_chars: number;
+      user_median: number;
+      user_mean: number;
+      total_chars: number;
+      system_share: number;
+      max_tokens: number;
+    };
+    contrast: {
+      calls: number;
+      system_chars: number;
+      user_median: number;
+      user_mean: number;
+      total_chars: number;
+      system_share: number;
+      max_tokens: number;
+      lead_chars: number;
+      versions: { versions: number; events: number }[];
+    };
+    system_chars_total: number;
+    system_tokens: number;
+    system_share_of_prompt: number;
+    framing_share: number;
+  };
+  truncation: {
+    lead_chars: number;
+    versions: number;
+    median_chars: number;
+    over_cap: number;
+    sent_chars: number;
+    dropped_chars: number;
+    dropped_tokens: number;
+    dropped_usd: number;
+    would_be_prompt_tokens: number;
+    median_share_sent: number;
+  };
+  split: EconomySplit[];
+  per_unit: { label_he: string; n: number; usd: number }[];
+  cache: {
+    entries: number;
+    framing: number;
+    contrast: number;
+    showtime_calls: number;
+    showcases: number;
+    calls_per_loop: number;
+    loop_usd: number;
+    show_hours: number;
+    loop_minutes: number;
+    loops: number;
+    day_usd: number;
+    day_calls: number;
+  };
+  strawman: {
+    articles: number;
+    article_chars: number;
+    comments: number;
+    comment_chars: number;
+    calls: number;
+    system_chars: number;
+    system_share: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    per_call_completion: number;
+    usd: number;
+    ratio: number;
+    days: number;
+    month_usd: number;
+    agents_month_usd: number;
+    scene: {
+      articles: number;
+      prompt_per_article: number;
+      completion_per_article: number;
+      usd: number;
+    };
+  };
+  excluded: EconomyExcluded[];
+}
+
 export interface Facts {
   available: true;
   corpus: { articles: number };
@@ -553,6 +706,7 @@ export interface Facts {
   framing: FramingFacts;
   audience: AudienceFacts;
   stats: StatsFacts;
+  economy: EconomyFacts;
 }
 
 type FactsState =

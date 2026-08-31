@@ -492,3 +492,198 @@ def test_pairing_explains_why_two_outlets_mirror_each_other():
         "most events are no longer pairs — the mirroring caveat needs rewriting"
     )
     assert s["top_pair_two_version"] <= s["two_version"]
+
+
+# ── the token economy ───────────────────────────────────────────────────
+
+
+def test_economy_prices_track_the_demo_config():
+    """The wall prints a price list; it has to be the one the code bills at."""
+    from demo import config
+
+    if not FACTS_PATH.exists():
+        pytest.skip("facts not built yet")
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    assert e["bill"]["price_prompt_per_m"] == config.PRICE_PROMPT_PER_M
+    assert e["bill"]["price_completion_per_m"] == config.PRICE_COMPLETION_PER_M
+    assert e["constants"]["embed_model"] == config.EMBED_MODEL
+
+
+def test_economy_caps_track_the_extractors():
+    """The output caps are the expensive half of the bill — import, never type."""
+    from demo.core.framing import (CONTRAST_LEAD_CHARS, CONTRAST_MAX_TOKENS,
+                                   EXTRACT_LEAD_CHARS, FRAMING_MAX_TOKENS)
+
+    if not FACTS_PATH.exists():
+        pytest.skip("facts not built yet")
+    c = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]["constants"]
+    assert c["framing_max_tokens"] == FRAMING_MAX_TOKENS
+    assert c["contrast_max_tokens"] == CONTRAST_MAX_TOKENS
+    assert c["lead_chars"] == EXTRACT_LEAD_CHARS
+    assert c["contrast_lead_chars"] == CONTRAST_LEAD_CHARS
+    # the verifier window must stay a superset of what contrast actually sends,
+    # or a quote could be rejected for sitting in text the model did receive
+    assert c["contrast_lead_chars"] <= c["lead_chars"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_bill_is_recomputed_from_tokens_not_copied():
+    """The displayed dollar figure is derived from token counts and the price
+    list, and it has to agree with the total the extractors wrote down."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    b = e["bill"]
+    assert b["prompt_tokens"] + b["completion_tokens"] == b["total_tokens"]
+    assert round(b["prompt_usd"] + b["completion_usd"], 6) == b["usd"]
+    assert abs(b["usd"] - b["reported_usd"]) < 1e-6
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_every_paid_call_left_something_in_the_cache():
+    """The whole 'showtime costs nothing' claim rests on this: the calls that
+    were billed are exactly the answers the kiosk now replays."""
+    from demo.core.framing import ContrastExtractor, FramingExtractor
+
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    entries = len(FramingExtractor().cache) + len(ContrastExtractor().cache)
+    assert e["cache"]["entries"] == entries
+    assert e["bill"]["cached_outputs"] == entries
+    assert e["bill"]["covered"] is True, (
+        "billed calls no longer match cached answers — the cost per call, the "
+        "derived split and the 'nothing was thrown away' claim all break"
+    )
+    assert e["cache"]["showtime_calls"] == 0
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_exchange_rate_is_measured_from_reconstructed_prompts():
+    """chars/token is real division of real chars by real billed tokens, and
+    the independently measured output side has to land near it."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    r = e["rate"]
+    assert r["prompt_tokens"] == e["bill"]["prompt_tokens"]
+    assert r["completion_tokens"] == e["bill"]["completion_tokens"]
+    assert round(r["prompt_chars"] / r["prompt_tokens"], 3) == r["chars_per_token"]
+    assert round(r["output_chars"] / r["completion_tokens"], 3) == \
+        r["output_chars_per_token"]
+    # two independent measurements of the same tokenizer; a large gap would
+    # mean the reconstruction no longer matches what was sent
+    assert r["gap"] < 0.15
+    for example in r["examples"]:
+        assert example["tokens"] == round(example["chars"] / r["chars_per_token"])
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_prompt_reconstruction_covers_every_billed_call():
+    """The character counts on screen are per-call sums — if a call could not
+    be rebuilt from the snapshot the shares would silently understate."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    p = e["prompt"]
+    assert p["framing"]["calls"] + p["contrast"]["calls"] == e["bill"]["calls"]
+    assert p["framing"]["total_chars"] + p["contrast"]["total_chars"] == \
+        e["rate"]["prompt_chars"]
+    assert p["system_chars_total"] == (
+        p["framing"]["system_chars"] * p["framing"]["calls"]
+        + p["contrast"]["system_chars"] * p["contrast"]["calls"])
+    assert sum(v["events"] for v in p["contrast"]["versions"]) == p["contrast"]["calls"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_repeated_instruction_claim_is_the_measured_one():
+    """The tab says instructions are a third of the input bill. If that ever
+    stops being true the sentence has to change, not stay on the wall."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    p = e["prompt"]
+    assert p["system_share_of_prompt"] == round(
+        p["system_chars_total"] / e["rate"]["prompt_chars"], 4)
+    assert p["system_share_of_prompt"] > 0.25
+    assert p["framing"]["system_share"] > p["contrast"]["system_share"], (
+        "the framing call is the one with the short body — if contrast becomes "
+        "the instruction-heavy one, the 'almost half the call' line is wrong"
+    )
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_truncation_savings_are_arithmetic_on_the_same_rate():
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    t, rate = e["truncation"], e["rate"]["chars_per_token"]
+    assert t["dropped_tokens"] == round(t["dropped_chars"] / rate)
+    assert t["would_be_prompt_tokens"] == e["bill"]["prompt_tokens"] + t["dropped_tokens"]
+    assert t["over_cap"] <= t["versions"]
+    assert 0 < t["median_share_sent"] <= 1
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_derived_split_adds_back_up_to_the_measured_total():
+    """The per-type dollar split is derived, so it is allowed to be
+    approximate — but not to invent or lose money."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    split = e["split"]
+    assert all(s["derived"] for s in split)
+    assert sum(s["calls"] for s in split) == e["bill"]["calls"]
+    assert abs(sum(s["usd"] for s in split) - e["bill"]["usd"]) < 5e-4
+    assert abs(sum(s["prompt_tokens"] for s in split)
+               - e["bill"]["prompt_tokens"]) <= len(split)
+    for s in split:
+        assert abs(s["usd"] / s["calls"] - s["per_call_usd"]) < 1e-6
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_two_of_ten_stages_pay_and_the_rest_report_zero():
+    """The module's headline claim. A stage that starts costing tokens without
+    being marked paid would make the whole ladder a lie."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    paid = [s for s in e["stages"] if s["kind"] == "paid"]
+    assert {s["key"] for s in paid} == {"framing", "contrast"}
+    assert all(s["usd"] == 0.0 for s in e["stages"] if s["kind"] != "paid")
+    assert abs(sum(s["usd"] for s in paid) - e["bill"]["usd"]) < 5e-4
+    # the local embedding model is a model, and must not be filed as free code
+    assert [s["kind"] for s in e["stages"] if s["key"] == "embed"] == ["local"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_stage_counts_agree_with_the_tiles_that_own_them():
+    """This tile borrows every deterministic count from the module that
+    measured it, so eight explainers cannot disagree about corpus size."""
+    facts = json.loads(FACTS_PATH.read_text(encoding="utf-8"))
+    by_key = {s["key"]: s["n"] for s in facts["economy"]["stages"]}
+    assert by_key["crawl"] == facts["corpus"]["articles"]
+    assert by_key["windows"] == facts["windows"]["total"]
+    assert by_key["comments"] == facts["comments"]["total"]
+    assert by_key["lexicon"] == facts["lexicon"]["article_expanded"]
+    assert by_key["embed"] == facts["retrieval"]["vectors"]
+    assert by_key["cluster"] == facts["retrieval"]["events"]["total"]
+    assert by_key["stats"] == facts["stats"]["multiplicity"]["tests"]
+    assert by_key["framing"] == facts["framing"]["cache"]["framing"]
+    assert by_key["contrast"] == facts["framing"]["cache"]["contrast"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_strawman_is_labelled_and_uses_the_measured_rate():
+    """An estimate is allowed on the wall; an estimate that hides its
+    assumptions is not."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    s, rate = e["strawman"], e["rate"]["chars_per_token"]
+    assert s["calls"] == s["articles"] + s["comments"]
+    assert s["prompt_tokens"] == round(
+        (s["article_chars"] + s["comment_chars"] + s["system_chars"]) / rate)
+    assert s["usd"] > e["bill"]["usd"], "the strawman is supposed to be worse"
+    assert s["ratio"] == round(s["usd"] / e["bill"]["usd"], 1)
+    # the point of the tab: fixed overhead, not article length, is what costs
+    assert s["system_share"] > 0.5
+    # the narrated run's coarser estimate is shown alongside, not instead
+    assert s["scene"]["usd"] > 0
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_biggest_excluded_cost_is_the_pipelines_own_classifier():
+    """The honesty of this tile rests on naming the token spend it does NOT
+    count — and the largest one is bigger than everything it does count."""
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]
+    classify = next(x for x in e["excluded"] if x["key"] == "classify")
+    assert classify["estimate"] is True
+    assert classify["usd"] > e["bill"]["usd"], (
+        "the scheduled classifier is no longer the larger spend — the closing "
+        "sentence of the tab says it is"
+    )
+    # the things with no number at all must still be named, not omitted
+    assert {x["key"] for x in e["excluded"]} >= {"classify", "enrich", "embed", "dev"}

@@ -639,8 +639,9 @@ def build_framing() -> dict:
     import difflib
     import re
 
-    from demo.core.framing import (CONTRAST_SYSTEM, EXTRACT_LEAD_CHARS,
-                                   FRAMING_KEYS, FRAMING_SYSTEM,
+    from demo.core.framing import (CONTRAST_MAX_TOKENS, CONTRAST_SYSTEM,
+                                   EXTRACT_LEAD_CHARS, FRAMING_KEYS,
+                                   FRAMING_MAX_TOKENS, FRAMING_SYSTEM,
                                    ContrastExtractor, FramingExtractor,
                                    Snapshot, _normalise, build_event_clusters,
                                    verify_framing)
@@ -772,7 +773,8 @@ def build_framing() -> dict:
         "model": "gpt-4o-mini",
         "temperature": 0,
         "lead_chars": EXTRACT_LEAD_CHARS,
-        "max_tokens": {"framing": 260, "contrast": 700},
+        "max_tokens": {"framing": FRAMING_MAX_TOKENS,
+                       "contrast": CONTRAST_MAX_TOKENS},
         "contrast_versions": CONTRAST_VERSIONS,
         "keys": list(FRAMING_KEYS),
         "framing_system": FRAMING_SYSTEM,
@@ -1480,6 +1482,407 @@ def build_stats(conn: sqlite3.Connection) -> dict:
     }
 
 
+# ── the token economy ───────────────────────────────────────────────────
+
+USAGE_PATH = config.DATA_DIR / "llm_usage.json"
+
+# The show-day projection's only assumption, kept here so it is one number in
+# one place rather than a sentence on a slide: an exhibition shift and how
+# often the narrated loop comes around.
+SHOW_HOURS = 8
+LOOP_MINUTES = 5
+
+
+def _usd(prompt_tokens: float, completion_tokens: float) -> float:
+    """The one pricing formula, shared with _CachedLLM.cost_usd."""
+    return (prompt_tokens * config.PRICE_PROMPT_PER_M
+            + completion_tokens * config.PRICE_COMPLETION_PER_M) / 1_000_000
+
+
+def _share(part: float, whole: float) -> float:
+    return round(part / whole, 4) if whole else 0.0
+
+
+def build_economy(conn: sqlite3.Connection, facts: dict) -> dict:
+    """What the model layer cost, and — mostly — where no model was used.
+
+    Two things are measured rather than assumed. First, the prompts: every one
+    of the cached calls is reconstructed from the same snapshot and the same
+    prompt builders the extractors use, so the character counts on screen are
+    the characters that were actually sent. Second, the exchange rate: the
+    usage file holds the true billed token counts, so dividing real chars by
+    real tokens gives this corpus's Hebrew chars-per-token instead of a
+    remembered rule of thumb. Everything derived from that rate is labelled
+    an estimate, and the output side is measured separately as a check on it.
+
+    Counts for the deterministic stages are taken from the already-built facts
+    rather than recounted, so this tile cannot disagree with the six before it.
+    """
+    import statistics
+
+    from demo.core.framing import (CONTRAST_LEAD_CHARS, CONTRAST_MAX_TOKENS,
+                                   CONTRAST_SYSTEM, EXTRACT_LEAD_CHARS,
+                                   FRAMING_MAX_TOKENS, FRAMING_SYSTEM,
+                                   ContrastExtractor, FramingExtractor,
+                                   Snapshot, build_contrast_prompt,
+                                   build_event_clusters)
+    from demo.snapshot.prepare_demo import CONTRAST_VERSIONS
+    from src.nlp.categories import DEFAULT_MODEL as CLASSIFY_MODEL
+    from src.nlp.classify import _build_system_prompt as classify_system
+    from src.nlp.truncate import MAX_TEXT_CHARS, truncate_for_classification
+
+    usage = json.loads(USAGE_PATH.read_text(encoding="utf-8"))
+    prompt_tokens = int(usage["prompt_tokens"])
+    completion_tokens = int(usage["completion_tokens"])
+    total_tokens = prompt_tokens + completion_tokens
+
+    snap = Snapshot()
+    articles = snap.articles()
+    events = build_event_clusters(snap)
+    framer, contraster = FramingExtractor(), ContrastExtractor()
+    by_event = {e.event_id: e for e in events}
+
+    # ---- rebuild every prompt that was actually sent
+    framing_user: list[int] = []
+    for article_id in framer.cache:
+        row = articles.get(article_id)
+        if row is None:
+            continue
+        framing_user.append(len(
+            f"כותרת: {row['title']}\nפתיח: {(row['text'] or '')[:EXTRACT_LEAD_CHARS]}"))
+
+    contrast_user: list[int] = []
+    versions_per_call: dict[int, int] = {}
+    for event_id in contraster.cache:
+        event = by_event.get(event_id)
+        if event is None:
+            continue
+        versions = [(v.source, v.title, articles[v.article_id]["text"])
+                    for v in event.versions[:CONTRAST_VERSIONS]]
+        contrast_user.append(len(build_contrast_prompt(versions)))
+        versions_per_call[len(versions)] = versions_per_call.get(len(versions), 0) + 1
+
+    f_sys, c_sys = len(FRAMING_SYSTEM), len(CONTRAST_SYSTEM)
+    f_calls, c_calls = len(framing_user), len(contrast_user)
+    f_chars = sum(framing_user) + f_sys * f_calls
+    c_chars = sum(contrast_user) + c_sys * c_calls
+    prompt_chars = f_chars + c_chars
+    system_chars = f_sys * f_calls + c_sys * c_calls
+    # Published at the precision the wall prints, and then used at that
+    # precision for everything downstream: a visitor who recomputes an
+    # estimate from the number on screen must land on the number on screen.
+    chars_per_token = round(prompt_chars / prompt_tokens, 3) if prompt_tokens else 0.0
+
+    # The output side, measured independently: what the cache holds is the
+    # parsed answer re-serialised, so it is close to but not identical with
+    # the raw response — which is exactly why the two rates are shown apart
+    # instead of averaged into one confident number.
+    f_out = sum(len(json.dumps(v, ensure_ascii=False)) for v in framer.cache.values())
+    c_out = sum(len(json.dumps(v, ensure_ascii=False)) for v in contraster.cache.values())
+    out_chars = f_out + c_out
+    out_per_token = (round(out_chars / completion_tokens, 3)
+                     if completion_tokens else 0.0)
+
+    rate = {
+        "prompt_chars": prompt_chars,
+        "prompt_tokens": prompt_tokens,
+        "chars_per_token": chars_per_token,
+        "output_chars": out_chars,
+        "completion_tokens": completion_tokens,
+        "output_chars_per_token": out_per_token,
+        "gap": round(abs(chars_per_token - out_per_token) / chars_per_token, 4)
+        if chars_per_token else 0.0,
+        "examples": [
+            {"label_he": "הנחיית המערכת של המסגור", "chars": f_sys},
+            {"label_he": "פתיח מלא, בגבול החיתוך", "chars": EXTRACT_LEAD_CHARS},
+            {"label_he": "קריאת מסגור טיפוסית, הכל כלול",
+             "chars": f_sys + int(statistics.median(framing_user))
+             if framing_user else f_sys},
+        ],
+    }
+
+    for example in rate["examples"]:
+        example["tokens"] = (round(example["chars"] / chars_per_token)
+                             if chars_per_token else 0)
+
+    # ---- prompt anatomy: what fraction of the bill is instructions
+    prompt_facts = {
+        "framing": {
+            "calls": f_calls,
+            "system_chars": f_sys,
+            "user_median": round(statistics.median(framing_user), 1) if framing_user else 0,
+            "user_mean": round(statistics.mean(framing_user), 1) if framing_user else 0,
+            "total_chars": f_chars,
+            "system_share": _share(f_sys * f_calls, f_chars),
+            "max_tokens": FRAMING_MAX_TOKENS,
+        },
+        "contrast": {
+            "calls": c_calls,
+            "system_chars": c_sys,
+            "user_median": round(statistics.median(contrast_user), 1) if contrast_user else 0,
+            "user_mean": round(statistics.mean(contrast_user), 1) if contrast_user else 0,
+            "total_chars": c_chars,
+            "system_share": _share(c_sys * c_calls, c_chars),
+            "max_tokens": CONTRAST_MAX_TOKENS,
+            "lead_chars": CONTRAST_LEAD_CHARS,
+            "versions": [{"versions": k, "events": v}
+                         for k, v in sorted(versions_per_call.items())],
+        },
+        "system_chars_total": system_chars,
+        "system_tokens": round(system_chars / chars_per_token) if chars_per_token else 0,
+        "system_share_of_prompt": _share(system_chars, prompt_chars),
+        "framing_share": _share(f_chars, prompt_chars),
+    }
+
+    # ---- what the 500-char cap kept off the bill
+    version_chars = [len(articles[v.article_id]["text"] or "")
+                     for e in events for v in e.versions]
+    dropped = sum(max(0, n - EXTRACT_LEAD_CHARS) for n in version_chars)
+    dropped_tokens = round(dropped / chars_per_token) if chars_per_token else 0
+    truncation = {
+        "lead_chars": EXTRACT_LEAD_CHARS,
+        "versions": len(version_chars),
+        "median_chars": round(statistics.median(version_chars), 1) if version_chars else 0,
+        "over_cap": sum(1 for n in version_chars if n > EXTRACT_LEAD_CHARS),
+        "sent_chars": sum(min(n, EXTRACT_LEAD_CHARS) for n in version_chars),
+        "dropped_chars": dropped,
+        "dropped_tokens": dropped_tokens,
+        "dropped_usd": round(_usd(dropped_tokens, 0), 6),
+        "would_be_prompt_tokens": prompt_tokens + dropped_tokens,
+        "median_share_sent": round(statistics.median(
+            [min(n, EXTRACT_LEAD_CHARS) / n for n in version_chars if n]), 4)
+        if version_chars else 0.0,
+    }
+
+    # ---- the bill, and the two ways to cut it
+    # rounded first, then summed, so the two figures on screen add up to the
+    # third one on screen rather than to an invisible extra digit
+    prompt_usd = round(_usd(prompt_tokens, 0), 6)
+    completion_usd = round(_usd(0, completion_tokens), 6)
+    bill = {
+        "calls": int(usage["calls"]),
+        "cached_outputs": int(usage.get("cached_outputs", 0)),
+        "covered": int(usage["calls"]) == len(framer.cache) + len(contraster.cache),
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+        "prompt_usd": prompt_usd,
+        "completion_usd": completion_usd,
+        "usd": round(prompt_usd + completion_usd, 6),
+        "reported_usd": round(float(usage["usd"]), 6),
+        "completion_per_call": round(completion_tokens / int(usage["calls"]), 1)
+        if usage["calls"] else 0.0,
+        "completion_token_share": _share(completion_tokens, total_tokens),
+        "completion_bill_share": _share(completion_usd, prompt_usd + completion_usd),
+        "price_prompt_per_m": config.PRICE_PROMPT_PER_M,
+        "price_completion_per_m": config.PRICE_COMPLETION_PER_M,
+    }
+
+    # The dollar split between the two call types is NOT in the usage file —
+    # it holds one total. Splitting prompt tokens by measured characters is
+    # exact up to the tokenizer; splitting completion tokens by cached output
+    # characters assumes the same rate on both sides, which is the assumption
+    # the rate panel puts a number on. Marked derived, not measured.
+    split = []
+    for key, label, calls, chars, out in (
+        ("framing", "חילוץ מסגור", f_calls, f_chars, f_out),
+        ("contrast", "ניתוח קונטרסטיבי", c_calls, c_chars, c_out),
+    ):
+        p_tok = round(prompt_tokens * _share(chars, prompt_chars))
+        c_tok = round(completion_tokens * _share(out, out_chars))
+        usd = _usd(p_tok, c_tok)
+        split.append({
+            "key": key, "label_he": label, "calls": calls,
+            "prompt_tokens": p_tok, "completion_tokens": c_tok,
+            "usd": round(usd, 6),
+            "per_call_usd": round(usd / calls, 6) if calls else 0.0,
+            "derived": True,
+        })
+
+    per_unit = [
+        {"label_he": "לאירוע חוצה־ערוצים", "n": len(events),
+         "usd": round(bill["usd"] / len(events), 6) if events else 0.0},
+        {"label_he": "לגרסה שנותחה", "n": len(framer.cache),
+         "usd": round(bill["usd"] / len(framer.cache), 6) if framer.cache else 0.0},
+        {"label_he": "לכתבה בתמונת המצב", "n": facts["corpus"]["articles"],
+         "usd": round(bill["usd"] / facts["corpus"]["articles"], 6)},
+        {"label_he": "לתגובה שנוקדה", "n": facts["comments"]["total"], "usd": 0.0},
+    ]
+
+    # ---- the stages, and how many of them need a model at all
+    verifier = facts["framing"]["verifier"]
+    stages = [
+        {"key": "crawl", "label_he": "איסוף", "kind": "free",
+         "n": facts["corpus"]["articles"], "unit_he": "כתבות",
+         "detail_he": "בקשות HTTP, חילוץ טקסט, זיהוי כפילויות לפי sha256"},
+        {"key": "windows", "label_he": "חלונות", "kind": "free",
+         "n": facts["windows"]["total"], "unit_he": "חלונות",
+         "detail_he": "פיצול משפטים מבוסס חוקים, חיתוך ב־60 טוקנים"},
+        {"key": "comments", "label_he": "תגובות", "kind": "free",
+         "n": facts["comments"]["total"], "unit_he": "תגובות",
+         "detail_he": "איסוף ואז ניקוד יחס לפי מילון — חיפוש במילון, לא מודל"},
+        {"key": "lexicon", "label_he": "לקסיקון", "kind": "free",
+         "n": facts["lexicon"]["article_expanded"], "unit_he": "צורות",
+         "detail_he": "הורחב פעם אחת אופליין; בזמן ריצה זו בדיקת שייכות לקבוצה"},
+        {"key": "embed", "label_he": "וקטורים", "kind": "local",
+         "n": facts["retrieval"]["vectors"], "unit_he": "וקטורים",
+         "detail_he": f"{config.EMBED_MODEL} רץ על המחשב הזה — מודל, אבל בלי API ובלי חיוב"},
+        {"key": "cluster", "label_he": "אשכול אירועים", "kind": "free",
+         "n": facts["retrieval"]["events"]["total"], "unit_he": "אירועים",
+         "detail_he": "דמיון קוסינוס וסף — אריתמטיקה על הווקטורים"},
+        {"key": "framing", "label_he": "חילוץ מסגור", "kind": "paid",
+         "n": f_calls, "unit_he": "קריאות",
+         "detail_he": "מי מוצג כמבצע ולמי מיוחסת אחריות — אין לזה תשובה דטרמיניסטית"},
+        {"key": "contrast", "label_he": "ניתוח קונטרסטיבי", "kind": "paid",
+         "n": c_calls, "unit_he": "קריאות",
+         "detail_he": "מה ייחודי בכל גרסה ביחס לאחרות — שאלה שגרסה בודדת לא עונה עליה"},
+        {"key": "verify", "label_he": "אימות", "kind": "free",
+         "n": verifier["terms_total"] + verifier["quotes_total"], "unit_he": "בדיקות",
+         "detail_he": "כל ביטוי וכל ציטוט מהמודל מחפשים בטקסט המקורי — התאמת מחרוזות"},
+        {"key": "stats", "label_he": "סטטיסטיקה", "kind": "free",
+         "n": facts["stats"]["multiplicity"]["tests"], "unit_he": "בדיקות",
+         "detail_he": "bootstrap, מבחני תמורות, תיקון מרובה — numpy, לא טוקנים"},
+    ]
+    for stage in stages:
+        stage["usd"] = next((s["usd"] for s in split if s["key"] == stage["key"]), 0.0)
+
+    # ---- the cache: what a show day would cost if it were not there
+    demo_set = json.loads(config.DEMO_SET_PATH.read_text(encoding="utf-8"))
+    showcases = demo_set.get("showcase_events") or []
+    per_loop_framing = (statistics.mean(len(s["versions"]) for s in showcases)
+                        if showcases else 0.0)
+    f_per_call = next(s["per_call_usd"] for s in split if s["key"] == "framing")
+    c_per_call = next(s["per_call_usd"] for s in split if s["key"] == "contrast")
+    loop_usd = per_loop_framing * f_per_call + c_per_call
+    loops = int(SHOW_HOURS * 60 / LOOP_MINUTES)
+    cache = {
+        "entries": len(framer.cache) + len(contraster.cache),
+        "framing": len(framer.cache),
+        "contrast": len(contraster.cache),
+        "showtime_calls": 0,
+        "showcases": len(showcases),
+        "calls_per_loop": round(per_loop_framing + 1, 1),
+        "loop_usd": round(loop_usd, 6),
+        "show_hours": SHOW_HOURS,
+        "loop_minutes": LOOP_MINUTES,
+        "loops": loops,
+        "day_usd": round(loop_usd * loops, 4),
+        "day_calls": round((per_loop_framing + 1) * loops),
+    }
+
+    # ---- the strawman, costed two ways
+    article_chars = conn.execute(
+        "SELECT COALESCE(SUM(LENGTH(text)), 0) FROM articles").fetchone()[0]
+    comment_chars = conn.execute(
+        "SELECT COALESCE(SUM(LENGTH(text)), 0) FROM comments").fetchone()[0]
+    n_articles = facts["corpus"]["articles"]
+    n_comments = facts["comments"]["total"]
+    all_calls = n_articles + n_comments
+    straw_system = f_sys * all_calls
+    straw_prompt = round((article_chars + comment_chars + straw_system) / chars_per_token) \
+        if chars_per_token else 0
+    per_call_completion = completion_tokens / int(usage["calls"]) if usage["calls"] else 0
+    straw_completion = round(all_calls * per_call_completion)
+    straw_usd = _usd(straw_prompt, straw_completion)
+
+    # the coarser estimate the narrated run puts on screen, kept here so the
+    # two numbers on the wall are shown together instead of contradicting
+    scene_articles = facts["retrieval"]["vectors"]
+    scene_usd = _usd(scene_articles * 900, scene_articles * 150)
+
+    span = conn.execute(
+        "SELECT MIN(first_seen_at), MAX(first_seen_at) FROM articles").fetchone()
+    days = _snapshot_days(span)
+    strawman = {
+        "articles": n_articles, "article_chars": article_chars,
+        "comments": n_comments, "comment_chars": comment_chars,
+        "calls": all_calls,
+        "system_chars": straw_system,
+        "system_share": _share(straw_system, article_chars + comment_chars + straw_system),
+        "prompt_tokens": straw_prompt,
+        "completion_tokens": straw_completion,
+        "per_call_completion": round(per_call_completion, 1),
+        "usd": round(straw_usd, 4),
+        "ratio": round(straw_usd / bill["usd"], 1) if bill["usd"] else 0.0,
+        "days": days,
+        "month_usd": round(straw_usd * 30 / days, 2) if days else 0.0,
+        "agents_month_usd": round(bill["usd"] * 30 / days, 3) if days else 0.0,
+        "scene": {"articles": scene_articles, "prompt_per_article": 900,
+                  "completion_per_article": 150, "usd": round(scene_usd, 4)},
+    }
+
+    # ---- what this bill does not include, with the big one measured
+    classify_sys = classify_system()
+    classify_chars = 0
+    labeled = 0
+    for row in conn.execute("SELECT text, primary_category FROM articles"):
+        classify_chars += len(classify_sys) + len(truncate_for_classification(row[0] or ""))
+        labeled += bool(row[1])
+    classify_tokens = round(classify_chars / chars_per_token) if chars_per_token else 0
+    classify_completion = round(n_articles * per_call_completion)
+    excluded = [
+        {"key": "classify", "label_he": "סיווג קטגוריה בפייפליין",
+         "detail_he": f"{CLASSIFY_MODEL} על כותרת ו־{MAX_TEXT_CHARS} תווים ראשונים, "
+                      f"לכל כתבה — רץ בענן כל 6 שעות, הרבה לפני שכבת הסוכנים",
+         "n": labeled, "unit_he": "כתבות שכבר תויגו",
+         "prompt_tokens": classify_tokens,
+         "usd": round(_usd(classify_tokens, classify_completion), 4),
+         "estimate": True},
+        {"key": "enrich", "label_he": "סיכום והערכת הטיה",
+         "detail_he": "נוצרים לפי בקשה מהאתר ונשמרים במטמון — לא רצים בלוח זמנים, "
+                      "ולכן אין להם חשבון קבוע",
+         "n": None, "unit_he": None, "prompt_tokens": None, "usd": None,
+         "estimate": False},
+        {"key": "embed", "label_he": "זמן המעבד של מודל הווקטורים",
+         "detail_he": f"{config.EMBED_MODEL} לא עולה טוקנים, אבל כן עולה חשמל וזמן — "
+                      "זה לא מופיע בשום שורה כאן",
+         "n": facts["retrieval"]["vectors"], "unit_he": "וקטורים",
+         "prompt_tokens": None, "usd": None, "estimate": False},
+        {"key": "dev", "label_he": "ריצות פיתוח שנזרקו",
+         "detail_he": "הקובץ מצטבר על פני ריצות הכנה, אבל ניסויי פרומפט שנמחקו "
+                      "לא נספרו — המספר הוא של המטמון שנשאר",
+         "n": None, "unit_he": None, "prompt_tokens": None, "usd": None,
+         "estimate": False},
+    ]
+
+    return {
+        "constants": {
+            "model": facts["framing"]["model"],
+            "temperature": facts["framing"]["temperature"],
+            "embed_model": config.EMBED_MODEL,
+            "price_prompt_per_m": config.PRICE_PROMPT_PER_M,
+            "price_completion_per_m": config.PRICE_COMPLETION_PER_M,
+            "lead_chars": EXTRACT_LEAD_CHARS,
+            "contrast_lead_chars": CONTRAST_LEAD_CHARS,
+            "contrast_versions": CONTRAST_VERSIONS,
+            "framing_max_tokens": FRAMING_MAX_TOKENS,
+            "contrast_max_tokens": CONTRAST_MAX_TOKENS,
+        },
+        "bill": bill,
+        "stages": stages,
+        "rate": rate,
+        "prompt": prompt_facts,
+        "truncation": truncation,
+        "split": split,
+        "per_unit": per_unit,
+        "cache": cache,
+        "strawman": strawman,
+        "excluded": excluded,
+    }
+
+
+def _snapshot_days(span) -> float:
+    """Calendar days the snapshot spans — the denominator of any rate here."""
+    from datetime import datetime
+
+    try:
+        start = datetime.fromisoformat(span[0])
+        end = datetime.fromisoformat(span[1])
+    except (TypeError, ValueError):
+        return 0.0
+    return round((end - start).total_seconds() / 86400, 2)
+
+
 def main() -> int:
     if not config.SQLITE_PATH.exists():
         print(f"missing snapshot: {config.SQLITE_PATH}", file=sys.stderr)
@@ -1502,6 +1905,10 @@ def main() -> int:
             "audience": build_audience(conn),
             "stats": build_stats(conn),
         }
+        # last, and on purpose: the economy tile reports the deterministic
+        # stages' own counts rather than recounting them, so it cannot claim
+        # a corpus size the six tiles before it disagree with.
+        facts["economy"] = build_economy(conn, facts)
     finally:
         conn.close()
 
@@ -1526,6 +1933,12 @@ def main() -> int:
     print(f"  stats: {m['tests']} significance tests · {len(m['hits'])} below "
           f"{m['alpha']} · {len(m['survivors'])} survive Bonferroni "
           f"({m['bonferroni']})")
+    e = facts["economy"]
+    print(f"  economy: {e['bill']['calls']} paid calls · "
+          f"{e['bill']['total_tokens']} tokens · ${e['bill']['usd']:.4f} · "
+          f"{e['rate']['chars_per_token']} chars/token · "
+          f"{sum(1 for s in e['stages'] if s['kind'] == 'paid')}/{len(e['stages'])} "
+          f"stages paid")
     return 0
 
 
