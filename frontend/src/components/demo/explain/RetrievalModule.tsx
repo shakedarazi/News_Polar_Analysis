@@ -7,18 +7,15 @@ import {
   Caveat,
   Chip,
   CodeRef,
-  Node,
   Panel,
   SubNav,
   type TabDef,
 } from "./kit";
 
 const TABS: TabDef[] = [
-  { id: "why", label_he: "למה מילים נכשלות" },
+  { id: "why", label_he: "למה לא מילים" },
   { id: "index", label_he: "האינדקס" },
-  { id: "cut", label_he: "הסף" },
-  { id: "walk", label_he: "אירוע אחד, צעד־צעד" },
-  { id: "limits", label_he: "מה זה לא עושה" },
+  { id: "cut", label_he: "הסף והחלון" },
 ];
 
 interface Props {
@@ -26,14 +23,15 @@ interface Props {
 }
 
 /**
- * Module: the retrieval layer — the first place in the system where a
- * learned model earns its keep.
+ * Module: the retrieval layer — the first place in the system where a learned
+ * model earns its keep.
  *
- * The whole module is built around one measurement: how many versions of the
- * same event a keyword baseline would have found. That number is recomputed
- * from the snapshot by demo/snapshot/build_explainer_facts.py, together with
- * the threshold sweep — so the table on the wall is the experiment itself,
- * not a remembered result.
+ * Three decisions, one per tab: pay for embeddings because the free keyword
+ * baseline was measured and lost; hold the index as a numpy matrix because at
+ * this size an approximate index buys nothing and adds a process that can fall
+ * over mid-exhibition; and set both boundaries — how close is the same story,
+ * how old is too old — from a sweep that is recomputed on every build by
+ * demo/snapshot/build_explainer_facts.py.
  */
 export function RetrievalModule({ facts }: Props) {
   const [tab, setTab] = useState("why");
@@ -44,10 +42,12 @@ export function RetrievalModule({ facts }: Props) {
       {tab === "why" && <WhyWords facts={facts} />}
       {tab === "index" && <IndexPanel facts={facts} />}
       {tab === "cut" && <Cut facts={facts} />}
-      {tab === "walk" && <Walk facts={facts} />}
-      {tab === "limits" && <Limits facts={facts} />}
     </div>
   );
+}
+
+function num(x: number): string {
+  return x.toLocaleString("en-US");
 }
 
 function pct(x: number): string {
@@ -81,506 +81,135 @@ function Big({
   );
 }
 
-/* ── 1. why a keyword search fails ──────────────────────────────── */
+/* ── 1. the keyword baseline was measured, and it lost ──────────── */
 
 function WhyWords({ facts }: Props) {
   const r = facts?.retrieval;
   const k = r?.keyword;
+  const ex = r?.example;
   const maxJ = Math.max(1, ...(k?.histogram.map((b) => b.n) ?? [1]));
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[48%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="הבעיה: אותו אירוע, אפס מילים משותפות">
-          <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
-            כדי להשוות מסגור בין ערוצים צריך קודם לדעת מי סיקר את אותו סיפור.
-            בעברית זה לא עובד לפי מילים: לכל מערכת יש בחירת מילים משלה, ולכן שתי
-            כותרות על אותו אירוע יכולות לא לחלוק אף מילה — לא בגלל שהן על נושאים
-            שונים, אלא בגלל שכל אחת בחרה זווית אחרת.
-          </p>
-        </Panel>
-
-        <Panel
-          title="הבסיס המילולי שמדדנו מולו"
-          hint="demo/core/framing.py · keyword_jaccard"
-        >
-          <div className="flex flex-col gap-2.5">
-            <div
-              dir="ltr"
-              className="rounded-lg border border-[var(--dk-accent)]/25 bg-[var(--dk-accent-dim)]/40 px-3 py-2 text-center font-mono text-[16px] text-[var(--dk-accent)]"
-            >
-              J(a,b) = |tokens(a) ∩ tokens(b)| / |tokens(a) ∪ tokens(b)|
-            </div>
-            <p className="text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-              טוקנים עבריים באורך 3+ מהכותרת. נחשב &quot;נמצא&quot; אם{" "}
-              <span dir="ltr" className="font-mono">
-                J ≥ {r?.keyword_jaccard ?? 0.25}
-              </span>{" "}
-              — סף נדיב: הוא מספיק ששליש מהמילים יחפפו.
+    <div className="grid min-h-0 flex-1 grid-cols-[42%_1fr] gap-3">
+      <Panel
+        title={
+          k
+            ? `חיפוש מילולי מוצא ${k.found} מתוך ${k.total} הגרסאות`
+            : "חיפוש מילולי מול אחזור סמנטי"
+        }
+        hint={k ? `J = חפיפת מילים בכותרת · חציון ${k.median}` : undefined}
+      >
+        {k && r ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              {k.zero_overlap} מהזוגות לא חולקים אף מילה. לכל מערכת יש בחירת
+              מילים משלה, ולכן שתי כותרות על אותו אירוע יכולות לא להיפגש.
             </p>
-          </div>
-        </Panel>
-
-        {k && (
-          <div className="grid grid-cols-3 gap-2">
-            <Big value={`${k.found}/${k.total}`} label="גרסאות שחיפוש מילולי מוצא" tone="bad" />
-            <Big value={pct(k.recall)} label="שיעור האחזור המילולי" tone="bad" />
-            <Big
-              value={String(k.zero_overlap)}
-              label="זוגות כותרות בלי אף מילה משותפת"
-            />
-          </div>
-        )}
-      </div>
-
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel
-          title="חפיפת מילים בין גרסאות של אותו אירוע"
-          hint={k ? `${k.total} זוגות · חציון J = ${k.median}` : undefined}
-        >
-          {k ? (
+            <div className="grid grid-cols-3 gap-2">
+              <Big
+                value={`${k.found}/${k.total}`}
+                label="זוגות שהמילים מצאו"
+                tone="bad"
+              />
+              <Big value={pct(k.recall)} label="שיעור אחזור מילולי" tone="bad" />
+              <Big
+                value={`${k.blind_events}/${r.events.total}`}
+                label="אירועים שנעלמים לגמרי"
+              />
+            </div>
             <div className="flex flex-col gap-2">
-              {k.histogram.map((b) => (
-                <div key={b.label} className="flex-1">
+              {k.histogram.map((b, i) => {
+                // The top bucket starts at the keyword threshold, so it is the
+                // only one a keyword search would have called a match.
+                const found = i === k.histogram.length - 1;
+                return (
                   <BarRow
+                    key={b.label}
                     label={b.label}
                     n={b.n}
                     max={maxJ}
-                    tone={b.label === "0.25+" ? "good" : "bad"}
-                    note={b.label === "0.25+" ? "נמצא מילולית" : undefined}
+                    tone={found ? "good" : "bad"}
+                    note={found ? `נמצא מ־${r.keyword_jaccard} ומעלה` : undefined}
                   />
-                </div>
-              ))}
+                );
+              })}
             </div>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-
-        {k && r && (
-          <Panel title="ברמת האירוע">
             <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
-              ב־
-              <b className="text-[var(--dk-bad)]">{k.blind_events}</b> מתוך{" "}
-              <b>{r.events.total}</b> האירועים בסנאפשוט, חיפוש מילולי לא היה מוצא
-              אף גרסה נוספת — כלומר האירוע כולו לא היה קיים כאירוע. זה לא כשל של
-              מימוש מסוים; זה מה שקורה כשמזהים סיפור לפי מחרוזות.
+              האחזור הסמנטי בנה {r.events.total} אירועים מ־{r.events.versions}{" "}
+              גרסאות. בסיס מילולי היה משאיר {r.events.total - k.blind_events}.
             </p>
-          </Panel>
-        )}
-
-        <Caveat>
-          77 הזוגות האלה הוגדרו על ידי האחזור הסמנטי עצמו, ולכן הוא מוצא 100%
-          מהם בהגדרה. המספר שאפשר לטעון עליו הוא רק זה: מבין הזוגות שהאמבדינגים
-          מצאו, חיפוש מילולי היה משחזר {k ? pct(k.recall) : "כ־22%"}. זו לא מדידה
-          על ground truth ידני.
-        </Caveat>
-      </div>
-    </div>
-  );
-}
-
-/* ── 2. the index ───────────────────────────────────────────────── */
-
-function IndexPanel({ facts }: Props) {
-  const r = facts?.retrieval;
-  const maxArticles = Math.max(1, ...(r?.corpus.per_source.map((s) => s.articles) ?? [1]));
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[52%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-        <Panel
-          title="מה נכנס לווקטור"
-          hint="demo/snapshot/prepare_demo.py · passage_text"
-        >
-          <div className="flex flex-col gap-2">
-            <Node
-              title="כותרת + פתיח הכתבה"
-              sub={
-                <>
-                  {r?.passage_lead_chars ?? 400} תווים ראשונים מהגוף. הפתיח מספיק
-                  כדי לקבע על איזה אירוע מדובר; גוף מלא היה מוסיף פרשנות ומטשטש
-                  את ההבדל בין אירועים.
-                </>
-              }
-            />
-            <Node
-              title='קידומת "passage: " / "query: "'
-              mono
-              sub="e5 אומן עם הקידומות האלה. בלעדיהן הווקטורים עדיין מתקבלים — פשוט פחות טובים. זו דרישה של המודל, לא קישוט."
-            />
-            <Node
-              title="נרמול L2 לאורך 1"
-              sub="ולכן קוסינוס = מכפלה סקלרית. אין חלוקה בזמן שאילתה, ואין דרך שגודל הווקטור יזלוג לתוך הציון."
-            />
+            <Caveat>
+              {k.total} זוגות הגרסאות הוגדרו על ידי האחזור הסמנטי עצמו, ולכן הוא
+              מוצא אותם בהגדרה. הטענה היחידה כאן: מבין הזוגות שהוא מצא, מילים
+              היו משחזרות {pct(k.recall)}. אין ground truth ידני.
+            </Caveat>
           </div>
-        </Panel>
-
-        <Panel title="למה מטריצת numpy ולא בסיס נתונים וקטורי">
-          <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
-            בגודל הזה שאילתה היא מכפלת מטריצה אחת:{" "}
-            <b dir="ltr" className="font-mono text-[var(--dk-accent)]">
-              {r ? `${r.query_ms.toFixed(3)} ms` : "≈0.01 ms"}
-            </b>{" "}
-            למדידה מלאה על כל האינדקס. אינדקס משוער (HNSW ודומיו) היה מחליף
-            תוצאה מדויקת בקירוב — ומכניס תהליך נוסף שיכול ליפול באמצע התערוכה.
-            הקיוסק לא צריך את זה.
-          </p>
-        </Panel>
-
-        <Panel
-          title="חלון של שעות, ופינוי לפי גיל"
-          hint={
-            r
-              ? `${r.slots.freshness.per_day} כתבות ליום · חציון אירוע ${r.slots.freshness.p50_hours} שעות`
-              : undefined
-          }
-        >
-          {r ? (
-            <>
-              <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
-                בחדשות שימוש הוא לא רלוונטיות. כתבה מלפני שבוע לא נעשית טרייה
-                מזה ששאלו עליה הרבה, ולכן פינוי לפי <b>גיל</b> משאיר את המאגר
-                עדכני ופינוי לפי <b>שימוש</b> ממלא אותו בישן. זה כל ההבדל בין
-                שתי המדיניויות.
-              </p>
-              <p className="mt-2 text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
-                החלון קובע, לא הזיכרון:{" "}
-                {r.slots.freshness.windows
-                  .filter((w) => w.hours === 48)
-                  .map((w) => `${w.hours} שעות הן ${w.slots} סלוטים ומכסות ${(w.covered * 100).toFixed(0)}%`)
-                  .join("")}{" "}
-                מהאירועים חוצי־הערוצים.
-              </p>
-              <Caveat>
-                האינדקס כאן לא מפנה כלום — {r.vectors} וקטורים,{" "}
-                {(r.bytes / 1e6).toFixed(1)}MB, על {r.slots.freshness.corpus_days}{" "}
-                ימי קורפוס. המספרים למעלה הם מדידה של מה שהיה קורה בחלון, לא
-                תיאור של מה שרץ.
-              </Caveat>
-            </>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-      </div>
-
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="האינדקס בפועל">
-          {r ? (
-            <div className="grid grid-cols-2 gap-2">
-              <Big value={r.vectors.toLocaleString("en-US")} label="ווקטורים" />
-              <Big value={String(r.dims)} label="ממדים לווקטור" />
-              <Big
-                value={`${(r.bytes / 1024 / 1024).toFixed(2)} MB`}
-                label="גודל האינדקס בזיכרון"
-              />
-              <Big value={`${r.query_ms.toFixed(3)} ms`} label="שאילתה מלאה" tone="good" />
-              <div className="col-span-2 rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/50 px-3 py-2 text-center">
-                <code dir="ltr" className="font-mono text-[15px] text-[var(--dk-ink)]">
-                  {r.model}
-                </code>
-                <div className="text-[13px] text-[var(--dk-ink-3)]">
-                  רץ אופליין פעם אחת בזמן ההכנה — הקיוסק לא טוען מודל
-                </div>
-              </div>
-            </div>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-
-        <Panel
-          title="מי נכנס לאינדקס"
-          hint={
-            r
-              ? `${r.corpus.indexed} מתוך ${r.corpus.total} כתבות · סף ${r.corpus.total - r.corpus.indexed === r.corpus.too_short ? "" : ""}${r.min_text_chars} תווים`
-              : undefined
-          }
-        >
-          {r ? (
-            <div className="flex flex-col gap-2">
-              {r.corpus.per_source.map((s) => (
-                <div key={s.source} className="flex items-center gap-2">
-                  <span className="w-[68px] shrink-0 text-[14px] text-[var(--dk-ink-2)]">
-                    {s.source_he}
-                  </span>
-                  <div className="h-4 flex-1 overflow-hidden rounded-md bg-[var(--dk-surface-2)]">
-                    <div
-                      className="h-full bg-[var(--dk-ink-3)]/50"
-                      style={{ width: `${(s.articles / maxArticles) * 100}%` }}
-                    >
-                      <div
-                        className="h-full rounded-e-md bg-[var(--dk-accent)]"
-                        style={{
-                          width: `${(s.indexed / Math.max(s.articles, 1)) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <span
-                    dir="ltr"
-                    className="w-[86px] shrink-0 text-left font-mono text-[13.5px] text-[var(--dk-ink-2)]"
-                  >
-                    {s.indexed}/{s.articles}
-                  </span>
-                </div>
-              ))}
-              <p className="mt-1 text-[14px] leading-snug text-[var(--dk-ink-2)]">
-                כתבה מתחת ל־{r.min_text_chars} תווים לא נכנסת: אין לה פתיח שאפשר
-                לעגן עליו. זו בדיוק החתיכה שנחתכה במודול האיסוף — הארץ מגיע
-                קטוע מהפיי־וול, ולכן {r.corpus.per_source.find((s) => s.source === "haaretz")?.indexed ?? 82}{" "}
-                מתוך {r.corpus.per_source.find((s) => s.source === "haaretz")?.articles ?? 235}{" "}
-                מהכתבות שלו בכלל מגיעות לשלב הזה.
-              </p>
-            </div>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-      </div>
-    </div>
-  );
-}
-
-/* ── 3. the threshold ───────────────────────────────────────────── */
-
-function Cut({ facts }: Props) {
-  const r = facts?.retrieval;
-  const sim = r?.similarity;
-  const maxBucket = Math.max(1, ...(sim?.histogram.map((b) => b.n) ?? [1]));
-
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[50%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel
-          title="ציון קוסינוס בפני עצמו לא אומר כלום"
-          hint={sim ? `${sim.pairs.toLocaleString("en-US")} זוגות בסנאפשוט` : undefined}
-        >
-          {sim ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-[15px] leading-snug text-[var(--dk-ink-2)]">
-                החציון של <em>כל</em> זוג כתבות במאגר הוא{" "}
-                <b dir="ltr" className="font-mono text-[var(--dk-accent)]">
-                  {sim.median}
-                </b>
-                . כלומר 0.80 הוא &quot;שתי כתבות חדשותיות בעברית&quot;, לא
-                &quot;אותו סיפור&quot;. מה שקובע זה איפה הערך יושב בהתפלגות.
-              </p>
-              {sim.histogram.map((b) => (
-                <div key={b.label} className="flex-1">
-                  <BarRow
-                    label={b.label}
-                    n={b.n}
-                    max={maxBucket}
-                    tone={
-                      b.label === "0.90-0.95" || b.label === "0.95-1.00"
-                        ? "good"
-                        : "muted"
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-
-        {sim && r && (
-          <Panel title="הסף שנבחר במונחי אחוזון">
-            <div className="flex flex-wrap items-center gap-2">
-              {sim.above.map((a) => (
-                <Chip
-                  key={a.threshold}
-                  tone={a.threshold === r.cluster_sim ? "accent" : "neutral"}
-                >
-                  <span dir="ltr" className="font-mono">
-                    ≥{a.threshold} → {a.pct}%
-                  </span>
-                </Chip>
-              ))}
-            </div>
-            <p className="mt-2 text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-              הסף {r.cluster_sim} משאיר את{" "}
-              {sim.above.find((a) => a.threshold === r.cluster_sim)?.pct}% העליונים
-              של כל הזוגות. זה מה שהופך אותו לסף ולא לקירוב.
-            </p>
-          </Panel>
-        )}
-      </div>
-
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel
-          title="סריקת הסף — מה כל ערך עולה"
-          hint="נמדד מחדש בכל בנייה, לא זיכרון"
-        >
-          {r ? (
-            <table className="w-full text-[15px]">
-              <thead>
-                <tr className="text-[13.5px] text-[var(--dk-ink-3)]">
-                  <th className="pb-1.5 text-right font-normal">סף</th>
-                  <th className="pb-1.5 text-right font-normal">אירועים</th>
-                  <th className="pb-1.5 text-right font-normal">גרסאות</th>
-                  <th className="pb-1.5 text-right font-normal">עם 3+ ערוצים</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.sweep.map((row) => (
-                  <tr
-                    key={row.threshold}
-                    className={
-                      row.chosen
-                        ? "bg-[var(--dk-accent-dim)]/50 text-[var(--dk-accent)]"
-                        : "text-[var(--dk-ink-2)]"
-                    }
-                  >
-                    <td dir="ltr" className="py-1 text-right font-mono font-bold">
-                      {row.threshold.toFixed(2)}
-                      {row.chosen ? " ←" : ""}
-                    </td>
-                    <td dir="ltr" className="py-1 text-right font-mono">
-                      {row.events}
-                    </td>
-                    <td dir="ltr" className="py-1 text-right font-mono">
-                      {row.versions}
-                    </td>
-                    <td
-                      dir="ltr"
-                      className={`py-1 text-right font-mono ${
-                        row.three_plus === 0 && !row.chosen
-                          ? "text-[var(--dk-bad)]"
-                          : ""
-                      }`}
-                    >
-                      {row.three_plus}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-
-        <Panel title="למה 0.90 ולא נמוך יותר">
-          <p className="text-[15px] leading-relaxed text-[var(--dk-ink-2)]">
-            0.84 היה נותן יותר אירועים עם שלושה ערוצים — אבל האשכולות שם כבר לא
-            אירוע אחד אלא &quot;כל מה שקשור לאיראן&quot;, וההשוואה בין ערוצים
-            מאבדת משמעות כשהיא רצה על סיפורים שונים. 0.92 ומעלה שומר על טוהר
-            ומאבד את ההשוואה לגמרי: אפס אירועים עם שלושה ערוצים. 0.90 הוא
-            הבחירה, והטבלה משמאל היא מה שהיא עלתה.
-          </p>
-        </Panel>
-
-        <Caveat>
-          הגבול בין &quot;אירוע אחד&quot; ל&quot;סיפור מתגלגל&quot; נקבע בעין,
-          לא במדד. הטבלה מראה את ההשלכה המספרית של כל ערך; היא לא מוכיחה
-          ש־0.90 הוא הנכון.
-        </Caveat>
-      </div>
-    </div>
-  );
-}
-
-/* ── 4. one event, step by step ─────────────────────────────────── */
-
-function Walk({ facts }: Props) {
-  const r = facts?.retrieval;
-  const ex = r?.example;
-
-  if (!ex || !r) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col">
-        <Panel title="אירוע לדוגמה">
+        ) : (
           <Missing />
-        </Panel>
-      </div>
-    );
-  }
+        )}
+      </Panel>
 
-  return (
-    <div className="grid min-h-0 flex-1 grid-cols-[1fr_31%] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-2.5">
-        <Panel
-          title="נקודת המוצא"
-          hint={ex.topic_he ? `נושא האירוע: ${ex.topic_he}` : undefined}
-        >
-          <div className="flex items-center gap-3">
-            <Chip tone="accent">{ex.seed.source_he}</Chip>
-            <span className="text-[17px] font-bold leading-snug">
-              {ex.seed.title}
-            </span>
-          </div>
-        </Panel>
+      <Panel
+        title="אותו סיפור, אפס מילים משותפות"
+        hint="cos — קרבה סמנטית · J — חפיפת מילים"
+      >
+        {ex && r ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3 rounded-xl border border-[var(--dk-accent)]/30 bg-[var(--dk-accent-dim)]/30 px-3 py-2">
+              <Chip tone="accent">נקודת המוצא</Chip>
+              <span className="text-[13.5px] text-[var(--dk-ink-3)]">
+                {ex.seed.source_he}
+              </span>
+              <span className="min-w-0 flex-1 text-[16px] font-bold leading-snug">
+                {ex.seed.title}
+              </span>
+            </div>
 
-        <div className="flex flex-col gap-2">
-          {ex.neighbours.map((n, i) => (
-            <NeighbourRow key={n.title} n={n} rank={i + 1} />
-          ))}
-          {ex.rejected && (
-            <div className="flex items-stretch gap-2.5 rounded-xl border border-dashed border-[var(--dk-border)] px-3 py-2 opacity-60">
-              <div
-                dir="ltr"
-                className="flex w-[76px] shrink-0 flex-col items-center justify-center"
-              >
-                <span className="font-mono text-[17px] font-bold text-[var(--dk-ink-3)]">
-                  {ex.rejected.cos}
-                </span>
-                <span className="text-[11.5px] text-[var(--dk-ink-3)]">cos</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <Chip tone="bad">מתחת לסף — נעצר כאן</Chip>
-                  <span className="text-[13.5px] text-[var(--dk-ink-3)]">
-                    {ex.rejected.source_he}
+            {ex.neighbours.map((n, i) => (
+              <NeighbourRow key={n.title} n={n} rank={i + 1} />
+            ))}
+
+            {ex.rejected && (
+              <div className="flex items-stretch gap-2.5 rounded-xl border border-dashed border-[var(--dk-border)] px-3 py-2 opacity-60">
+                <div
+                  dir="ltr"
+                  className="flex w-[76px] shrink-0 flex-col items-center justify-center"
+                >
+                  <span className="font-mono text-[17px] font-bold text-[var(--dk-ink-3)]">
+                    {ex.rejected.cos}
                   </span>
+                  <span className="text-[11.5px] text-[var(--dk-ink-3)]">cos</span>
                 </div>
-                <div className="mt-0.5 truncate text-[14.5px] text-[var(--dk-ink-2)]">
-                  {ex.rejected.title}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <Chip tone="bad">
+                      מתחת ל־{r.cluster_sim.toFixed(2)} — נעצר כאן
+                    </Chip>
+                    <span className="text-[13.5px] text-[var(--dk-ink-3)]">
+                      {ex.rejected.source_he}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 truncate text-[14.5px] text-[var(--dk-ink-2)]">
+                    {ex.rejected.title}
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
-        </div>
-      </div>
+            )}
 
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="איך לקרוא את השורות">
-          <div className="flex flex-col gap-2 text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-            <div>
-              <b dir="ltr" className="font-mono text-[var(--dk-accent)]">
-                cos
-              </b>{" "}
-              — קרבה סמנטית לנקודת המוצא. הסריקה עוצרת ברגע שהיא יורדת אל מתחת
-              ל־{r.cluster_sim}.
-            </div>
-            <div>
-              <b dir="ltr" className="font-mono text-[var(--dk-bad)]">
-                J
-              </b>{" "}
-              — חפיפת המילים. השורה הראשונה כאן היא אותו סיפור עם{" "}
-              <b>אפס</b> מילים משותפות.
-            </div>
+            <p className="mt-1 text-[15px] leading-relaxed text-[var(--dk-ink-2)]">
+              שתי שורות עברו את הסף וירדו: הערוץ שלהן כבר תרם גרסה. ההשוואה
+              בהמשך רצה מול חציון האירוע, וערוץ שתורם שלוש גרסאות מתוך חמש נמדד
+              מול עצמו.
+            </p>
+            <Caveat>
+              השורה הרביעית עברה את הסף ואינה אותו סיפור. כלל גרסה־אחת־לערוץ
+              הסיר אותה כאן במקרה, לא בגלל שהמערכת זיהתה טעות.
+            </Caveat>
           </div>
-        </Panel>
-
-        <Panel title="כלל גרסה אחת לכל ערוץ" hint="_one_per_source">
-          <p className="text-[14.5px] leading-relaxed text-[var(--dk-ink-2)]">
-            שתי שורות כאן עברו את הסף ובכל זאת ירדו: הערוץ שלהן כבר תרם גרסה.
-            זה לא ניקיון קוסמטי — כל השוואה בהמשך היא מול <b>חציון האירוע</b>,
-            וערוץ שתורם שלוש גרסאות מתוך חמש הופך בעצמו לחציון ומודד סטייה אפס
-            מעצמו.
-          </p>
-        </Panel>
-
-        <Caveat>
-          שורה 4 עברה את הסף ואינה אותו סיפור. כלל גרסה־אחת־לערוץ הסיר אותה
-          כאן במקרה, לא בגלל שהמערכת זיהתה טעות. סף על קוסינוס לא יודע להבחין
-          בין &quot;אותו אירוע&quot; ל&quot;אותו תחום&quot;.
-        </Caveat>
-      </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
     </div>
   );
 }
@@ -646,83 +275,266 @@ function NeighbourRow({ n, rank }: { n: RetrievalNeighbour; rank: number }) {
   );
 }
 
-/* ── 5. limits ──────────────────────────────────────────────────── */
+/* ── 2. what the index costs, and what it exposed ───────────────── */
 
-function Limits({ facts }: Props) {
+function IndexPanel({ facts }: Props) {
   const r = facts?.retrieval;
   const dup = r?.duplicates;
+  const haaretz = r?.corpus.per_source.find((s) => s.source === "haaretz");
 
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[52%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel
-          title="מה האינדקס גילה על שכבת הזהות"
-          hint={dup ? `${dup.pairs} זוגות בקוסינוס ${dup.threshold}+` : undefined}
-        >
-          {dup && dup.examples.length ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-[14.5px] leading-snug text-[var(--dk-ink-2)]">
-                <CodeRef path="article_id = sha256(canonical_url)" /> היא זהות של
-                כתובת, לא של תוכן. אותה כתבה בדיוק, שמוגשת בשני נתיבים באתר, היא
-                שתי שורות במסד. האמבדינגים לא מתקנים את זה — הם הופכים את זה
-                לגלוי:
-              </p>
-              {dup.examples.map((d) => (
-                <div
-                  key={d.id_a}
-                  className="rounded-xl border border-[var(--dk-warn)]/35 bg-[var(--dk-warn)]/6 px-3 py-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <Chip tone="warn">
-                      <span dir="ltr" className="font-mono">
-                        cos {d.cos}
-                      </span>
-                    </Chip>
-                    <span className="truncate text-[14px] text-[var(--dk-ink-2)]">
-                      {d.title}
-                    </span>
-                  </div>
-                  <UrlDiff a={d.url_a} b={d.url_b} />
+    <div className="grid min-h-0 flex-1 grid-cols-[44%_1fr] gap-3">
+      <Panel
+        title="מטריצה בזיכרון, לא בסיס נתונים וקטורי"
+        hint={r ? `${r.corpus.indexed} מתוך ${r.corpus.total} כתבות` : undefined}
+      >
+        {r ? (
+          <div className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <Big value={num(r.vectors)} label="ווקטורים" />
+              <Big value={String(r.dims)} label="ממדים לווקטור" />
+              <Big
+                value={`${(r.bytes / 1024 / 1024).toFixed(2)} MB`}
+                label="גודל האינדקס בזיכרון"
+              />
+              <Big
+                value={`${r.query_ms.toFixed(3)} ms`}
+                label="שאילתה מלאה"
+                tone="good"
+              />
+              <div className="col-span-2 rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/50 px-3 py-2 text-center">
+                <code dir="ltr" className="font-mono text-[15px] text-[var(--dk-ink)]">
+                  {r.model}
+                </code>
+                <div className="text-[13px] text-[var(--dk-ink-3)]">
+                  רץ אופליין פעם אחת בזמן ההכנה — הקיוסק לא טוען מודל
                 </div>
-              ))}
+              </div>
             </div>
-          ) : (
-            <Missing />
-          )}
-        </Panel>
-      </div>
-
-      <div className="flex min-h-0 flex-col justify-center gap-3">
-        <Panel title="שלוש מגבלות שלא נסגרו">
-          <div className="flex flex-col gap-2.5">
-            <Node
-              title="אשכול חמדני, תלוי סדר"
-              tone="bad"
-              sub="הסריקה עוברת על הכתבות לפי מזהה וכל אחת נתפסת על ידי האשכול הראשון שקלט אותה. זה דטרמיניסטי — אותו קלט תמיד אותו פלט — אבל לא אופטימלי: סדר אחר היה יכול לתת חלוקה אחרת."
-            />
-            <Node
-              title="אין חלון זמן"
-              tone="bad"
-              sub="שתי כתבות דומות מאוד בהפרש של שבועיים יאושכלו יחד. בסנאפשוט הזה הטווח קצר ולכן זה כמעט לא קורה, אבל שום דבר בקוד לא מונע את זה."
-            />
-            <Node
-              title="הסף לא מבחין בין אירוע לתחום"
-              tone="bad"
-              sub="קוסינוס מודד קרבה סמנטית, לא זהות אירוע. שתי כתבות שונות על אותו סכסוך יכולות לעבור את הסף — ראו את שורה 4 בלשונית הקודמת."
-            />
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              שאילתה היא מכפלת מטריצה אחת, והתוצאה מדויקת. אינדקס משוער היה
+              מחליף אותה בקירוב, ומוסיף תהליך שיכול ליפול מול קהל.
+            </p>
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              לכל וקטור נכנסים כותרת ו־{r.passage_lead_chars} תווים ראשונים.{" "}
+              {r.corpus.too_short} כתבות מתחת ל־{r.min_text_chars} תווים לא נכנסו,
+              כי אין להן פתיח לעגן עליו.
+              {haaretz
+                ? ` בהארץ זה ${haaretz.indexed} מתוך ${haaretz.articles}.`
+                : ""}
+            </p>
           </div>
-        </Panel>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
 
-        <Panel title="מה כן מותר לומר מכאן">
-          <p className="text-[15px] leading-relaxed text-[var(--dk-ink-2)]">
-            שהאחזור הסמנטי מייצר{" "}
-            <b>{r ? r.events.total : "—"}</b> קבוצות של כתבות שרובן המכריע הוא
-            באמת אותו סיפור, ושחיפוש מילולי לא היה מייצר אותן. לא שהחלוקה
-            מושלמת, ולא שכל אירוע במציאות נתפס — רק שזה השלב שבו המודל הלמוד
-            עושה עבודה שהשכבה הדטרמיניסטית לא יכולה לעשות.
-          </p>
-        </Panel>
-      </div>
+      <Panel
+        title="הזהות היא של הכתובת, לא של התוכן"
+        hint={dup ? `${dup.pairs} זוגות בקוסינוס ${dup.threshold}+` : undefined}
+      >
+        {dup && dup.examples.length ? (
+          <div className="flex flex-col gap-2.5">
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              <CodeRef path="article_id = sha256(canonical_url)" /> — אותה כתבה
+              שמוגשת בשני נתיבים באתר היא שתי שורות במסד. האמבדינגים לא מאחדים
+              אותן; הם הופכים אותן לגלויות. כלל גרסה אחת לכל ערוץ מונע מהן
+              להכפיל אירוע.
+            </p>
+            {dup.examples.map((d) => (
+              <div
+                key={d.id_a}
+                className="rounded-xl border border-[var(--dk-warn)]/35 bg-[var(--dk-warn)]/6 px-3 py-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Chip tone="warn">
+                    <span dir="ltr" className="font-mono">
+                      cos {d.cos}
+                    </span>
+                  </Chip>
+                  <span className="truncate text-[14px] text-[var(--dk-ink-2)]">
+                    {d.title}
+                  </span>
+                </div>
+                <UrlDiff a={d.url_a} b={d.url_b} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+/* ── 3. two boundaries, both measured ───────────────────────────── */
+
+function Cut({ facts }: Props) {
+  const r = facts?.retrieval;
+  const sim = r?.similarity;
+  const slots = r?.slots;
+
+  const chosen = r?.sweep.find((s) => s.chosen);
+  const loose = r?.sweep.reduce((a, b) => (b.events > a.events ? b : a));
+  const tight = r?.sweep.find((s) => chosen && s.threshold > chosen.threshold);
+  const atCut = sim?.above.find((a) => a.threshold === r?.cluster_sim);
+  const win = (h: number) => slots?.freshness.windows.find((w) => w.hours === h);
+
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-[46%_1fr] gap-3">
+      <Panel
+        title={
+          chosen && loose
+            ? `הסף ${chosen.threshold.toFixed(2)} ויתר על ${loose.events - chosen.events} אירועים`
+            : "הסף שנבחר"
+        }
+        hint={sim ? `חציון קוסינוס בין שתי כתבות: ${sim.median}` : undefined}
+      >
+        {r && sim && chosen && loose && tight ? (
+          <div className="flex flex-col gap-3">
+            <table className="w-full text-[15px]">
+              <thead>
+                <tr className="text-[13.5px] text-[var(--dk-ink-3)]">
+                  <th className="pb-1.5 text-right font-normal">סף</th>
+                  <th className="pb-1.5 text-right font-normal">אירועים</th>
+                  <th className="pb-1.5 text-right font-normal">גרסאות</th>
+                  <th className="pb-1.5 text-right font-normal">עם 3+ ערוצים</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.sweep.map((row) => (
+                  <tr
+                    key={row.threshold}
+                    className={
+                      row.chosen
+                        ? "bg-[var(--dk-accent-dim)]/50 text-[var(--dk-accent)]"
+                        : "text-[var(--dk-ink-2)]"
+                    }
+                  >
+                    <td dir="ltr" className="py-1 text-right font-mono font-bold">
+                      {row.threshold.toFixed(2)}
+                      {row.chosen ? " ←" : ""}
+                    </td>
+                    <td dir="ltr" className="py-1 text-right font-mono">
+                      {row.events}
+                    </td>
+                    <td dir="ltr" className="py-1 text-right font-mono">
+                      {row.versions}
+                    </td>
+                    <td
+                      dir="ltr"
+                      className={`py-1 text-right font-mono ${
+                        row.three_plus === 0 && !row.chosen
+                          ? "text-[var(--dk-bad)]"
+                          : ""
+                      }`}
+                    >
+                      {row.three_plus}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              {atCut?.pct}% מ־{num(sim.pairs)} הזוגות עוברים את הסף. ציון קוסינוס
+              נמדד מול ההתפלגות, לא לבדו.
+            </p>
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              {loose.threshold} מוסיף {loose.events - chosen.events} אירועים,
+              והאשכולות שם כבר סיפור מתגלגל שלם. {tight.threshold} מאפס את
+              ההשוואה: {tight.three_plus} אירועים עם שלושה ערוצים.
+            </p>
+            <Caveat>
+              הגבול בין אירוע לסיפור מתגלגל נקבע בעין, לא במדד. האשכול גם חמדני
+              ותלוי סדר — דטרמיניסטי, אבל סדר אחר היה נותן חלוקה אחרת.
+            </Caveat>
+          </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
+
+      <Panel
+        title="פינוי לפי גיל, לא לפי שימוש"
+        hint={
+          slots
+            ? `חציון אירוע ${slots.freshness.p50_hours}ש׳ · p75 ${slots.freshness.p75_hours} · p90 ${slots.freshness.p90_hours}`
+            : undefined
+        }
+      >
+        {slots ? (
+          <div className="flex flex-col gap-3">
+            <table className="w-full text-[15px]">
+              <thead>
+                <tr className="text-[13px] text-[var(--dk-ink-3)]">
+                  <th className="pb-1.5 text-right font-normal">
+                    מדיניות פינוי
+                  </th>
+                  {slots.rows.map((row) => (
+                    <th
+                      key={row.k}
+                      dir="ltr"
+                      className="pb-1.5 text-right font-mono font-normal"
+                    >
+                      {row.k}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {slots.policies.map((p) => (
+                  <tr key={p.key} className="text-[var(--dk-ink-2)]">
+                    <td className="py-1 pl-2">
+                      <span dir="ltr" className="font-mono text-[13px]">
+                        {p.key.toUpperCase()}
+                      </span>
+                      <span className="mr-2 text-[13.5px]">{p.label_he}</span>
+                      <div className="text-[12px] text-[var(--dk-ink-3)]">
+                        {p.note_he}
+                      </div>
+                    </td>
+                    {slots.rows.map((row) => (
+                      <td
+                        key={row.k}
+                        dir="ltr"
+                        className={`py-1 text-right font-mono ${
+                          row[p.key] === row.total
+                            ? "text-[var(--dk-good)]"
+                            : ""
+                        }`}
+                      >
+                        {row[p.key]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-[14px] text-[var(--dk-ink-3)]">
+              זוגות גרסאות שהאינדקס עדיין מוצא, מתוך {slots.rows[0]?.total}, לפי
+              מספר הסלוטים שהוא מחזיק.
+            </p>
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              FIFO ו־LRU יצאו זהים בכל K: בזרם חדשות פריט נשאל פעם אחת ולא
+              נוגעים בו שוב. LFU גרוע יותר, כי הוא מקבע כתבות ישנות ומרעיב
+              טריות.
+            </p>
+            <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+              בקצב {slots.freshness.per_day} כתבות ליום, חלון של 24 שעות הוא{" "}
+              {win(24)?.slots} סלוטים ומכסה {pct(win(24)?.covered ?? 0)}{" "}
+              מהאירועים. 48 שעות מכסות {pct(win(48)?.covered ?? 0)}.
+            </p>
+            <Caveat>
+              האינדקס כאן לא מפנה כלום: {slots.current.resident} וקטורים על{" "}
+              {slots.freshness.corpus_days} ימי קורפוס. הטבלה מודדת מה היה קורה
+              בחלון, ושום דבר בקוד לא מונע אשכול של שתי כתבות בהפרש שבועיים.
+            </Caveat>
+          </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
     </div>
   );
 }
