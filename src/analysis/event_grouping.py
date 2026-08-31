@@ -26,6 +26,9 @@ response shape (get_events() below is the only entry point).
 
 from __future__ import annotations
 
+import os
+import threading
+import time
 from dataclasses import dataclass
 
 from src.analysis.text_keywords import title_token_set
@@ -69,7 +72,6 @@ class _Article:
     title: str | None
     primary_category: str | None
     first_seen_at: object  # datetime, kept opaque here
-    canonical_url: str
     tokens: set[str]
 
 
@@ -79,8 +81,10 @@ def _fetch_candidate_articles() -> list[_Article]:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT article_id, source, title, primary_category,
-                       first_seen_at, canonical_url
+                -- Only the columns the clustering and the event summary read.
+                -- canonical_url used to be selected here and was never used;
+                -- this query runs against every article, so it is pure egress.
+                SELECT article_id, source, title, primary_category, first_seen_at
                 FROM articles
                 WHERE primary_category IS NOT NULL
                 ORDER BY first_seen_at
@@ -95,7 +99,6 @@ def _fetch_candidate_articles() -> list[_Article]:
             title=r["title"],
             primary_category=r["primary_category"],
             first_seen_at=r["first_seen_at"],
-            canonical_url=r["canonical_url"],
             tokens=title_token_set(r["title"]),
         )
         for r in rows
@@ -129,6 +132,44 @@ def _cluster(articles: list[_Article]) -> dict[str, list[_Article]]:
     return {root: members for root, members in groups.items() if len(members) >= MIN_EVENT_SIZE}
 
 
+# Every /api/alerts and /api/trending poll re-read the whole article corpus to
+# rebuild these groups. The dashboard polls both every 30s from AppShell
+# (frontend/src/lib/liveConfig.ts), on every page and in every open tab, so one
+# tab pulled ~17 GB/day out of Neon and repeatedly exhausted the project's data
+# transfer quota — which failed ingestion runs outright with OperationalError.
+#
+# The underlying data only changes when ingestion runs, every 6 hours, so
+# serving polls from a short-lived cache costs nothing anyone can perceive.
+_CACHE_TTL_SECONDS = float(os.environ.get("EVENTS_CACHE_TTL_SECONDS", "300"))
+
+_cache_lock = threading.Lock()
+_cached_groups: dict[str, list[_Article]] | None = None
+_cached_at: float = 0.0
+
+
+def _grouped_articles() -> dict[str, list[_Article]]:
+    """Clustered corpus, recomputed at most once per _CACHE_TTL_SECONDS.
+
+    The fetch happens while holding the lock, so concurrent callers arriving on
+    an expired cache wait for one refresh rather than each starting their own.
+    """
+    global _cached_groups, _cached_at
+    with _cache_lock:
+        if _cached_groups is not None and time.monotonic() - _cached_at < _CACHE_TTL_SECONDS:
+            return _cached_groups
+        groups = _cluster(_fetch_candidate_articles())
+        _cached_groups, _cached_at = groups, time.monotonic()
+        return groups
+
+
+def reset_events_cache() -> None:
+    """Drop the cache. For tests, and for callers that must see a write they
+    just made (nothing in the read-only API does)."""
+    global _cached_groups, _cached_at
+    with _cache_lock:
+        _cached_groups, _cached_at = None, 0.0
+
+
 def _event_summary(event_id: str, members: list[_Article]) -> dict:
     members_sorted = sorted(members, key=lambda a: a.first_seen_at)
     # Representative title = the longest headline in the cluster (tends to
@@ -160,8 +201,7 @@ def get_events(*, category: str | None = None, limit: int = 30) -> list[dict]:
     `category` filters to events whose topic matches (reuses the same
     primary_category values as the rest of the dashboard).
     """
-    articles = _fetch_candidate_articles()
-    groups = _cluster(articles)
+    groups = _grouped_articles()
     events = [_event_summary(event_id, members) for event_id, members in groups.items()]
     if category:
         events = [e for e in events if e["primary_category"] == category]
@@ -172,9 +212,7 @@ def get_events(*, category: str | None = None, limit: int = 30) -> list[dict]:
 def get_event_article_ids(event_id: str) -> list[str] | None:
     """Return the article_ids for one event, or None if it no longer clusters
     into an event (e.g. was a transient grouping)."""
-    articles = _fetch_candidate_articles()
-    groups = _cluster(articles)
-    members = groups.get(event_id)
+    members = _grouped_articles().get(event_id)
     if members is None:
         return None
     return [m.article_id for m in sorted(members, key=lambda a: a.first_seen_at)]
