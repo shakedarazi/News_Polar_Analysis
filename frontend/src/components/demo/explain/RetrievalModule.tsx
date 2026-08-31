@@ -188,7 +188,7 @@ function IndexPanel({ facts }: Props) {
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[52%_1fr] gap-3">
-      <div className="flex min-h-0 flex-col justify-center gap-3">
+      <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
         <Panel
           title="מה נכנס לווקטור"
           hint="demo/snapshot/prepare_demo.py · passage_text"
@@ -226,6 +226,42 @@ function IndexPanel({ facts }: Props) {
             תוצאה מדויקת בקירוב — ומכניס תהליך נוסף שיכול ליפול באמצע התערוכה.
             הקיוסק לא צריך את זה.
           </p>
+        </Panel>
+
+        <Panel
+          title="חלון של שעות, ופינוי לפי גיל"
+          hint={
+            r
+              ? `${r.slots.freshness.per_day} כתבות ליום · חציון אירוע ${r.slots.freshness.p50_hours} שעות`
+              : undefined
+          }
+        >
+          {r ? (
+            <>
+              <p className="text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+                בחדשות שימוש הוא לא רלוונטיות. כתבה מלפני שבוע לא נעשית טרייה
+                מזה ששאלו עליה הרבה, ולכן פינוי לפי <b>גיל</b> משאיר את המאגר
+                עדכני ופינוי לפי <b>שימוש</b> ממלא אותו בישן. זה כל ההבדל בין
+                שתי המדיניויות.
+              </p>
+              <p className="mt-2 text-[15.5px] leading-relaxed text-[var(--dk-ink-2)]">
+                החלון קובע, לא הזיכרון:{" "}
+                {r.slots.freshness.windows
+                  .filter((w) => w.hours === 48)
+                  .map((w) => `${w.hours} שעות הן ${w.slots} סלוטים ומכסות ${(w.covered * 100).toFixed(0)}%`)
+                  .join("")}{" "}
+                מהאירועים חוצי־הערוצים.
+              </p>
+              <Caveat>
+                האינדקס כאן לא מפנה כלום — {r.vectors} וקטורים,{" "}
+                {(r.bytes / 1e6).toFixed(1)}MB, על {r.slots.freshness.corpus_days}{" "}
+                ימי קורפוס. המספרים למעלה הם מדידה של מה שהיה קורה בחלון, לא
+                תיאור של מה שרץ.
+              </Caveat>
+            </>
+          ) : (
+            <Missing />
+          )}
         </Panel>
       </div>
 
