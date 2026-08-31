@@ -229,14 +229,29 @@ function Check({ facts }: Props) {
         {f && v ? (
           <div className="flex flex-col gap-3.5">
             <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
-              המודל מחזיר תשובה בפורמט קבוע, וזה קונה פענוח — לא אמת. לכן כל
-              ביטוי שהוא מחזיר נבדק מול הטקסט: השוואת מחרוזות פשוטה, לא דעה
-              שנייה של מודל אחר.
+              מודל שפה לא מעתיק, הוא מייצר. גם כשמבקשים ממנו ציטוט מדויק כל
+              מילה בו נוצרת מחדש — ולכן הוא מוסיף נקודה, מחבר שני משפטים או
+              מיישר נטייה. אין לו פעולת העתקה שאפשר לסמוך עליה.
             </p>
+
+            <div
+              dir="rtl"
+              className="rounded-lg border border-[var(--dk-accent)]/25 bg-[var(--dk-accent-dim)]/40 px-3 py-2.5 text-center"
+            >
+              <div className="text-[16.5px] font-bold text-[var(--dk-accent)]">
+                ביטוי שאינו נמצא ב־{f.lead_chars} התווים שהמודל קרא — יורד
+              </div>
+              <div className="mt-0.5 text-[14.5px] text-[var(--dk-ink-3)]">
+                אותו קבוע לחילוץ ולבדיקה. חלון בדיקה רחב יותר היה מאשר ביטוי
+                שהמודל מעולם לא ראה
+              </div>
+            </div>
+
             <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
-              הבדיקה קוראת בדיוק את אותם {f.lead_chars} תווים שהמודל קיבל,
-              מאותו קבוע יחיד. חלון רחב יותר היה מאשר ביטוי שהמודל מעולם לא
-              ראה — אימות שמאשר את עצמו.
+              הבדיקה היא חיפוש מחרוזת בטקסט:{" "}
+              {num(v.terms_total + v.actors_total + v.quotes_total)} ביטויים
+              נבדקו כך, בעלות אפס טוקנים. החלופה המקובלת — מודל שני ששופט את
+              הראשון — מכפילה את החשבון ומוסיפה עוד שכבה שצריך לסמוך עליה.
             </p>
 
             <div className="flex flex-col gap-2.5">
@@ -258,22 +273,22 @@ function Check({ facts }: Props) {
             </div>
             <p className="text-[15px] leading-snug text-[var(--dk-ink-3)]">
               כל פס הוא סוג ביטוי אחד. האדום הוא החלק שנפסל, מתוך כל מה שהמודל
-              החזיר מאותו סוג.
+              החזיר מאותו סוג. התוצאה: כל מילה שעל הקיר הזה נמצאת בכתבה עצמה.
             </p>
 
             <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
-              ‏{v.quotes_rejected} מתוך {v.quotes_total} ציטוטי הראיה לא נמצאו
-              כלשונם, ושיעור כזה נשמע כמו מודל שממציא. פירקנו אותם אחד־אחד:
-              ‏{punct} מהם זהים לטקסט מילה במילה למעט פיסוק, ורק{" "}
-              <b className="text-[var(--dk-bad)]">{bad}</b> הם ניסוח מחדש אמיתי —{" "}
-              {((bad / Math.max(v.quotes_total, 1)) * 100).toFixed(1)}% מכלל
-              הציטוטים.
+              השונות של המודל היא מה שקנינו, לא מה שסובלים. כלל קבוע מוצא רק מה
+              שמישהו חשב עליו מראש; המודל מזהה מסגור בכותרת שלא נראתה מעולם.
+              לכן הפרשנות חופשית — והראיה שהוא מביא לה חייבת להיות בטקסט.
             </p>
+
             <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
-              המדידה הזאת לא ריככה את הכלל. ריכוך היה קונה שיעור מעבר גבוה יותר
-              במחיר הערובה היחידה כאן — ששני סוגי הטעות נופלים לאותו כיוון:
-              פחות על המסך, אף פעם לא יותר.
+              ‏{v.quotes_rejected} מ־{v.quotes_total} הציטוטים נפסלו: {punct}{" "}
+              פיסוק בלבד, ורק <b className="text-[var(--dk-bad)]">{bad}</b>{" "}
+              ניסוח מחדש אמיתי. לא ריככנו את הכלל — שני סוגי הטעות נופלים לאותו
+              כיוון, פחות על המסך ולא יותר.
             </p>
+
             {ex && ex.dropped.length > 0 && (
               <div className="rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/50 px-3 py-2.5">
                 <div className="text-[13px] text-[var(--dk-ink-3)]">
@@ -294,12 +309,10 @@ function Check({ facts }: Props) {
                       {term}
                     </span>
                   ))}
+                  <span className="text-[15px] text-[var(--dk-ink-2)]">
+                    הפתיח כותב את אותו שורש בנטייה אחרת
+                  </span>
                 </div>
-                <p className="mt-1 text-[15px] leading-snug text-[var(--dk-ink-2)]">
-                  הבדיקה משווה מחרוזות ולא נטיות. הפתיח כותב את אותו שורש בנטייה
-                  אחרת, ולכן המילה ירדה למרות שהיא שם. זו טעות — והיא בדיוק
-                  בכיוון שבחרנו.
-                </p>
               </div>
             )}
           </div>
@@ -431,6 +444,10 @@ function RateRow({
 }
 
 /* ── shared ─────────────────────────────────────────────────────── */
+
+function num(x: number): string {
+  return x.toLocaleString("en-US");
+}
 
 function Missing() {
   return (
