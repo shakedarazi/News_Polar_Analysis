@@ -53,15 +53,28 @@ function SourceAxisTick(props: AxisTickProps) {
  * (docs/adr/0004).
  */
 export function SourceAxesChart({ data }: { data: SourcePolarityBreakdown[] }) {
-  const rows = data
-    .filter((d) => d.avg_issue !== null && d.avg_affective !== null && d.polarization_count > 0)
-    .map((d) => ({
-      name: d.source,
-      issue: Number((d.avg_issue! * 100).toFixed(2)),
-      affective: Number((d.avg_affective! * 100).toFixed(2)),
-      measured: d.polarization_count,
-      analyzed: d.analyzed_count,
-    }));
+  // typeof rather than a null check: an API old enough to predate these columns
+  // omits the keys entirely, and `undefined` passes `!== null` and then renders
+  // NaN. Vercel and Render deploy independently, so that pairing is a state the
+  // running site actually reaches.
+  const rows = data.flatMap((d) => {
+    if (
+      typeof d.avg_issue !== "number" ||
+      typeof d.avg_affective !== "number" ||
+      !d.polarization_count
+    ) {
+      return [];
+    }
+    return [
+      {
+        name: d.source,
+        issue: Number((d.avg_issue * 100).toFixed(2)),
+        affective: Number((d.avg_affective * 100).toFixed(2)),
+        measured: d.polarization_count,
+        analyzed: d.analyzed_count,
+      },
+    ];
+  });
 
   if (rows.length === 0) {
     return <EmptyState message="הקריאה השנייה עוד לא חושבה עבור המקורות בתקופה שנבחרה." />;

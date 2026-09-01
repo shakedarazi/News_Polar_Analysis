@@ -37,13 +37,18 @@ export type Aggregation = {
   controversy_p85: number | null;
   sum_engagement_weight: number;
   analyzed_at: string;
-  // Null until the polarization pass has run for this article — "not measured",
-  // which is not the same as measured and found to be zero.
-  audience_issue_mean: number | null;
-  audience_affective_mean: number | null;
-  audience_issue_p85: number | null;
-  audience_affective_p85: number | null;
-  polarization_lexicon_version: string | null;
+  // Optional, not just nullable, and the distinction matters. Null means the
+  // polarization pass has not run for this article - "not measured", which is
+  // not the same as measured and found to be zero. Undefined means the backend
+  // answering is old enough not to have the column at all: the frontend deploys
+  // from Vercel and the API from Render, so between the two there is a window
+  // where a new page talks to an old API. Marked optional so the compiler makes
+  // every reader handle that window instead of printing NaN through it.
+  audience_issue_mean?: number | null;
+  audience_affective_mean?: number | null;
+  audience_issue_p85?: number | null;
+  audience_affective_p85?: number | null;
+  polarization_lexicon_version?: string | null;
 };
 
 export type WindowFeature = {
@@ -139,10 +144,14 @@ export type SourcePolarityBreakdown = {
   mid_count: number;
   low_count: number;
   avg_polarity: number | null;
-  /** How many of the analyzed articles carry the research-lexicon reading. */
-  polarization_count: number;
-  avg_issue: number | null;
-  avg_affective: number | null;
+  /**
+   * How many of the analyzed articles carry the research-lexicon reading.
+   * Optional for the same reason as Aggregation's polarization fields: an
+   * older API omits these keys entirely, not merely sets them null.
+   */
+  polarization_count?: number;
+  avg_issue?: number | null;
+  avg_affective?: number | null;
 };
 
 export type DashboardFilters = {

@@ -110,7 +110,11 @@ export default async function ArticlePage({
           component's colour scale is calibrated on the other list's
           distribution, and reusing it here would imply the two numbers sit on
           one axis. They do not — see docs/adr/0004. */}
-      {agg && agg.audience_issue_mean !== null && agg.audience_affective_mean !== null && (
+      {/* typeof, not != null: an older API omits these keys, and `undefined`
+          would pass a null check and render NaN%. */}
+      {agg &&
+        typeof agg.audience_issue_mean === "number" &&
+        typeof agg.audience_affective_mean === "number" && (
         <section className="card p-5">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             קריאה שנייה — מילון הקיטוב המחקרי
