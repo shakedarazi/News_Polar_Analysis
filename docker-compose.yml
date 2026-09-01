@@ -1,6 +1,14 @@
 services:
   db:
-    image: postgres:16
+    # Stock postgres:16 has no pgvector, and sql/migrations/009_embeddings.sql
+    # opens with CREATE EXTENSION vector — so `python pipeline/init_db.py`
+    # against a fresh local database failed outright from the moment that
+    # migration landed. Neon ships the extension, so only local dev broke, and
+    # only for someone starting from an empty volume.
+    #
+    # This image is the same Postgres 16 with the extension available; it is
+    # not a different database.
+    image: pgvector/pgvector:pg16
     container_name: news_polar_db
     environment:
       POSTGRES_USER: news

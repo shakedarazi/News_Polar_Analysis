@@ -7,11 +7,10 @@ those are separate, separately-computed signals.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 
-from src.nlp.categories import DEFAULT_MODEL
-from src.nlp.openai_config import get_openai_client, require_openai_api_key
+from src.nlp.llm import user_json
+from src.nlp.openai_config import get_user_model
 from src.nlp.truncate import truncate_for_summary
 
 MAX_KEY_POINTS = 5
@@ -64,8 +63,7 @@ def _normalize_sentiment(value: object) -> str:
     return cleaned if cleaned in SENTIMENT_LABELS else "ניטרלי"
 
 
-def _parse_response(content: str, model: str) -> SummaryResult:
-    data = json.loads(content)
+def _parse_response(data: dict, model: str) -> SummaryResult:
     summary = str(data.get("summary", "")).strip()
     if not summary:
         raise ValueError("AI response missing 'summary'")
@@ -84,30 +82,20 @@ def summarize_article(
     title: str | None,
     text: str,
     source: str | None = None,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
 ) -> SummaryResult:
-    require_openai_api_key()
-
     body = truncate_for_summary(text)
     if not body:
         raise ValueError("Article has no content to summarize")
 
-    client = get_openai_client()
-    user_content = (
-        f"מקור: {source or 'לא ידוע'}\n"
-        f"כותרת: {title or '(ללא כותרת)'}\n\n"
-        f"טקסט:\n{body}"
-    )
-    response = client.chat.completions.create(
+    model = model or get_user_model()
+    data = user_json(
+        system=_build_system_prompt(),
+        user=(
+            f"מקור: {source or 'לא ידוע'}\n"
+            f"כותרת: {title or '(ללא כותרת)'}\n\n"
+            f"טקסט:\n{body}"
+        ),
         model=model,
-        temperature=0,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": _build_system_prompt()},
-            {"role": "user", "content": user_content},
-        ],
     )
-    content = response.choices[0].message.content
-    if not content:
-        raise RuntimeError("OpenAI returned empty response")
-    return _parse_response(content, model)
+    return _parse_response(data, model)

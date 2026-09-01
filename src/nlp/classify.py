@@ -2,18 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 
 from src.nlp.categories import (
     CATEGORIES,
     CATEGORY_DESCRIPTIONS,
 )
-from src.nlp.openai_config import (
-    get_ingestion_model,
-    get_ingestion_openai_client,
-    require_ingestion_openai_api_key,
-)
+from src.nlp.llm import ingestion_json
+from src.nlp.openai_config import get_ingestion_model
 from src.nlp.truncate import truncate_for_classification
 
 
@@ -51,8 +47,7 @@ def _normalize_category(value: str) -> str:
     return "אחר"
 
 
-def _parse_response(content: str, model: str) -> ClassificationResult:
-    data = json.loads(content)
+def _parse_response(data: dict, model: str) -> ClassificationResult:
     category = _normalize_category(str(data.get("primary_category", "אחר")))
     confidence = float(data.get("confidence", 0.0))
     confidence = max(0.0, min(1.0, confidence))
@@ -72,27 +67,15 @@ def classify_article(
     source: str | None = None,
     model: str | None = None,
 ) -> ClassificationResult:
-    require_ingestion_openai_api_key()
-    client = get_ingestion_openai_client()
-    if not model:
-        model = get_ingestion_model()
+    model = model or get_ingestion_model()
     body = truncate_for_classification(text)
-    user_content = (
-        f"מקור: {source or 'לא ידוע'}\n"
-        f"כותרת: {title or '(ללא כותרת)'}\n\n"
-        f"טקסט:\n{body}"
-    )
-
-    response = client.chat.completions.create(
+    data = ingestion_json(
+        system=_build_system_prompt(),
+        user=(
+            f"מקור: {source or 'לא ידוע'}\n"
+            f"כותרת: {title or '(ללא כותרת)'}\n\n"
+            f"טקסט:\n{body}"
+        ),
         model=model,
-        temperature=0,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": _build_system_prompt()},
-            {"role": "user", "content": user_content},
-        ],
     )
-    content = response.choices[0].message.content
-    if not content:
-        raise RuntimeError("OpenAI returned empty response")
-    return _parse_response(content, model)
+    return _parse_response(data, model)

@@ -21,12 +21,11 @@ EXTRACT_LEAD_CHARS. See the note on it.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 
-from src.nlp.categories import DEFAULT_MODEL
-from src.nlp.openai_config import get_openai_client, require_openai_api_key
+from src.nlp.llm import user_json
+from src.nlp.openai_config import get_user_model
 
 # The slice of the article the model reads, and — the same number — the slice
 # the verifier searches. These must not drift apart: when they were 500 and
@@ -76,25 +75,6 @@ def _build_system_prompt() -> str:
         "כלשונו. אל תנסח מחדש, אל תתרגם ואל תוסיף מילים. אם אינך מוצא ערך "
         "בטקסט — החזר null."
     )
-
-
-# Hebrew acronyms carry a quote mark inside the word (צה"ל, ח"כ, ארה"ב) and a
-# model that is not constrained to JSON emits it unescaped, breaking the string
-# it sits in. A quote with a Hebrew letter on both sides is never a delimiter,
-# so escaping it is always safe and the acronym survives verbatim. With
-# response_format=json_object this never fires; it is the fallback for when the
-# provider does not honour that.
-_ACRONYM_QUOTE = re.compile(r'(?<=[֐-׿])"(?=[֐-׿])')
-
-
-def _loads(content: str) -> dict:
-    try:
-        data = json.loads(content)
-    except json.JSONDecodeError:
-        data = json.loads(_ACRONYM_QUOTE.sub(r'\\"', content))
-    if not isinstance(data, dict):
-        raise ValueError("Framing response was not a JSON object")
-    return data
 
 
 def _clean_string(value: object) -> str | None:
@@ -164,9 +144,10 @@ def verify_framing(
     return actor, actor_grounded, kept, dropped, violations
 
 
-def parse_framing(content: str, *, title: str | None, text: str, model: str) -> FramingResult:
-    data = _loads(content)
-
+def parse_framing(data: dict, *, title: str | None, text: str, model: str) -> FramingResult:
+    """Shape and ground one extraction. Takes the parsed object: decoding the
+    model's JSON — including the Hebrew-acronym quote repair this function used
+    to own — belongs to src/nlp/llm.py, which every AI step now goes through."""
     raw_terms = data.get("loaded_terms")
     if not isinstance(raw_terms, list):
         raw_terms = []
@@ -199,29 +180,17 @@ def extract_framing(
     *,
     title: str | None,
     text: str,
-    model: str = DEFAULT_MODEL,
+    model: str | None = None,
 ) -> FramingResult:
-    require_openai_api_key()
-
     lead = (text or "").strip()[:EXTRACT_LEAD_CHARS]
     if not lead:
         raise ValueError("Article has no content to analyze")
 
-    client = get_openai_client()
-    response = client.chat.completions.create(
+    model = model or get_user_model()
+    data = user_json(
+        system=_build_system_prompt(),
+        user=f"כותרת: {title or '(ללא כותרת)'}\nפתיח: {lead}",
         model=model,
-        temperature=0,
         max_tokens=FRAMING_MAX_TOKENS,
-        response_format={"type": "json_object"},
-        messages=[
-            {"role": "system", "content": _build_system_prompt()},
-            {
-                "role": "user",
-                "content": f"כותרת: {title or '(ללא כותרת)'}\nפתיח: {lead}",
-            },
-        ],
     )
-    content = response.choices[0].message.content
-    if not content:
-        raise RuntimeError("OpenAI returned empty response")
-    return parse_framing(content, title=title, text=text, model=model)
+    return parse_framing(data, title=title, text=text, model=model)
