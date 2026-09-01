@@ -7,6 +7,28 @@ in the UI). Runs 24/7 in the cloud — see [Deployment & Operations](#-deploymen
 For day-to-day dev commands and coding conventions, see `CLAUDE.md`. For the exact algorithms and formulas, see
 `docs/algorithms/` and `docs/contracts/`.
 
+## 🖥️ The demo screen (this branch only)
+
+`demo-agent-swarm` adds an exhibition kiosk on top of the product: five AI agents taking one news event apart on
+a 16:9 wall screen, at `/demo`. Nothing in the site links to it — the URL is the only way in — and `main` does not
+contain it at all, so clone with `-b demo-agent-swarm` or you will get a 404.
+
+**Just want to look at it?** No Python, no database, no API keys:
+
+```bash
+cd frontend && npm install && npm run dev
+# then open http://localhost:3000/demo?mock=1
+```
+
+`?mock=1` runs the recorded script in `frontend/src/components/demo/mockStream.ts`; the measured numbers in the
+explainer modules come from `frontend/public/explainer_facts.json`, which is committed. Both are in git, so this
+works on a clean clone with no backend at all.
+
+**Running the real thing** (live agent server, SSE, presenter controls) additionally needs the frozen data
+snapshot under `demo/data/`, which is gitignored because it is a 24MB SQLite file plus a vector index. Rebuilding
+it needs `DATABASE_URL` and network. See [demo/README.md](demo/README.md) — it is the full setup guide for the
+demo layer, in Hebrew.
+
 ## 🔴 Live now
 
 | Piece | Service | Notes |
