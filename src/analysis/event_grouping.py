@@ -18,10 +18,23 @@ Articles are joined into events via a union-find over these pairwise edges
 an "event" — there is nothing to show a timeline for — and is dropped.
 
 This is intentionally the simplest thing that could plausibly work with the
-data that exists today, not a replacement for real embeddings/clustering. If
-the system later adds a real cluster/story id or embeddings, callers should
-switch to that and this module can be deleted without touching the API
-response shape (get_events() below is the only entry point).
+data that exists today, not a replacement for real embeddings/clustering.
+
+That replacement now exists. Articles carry a stored `event_id` computed from
+embeddings during ingestion (src/analysis/semantic_events.py,
+pipeline/embed_articles.py), and _grouped_articles() below prefers it. The
+lexical path is kept as the fallback for exactly one situation: a database
+where no embedding pass has run yet, where it is better to show the events it
+can find than none at all. It is chosen per-corpus and never per-article, so
+there is only ever one notion of what an event is in a given response.
+
+Measured against each other on the same 1,436-article corpus: lexical found 69
+events (32 covered by more than one outlet), semantic found 145 (69). Of the
+107 article pairs the lexical grouping joined, the semantic grouping keeps 70
+and adds 81 the lexical one cannot see, because two outlets covering one story
+in Hebrew routinely share no content word at all.
+
+get_events() remains the only entry point.
 """
 
 from __future__ import annotations
@@ -73,6 +86,12 @@ class _Article:
     primary_category: str | None
     first_seen_at: object  # datetime, kept opaque here
     tokens: set[str]
+    # The stored cluster id from the embedding pass, or None where no pass has
+    # reached this article. Read here rather than in a second query: this
+    # module's cache exists because corpus reads were exhausting Neon's
+    # transfer quota, so a per-cache-miss round trip is exactly the cost it was
+    # written to avoid.
+    event_id: str | None = None
 
 
 def _fetch_candidate_articles() -> list[_Article]:
@@ -84,7 +103,8 @@ def _fetch_candidate_articles() -> list[_Article]:
                 -- Only the columns the clustering and the event summary read.
                 -- canonical_url used to be selected here and was never used;
                 -- this query runs against every article, so it is pure egress.
-                SELECT article_id, source, title, primary_category, first_seen_at
+                SELECT article_id, source, title, primary_category, first_seen_at,
+                       event_id
                 FROM articles
                 WHERE primary_category IS NOT NULL
                 ORDER BY first_seen_at
@@ -100,6 +120,7 @@ def _fetch_candidate_articles() -> list[_Article]:
             primary_category=r["primary_category"],
             first_seen_at=r["first_seen_at"],
             tokens=title_token_set(r["title"]),
+            event_id=r["event_id"],
         )
         for r in rows
     ]
@@ -157,9 +178,36 @@ def _grouped_articles() -> dict[str, list[_Article]]:
     with _cache_lock:
         if _cached_groups is not None and time.monotonic() - _cached_at < _CACHE_TTL_SECONDS:
             return _cached_groups
-        groups = _cluster(_fetch_candidate_articles())
+        articles = _fetch_candidate_articles()
+        groups = _stored_groups(articles) or _cluster(articles)
         _cached_groups, _cached_at = groups, time.monotonic()
         return groups
+
+
+def _stored_groups(articles: list[_Article]) -> dict[str, list[_Article]] | None:
+    """Rebuild groups from the event_id already carried on each article, or None
+    if nothing is assigned.
+
+    The clustering itself happened during ingestion, where the vectors are
+    local. Doing it here would mean pulling 1.4k x 384 floats out of Neon on
+    every cache miss, which is the cost this module's cache exists to avoid.
+
+    Returns None - not an empty dict - when nothing is assigned, so the caller
+    can tell "no embedding pass has run" from "the pass ran and found no
+    events".
+    """
+    groups: dict[str, list[_Article]] = {}
+    for article in articles:
+        if article.event_id:
+            groups.setdefault(article.event_id, []).append(article)
+    if not groups:
+        return None
+    for members in groups.values():
+        members.sort(key=lambda a: a.first_seen_at)
+    # A stored event can fall below the minimum if one of its articles lost its
+    # category since the clustering ran, and a one-article event has no
+    # timeline to show.
+    return {k: v for k, v in groups.items() if len(v) >= MIN_EVENT_SIZE}
 
 
 def reset_events_cache() -> None:

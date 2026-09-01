@@ -71,6 +71,32 @@ STEP_FAILED=0
   run_step python "$ROOT/pipeline/analyze_articles.py" --min-age-hours 24 --include-stale --require-comments-fetched
   echo "=== Polarity analysis finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
+  echo "=== Research-lexicon rescore (bonus, version drift only): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  # Articles analyzed in the step above already carry both readings - save_analysis
+  # writes them together. This exists only for the other case: someone edits
+  # data/lexicon/polarization.csv, the lexicon version changes, and the
+  # already-scored corpus is now on an older version. The gate is
+  # `polarization_lexicon_version IS DISTINCT FROM` the current one, so this is a
+  # no-op on every run where the lexicon did not change. The limit caps how much
+  # of a rescore any single run absorbs; the remainder is picked up 6 hours later,
+  # because the gate does not clear until a row is actually rewritten.
+  run_bonus_step python "$ROOT/pipeline/analyze_articles.py" --polarization-only --limit 200
+  echo "=== Research-lexicon rescore finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo ""
+  echo "=== Embeddings and event clustering (bonus): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  # Embeds articles crawled this run, then reclusters the whole corpus into
+  # events. A bonus step because it needs sentence-transformers, which only the
+  # GitHub Actions job installs (requirements-embed.txt) - run locally without
+  # it, this fails on the import and the run carries on. When no embedding has
+  # ever succeeded, event detection falls back to the lexical grouping, so the
+  # events page degrades rather than emptying.
+  #
+  # Reclustering is whole-corpus, not incremental: it is a 1.4k-square
+  # similarity matrix, under a second, and recomputing avoids having to decide
+  # what happens when a new article should have merged two existing events.
+  run_bonus_step python "$ROOT/pipeline/embed_articles.py"
+  echo "=== Embeddings finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo ""
   echo "=== Classification started (bonus, leftover time only): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   run_bonus_step python "$ROOT/pipeline/classify_articles.py" --limit 80 --max-minutes 10
   echo "=== Classification finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="

@@ -9,3 +9,10 @@ pytest-cache-files-*/
 dist/
 build/
 logs/
+
+# Demo-layer local artifacts. The demo lives on the exhibit-2026-09 tag, not
+# here, but a checkout that has run it leaves demo/data/ behind — and those
+# files hold a database snapshot with real headlines and comments. Ignored on
+# main too so `git add -A` on a site branch cannot commit them by accident.
+demo/data/
+demo/benchmark.json

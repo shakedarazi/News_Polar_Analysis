@@ -13,6 +13,7 @@ import { FilterSidebar } from "@/components/FilterSidebar";
 import { StatsCard } from "@/components/StatsCard";
 import { PolarityTrendChart } from "@/components/PolarityTrendChart";
 import { SourcePolarityChart } from "@/components/SourcePolarityChart";
+import { SourceAxesChart } from "@/components/SourceAxesChart";
 import { SourcesGrid } from "@/components/SourcesGrid";
 import { TopicsCloud } from "@/components/TopicsCloud";
 import { LeadingArticles } from "@/components/LeadingArticles";
@@ -126,6 +127,17 @@ export default async function DashboardPage({
                 פילוח קיטוב לפי אתרי חדשות
               </h2>
               <SourcePolarityChart data={sourceBreakdown} />
+            </section>
+
+            <section id="axes" className="card scroll-mt-24 p-5">
+              <h2 className="mb-1 text-base font-semibold text-slate-800 dark:text-slate-200">
+                קריאה שנייה — שפת נושא מול שפת עוינות
+              </h2>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                מקור שבו שני הטורים דומים מנהל ויכוח על העניין עצמו באותה מידה שהוא מנהל
+                אותו נגד הצד השני. פער לטובת שפת עוינות מצביע על ההפך.
+              </p>
+              <SourceAxesChart data={sourceBreakdown} />
             </section>
 
             <section id="sources" className="scroll-mt-24">

@@ -23,3 +23,38 @@ _Avoid_: Retryable error
 **Permanent failure**:
 An article/feed fetch failure classified as not worth retrying (HTTP 4xx, or an article-failure-level extraction problem like too-short text) — recorded immediately as a failure, no retry attempted.
 _Avoid_: Non-retryable error, hard failure
+
+**Category lexicon**:
+The seven topic word lists in `data/lexicon_base/` (329 lemmas), matched against **article** text to produce per-window category counts and `dominance`. Measures what an article is about, never how heated it is — a window can be fully political and perfectly calm.
+_Avoid_: The lexicon, word bank (ambiguous — two other lexicons exist and both score comments)
+
+**Comment polarity lexicon**:
+`data/comment_lexicon_base/polar_words.txt` (182 lemmas), single-axis, matched against **comment** text to produce `polar_ratio` and, aggregated, `audience_mean`. The list the pipeline has always scored on.
+_Avoid_: Polar words (collides with the research lexicon, which is also polarity and also comments)
+
+**Research polarization lexicon**:
+`data/lexicon/polarization.csv` (191 lemmas), the Hebrew adaptation of Simchon, Brady & Van Bavel (2022), matched against **comment** text on two axes — `issue` (what the argument is about) and `affective` (hostility toward the other side). Stored beside the single-axis score, never blended with it: the two share only 15% of their expanded forms. See `docs/adr/0004`.
+_Avoid_: The Simchon lexicon (fine in conversation, but the column names say `issue`/`affective`)
+
+**Issue / affective**:
+The two axes of the research polarization lexicon, and the only two values its component column takes. `issue` is topic-partisan vocabulary; `affective` is hostility toward the other camp. A comment can score on both, one, or neither.
+_Avoid_: Ideological/emotional polarization (the paper's axes are lexical, not psychological states)
+
+**Event**:
+A group of articles from one or more outlets covering the same story, detected by
+embedding similarity over `"{title}. {lead}"` and stored as `articles.event_id`.
+Derived, not allocated: the id is the seed article's id, so the same corpus
+reclusters to the same ids. Recomputed whole-corpus on every ingestion run, so an
+article can leave an event.
+_Avoid_: Story, cluster (both used loosely for the lexical baseline this replaced)
+
+**Passage**:
+The exact text that gets embedded: the title, then the first 400 characters of the
+body. Never the title alone — the similarity threshold is calibrated on this
+string, and titles alone collapse it. One definition, in
+`src.analysis.embeddings.passage_text`.
+
+**Lexical grouping**:
+The superseded event detection: title-token Jaccard ≥ 0.34 within a category and
+a 72-hour window. Retained only as the fallback for a database with no embeddings
+yet, chosen per corpus and never per article. See `docs/adr/0005`.

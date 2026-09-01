@@ -80,10 +80,13 @@ def list_articles(
             agg.num_comments,
             agg.audience_mean,
             agg.audience_p85,
-            agg.controversy_mean
+            agg.controversy_mean,
+            agg.audience_issue_mean,
+            agg.audience_affective_mean
         FROM articles a
         LEFT JOIN LATERAL (
-            SELECT num_comments, audience_mean, audience_p85, controversy_mean
+            SELECT num_comments, audience_mean, audience_p85, controversy_mean,
+                   audience_issue_mean, audience_affective_mean
             FROM article_comments_agg
             WHERE article_id = a.article_id
             ORDER BY analyzed_at DESC
@@ -135,7 +138,10 @@ def get_article_detail(article_id: str) -> dict | None:
             cur.execute(
                 """
                 SELECT num_comments, audience_mean, audience_p85,
-                       controversy_mean, controversy_p85, sum_engagement_weight, analyzed_at
+                       controversy_mean, controversy_p85, sum_engagement_weight, analyzed_at,
+                       audience_issue_mean, audience_affective_mean,
+                       audience_issue_p85, audience_affective_p85,
+                       polarization_lexicon_version
                 FROM article_comments_agg
                 WHERE article_id = %s
                 ORDER BY analyzed_at DESC
@@ -430,6 +436,15 @@ def get_polarity_by_source(
 
     Buckets reuse the same thresholds as frontend/src/lib/format.ts polarLevel():
     low < 0.05 <= mid < 0.15 <= high.
+
+    `avg_issue` / `avg_affective` are the research polarization lexicon's two
+    axes, averaged per source. They are reported beside the buckets, never
+    folded into them: the buckets are cut on `audience_mean`, which counts a
+    different word list, so a threshold calibrated on one is meaningless on the
+    other (docs/adr/0004). `polarization_count` says how many of the analyzed
+    articles carry the second reading at all - it lags `analyzed_count` until
+    the backfill reaches them, and an average over a handful of articles should
+    not be presented as a source-level fact.
     """
     require_database_url()
     filter_sql, params = _common_filters(
@@ -445,10 +460,13 @@ def get_polarity_by_source(
                 WHERE agg.audience_mean >= {POLARITY_MID} AND agg.audience_mean < {POLARITY_HIGH}
             ) AS mid_count,
             COUNT(*) FILTER (WHERE agg.audience_mean < {POLARITY_MID}) AS low_count,
-            AVG(agg.audience_mean) AS avg_polarity
+            AVG(agg.audience_mean) AS avg_polarity,
+            COUNT(*) FILTER (WHERE agg.audience_issue_mean IS NOT NULL) AS polarization_count,
+            AVG(agg.audience_issue_mean) AS avg_issue,
+            AVG(agg.audience_affective_mean) AS avg_affective
         FROM articles a
         LEFT JOIN LATERAL (
-            SELECT audience_mean
+            SELECT audience_mean, audience_issue_mean, audience_affective_mean
             FROM article_comments_agg
             WHERE article_id = a.article_id
             ORDER BY analyzed_at DESC
@@ -469,8 +487,10 @@ def get_polarity_by_source(
                 row["high_count"] = int(row["high_count"])
                 row["mid_count"] = int(row["mid_count"])
                 row["low_count"] = int(row["low_count"])
-                if row["avg_polarity"] is not None:
-                    row["avg_polarity"] = float(row["avg_polarity"])
+                row["polarization_count"] = int(row["polarization_count"])
+                for key in ("avg_polarity", "avg_issue", "avg_affective"):
+                    if row[key] is not None:
+                        row[key] = float(row[key])
             return rows
 
 

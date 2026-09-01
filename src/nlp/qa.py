@@ -96,12 +96,22 @@ def _format_articles_context(articles: list[dict]) -> str:
         polarity = (
             f"{a['audience_mean']:.4f}" if a.get("audience_mean") is not None else "אין נתון"
         )
+        # The second reading, named by its lexicon. The two are never summed or
+        # presented as one number (docs/adr/0004), so the model is handed them
+        # labelled and separate rather than blended into a single "polarity".
+        research = ""
+        if a.get("audience_issue_mean") is not None:
+            research = (
+                f" | מילון המחקר (סימחון), שפת נושא: {a['audience_issue_mean']:.4f}"
+                f", שפת עוינות: {a['audience_affective_mean']:.4f}"
+            )
         blocks.append(
             f"[{i}] article_id={a['article_id']}\n"
             f"    מקור: {_source_display(a['source'])} | "
             f"קטגוריה: {a.get('primary_category') or 'לא מסווג'} | "
-            f"תאריך: {a['first_seen_at']} | קיטוב ממוצע בתגובות: {polarity} | "
+            f"תאריך: {a['first_seen_at']} | "
             f"מספר תגובות: {a.get('num_comments') if a.get('num_comments') is not None else 0}\n"
+            f"    קיטוב בתגובות — רשימת המילים של המערכת: {polarity}{research}\n"
             f"    כותרת: {a['title'] or '(ללא כותרת)'}\n"
             f"    תקציר: {a['snippet']}"
         )
