@@ -56,6 +56,11 @@ from src.lexicon.load_lexicon import (  # noqa: E402
 from src.nlp.sentence_splitter import MAX_WINDOW_TOKENS  # noqa: E402
 
 FACTS_PATH = config.DATA_DIR / "explainer_facts.json"
+# A second copy, inside the frontend's static assets and committed to git.
+# demo/data/ is gitignored, so without this a clone that only runs the
+# frontend has no way to reach the measured numbers: the dashboard reads them
+# over HTTP from demo/server.py, which such a clone is not running.
+PUBLIC_FACTS_PATH = REPO_ROOT / "frontend" / "public" / "explainer_facts.json"
 
 # BaseCrawler.crawl's politeness delay default — a signature default, not a
 # module constant, so it is read off the function rather than copied.
@@ -2407,9 +2412,11 @@ def main() -> int:
     finally:
         conn.close()
 
-    FACTS_PATH.write_text(json.dumps(facts, ensure_ascii=False, indent=2),
-                          encoding="utf-8")
+    payload = json.dumps(facts, ensure_ascii=False, indent=2)
+    FACTS_PATH.write_text(payload, encoding="utf-8")
+    PUBLIC_FACTS_PATH.write_text(payload, encoding="utf-8")
     print(f"wrote {FACTS_PATH.relative_to(REPO_ROOT)}")
+    print(f"wrote {PUBLIC_FACTS_PATH.relative_to(REPO_ROOT)} (commit this one)")
     print(f"  {articles} articles · {facts['windows']['total']} windows · "
           f"{facts['comments']['total']} comments")
     print(f"  {len(facts['sources'])} sources · "

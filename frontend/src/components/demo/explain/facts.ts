@@ -891,13 +891,30 @@ export function useFacts(): FactsState {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    fetch(`${demoApiBase()}/facts`, { signal: ctrl.signal })
+
+    // The demo server is the live source: it re-reads the file per request, so
+    // rebuilding the facts during a rehearsal shows up on the next refresh.
+    // The static copy under public/ is the fallback for a clone that runs only
+    // the frontend — demo/data/ is gitignored, so that is the only measured
+    // data such a machine has. Unreachable server, non-200 and {available:
+    // false} all mean the same thing here: try the file next.
+    const fromServer = fetch(`${demoApiBase()}/facts`, { signal: ctrl.signal })
       .then((r) => (r.ok ? r.json() : null))
+      .then((data) => (data?.available ? data : null))
+      .catch(() => null);
+
+    const fromPublic = () =>
+      fetch("/explainer_facts.json", { signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+
+    fromServer
+      .then((data) => data ?? fromPublic())
       .then((data) => {
-        if (data?.available) setState({ status: "ready", facts: data as Facts });
+        if (data) setState({ status: "ready", facts: data as Facts });
         else setState({ status: "unavailable" });
-      })
-      .catch(() => setState({ status: "unavailable" }));
+      });
+
     return () => ctrl.abort();
   }, []);
 

@@ -1,0 +1,3239 @@
+{
+  "corpus": {
+    "articles": 1178
+  },
+  "constants": {
+    "retry": {
+      "max_attempts": 3,
+      "initial_backoff_s": 2.0,
+      "backoff_sequence_s": [
+        2.0,
+        4.0
+      ]
+    },
+    "crawl": {
+      "delay_seconds": 2.0,
+      "min_discovered_for_alert": 5,
+      "failure_rate_threshold": 0.3
+    },
+    "extract": {
+      "min_len": 100,
+      "min_paragraph_len": 30
+    },
+    "canonical": {
+      "tracking_params": [
+        "fbclid",
+        "gclid",
+        "mc_cid",
+        "mc_eid",
+        "ref",
+        "utm_campaign",
+        "utm_content",
+        "utm_medium",
+        "utm_source",
+        "utm_term"
+      ]
+    },
+    "windows": {
+      "max_window_tokens": 60
+    },
+    "lexicon": {
+      "single_prefixes": [
+        "ה",
+        "ו",
+        "ב",
+        "ל",
+        "מ",
+        "כ",
+        "ש"
+      ],
+      "prefix_pairs": [
+        "וה",
+        "וב",
+        "ול",
+        "ומ",
+        "וכ",
+        "וש"
+      ],
+      "min_base_length": 3
+    },
+    "categories_he": [
+      "פוליטיקה",
+      "ביטחון",
+      "כלכלה",
+      "חברה",
+      "משפט",
+      "זהות/דת",
+      "בינלאומי"
+    ]
+  },
+  "identity_example": {
+    "clean_url": "https://www.c14.co.il/article/1672869",
+    "dirty_url": "http://WWW.C14.CO.IL/article/1672869/?utm_source=whatsapp&utm_campaign=share&fbclid=IwAR9x",
+    "clean_canonical": "https://www.c14.co.il/article/1672869",
+    "dirty_canonical": "https://www.c14.co.il/article/1672869",
+    "article_id": "00bccfac5ef9b5d82f7a30fc79202ef9c61a6b6fa825f649c4a68f5a376f3ec8",
+    "dirty_article_id": "00bccfac5ef9b5d82f7a30fc79202ef9c61a6b6fa825f649c4a68f5a376f3ec8",
+    "stored_article_id": "00bccfac5ef9b5d82f7a30fc79202ef9c61a6b6fa825f649c4a68f5a376f3ec8",
+    "same": true
+  },
+  "worked_example": {
+    "article_id": "0138ed6184fb12c71ca7d3ac1556105da209eaa530fe0fade3110b103af19479",
+    "source": "mako",
+    "source_he": "mako",
+    "title": "השליכו חפצים והבעירו פחים: הפרות סדר של חרדים קיצוניים בירושלים",
+    "text_chars": 1438,
+    "sentences_total": 14,
+    "windows_total": 14,
+    "sentences": [
+      {
+        "text": "החדשות בקצרה: עשרות חרדים קיצוניים הפגינו בירושלים נגד עבודות הרכבת הקלה.",
+        "tokens": 11
+      },
+      {
+        "text": "המפגינים הבעירו פחים וגרמו נזק במתחם עבודות הרכבת.",
+        "tokens": 8
+      },
+      {
+        "text": "שלט במחאה: עברנו את נעם סולברג ובעזרת השם נעבור גם את משה ליאון.",
+        "tokens": 13
+      },
+      {
+        "text": "שני מפגינים נעצרו עד כה בהפרות הסדר.עשרות חרדים קיצוניים הפגינו הערב (חמישי) בירושלים נגד עבודות הרכבת הקלה באזור.",
+        "tokens": 18
+      },
+      {
+        "text": "כמה מהחשודים שנחקרו בעקבות הפרעות מחוץ לביתו של השופט סולברג קיבלו את הכבוד להוביל את התהלוכה.",
+        "tokens": 16
+      },
+      {
+        "text": "המפגינים צעדו משכונת מאה שערים לעבר בר אילן, יחד עם כמה מהחשודים שנחקרו בפרשה.",
+        "tokens": 14
+      }
+    ],
+    "window": {
+      "index": 13,
+      "raw": "שוטרי מחוז ירושלים פעלו במקום להשבת הסדר הציבורי.לפני כחודשיים פרסמנו ב-N12 כי מחאות החרדים הקיצוניים המתנגדים להקמת קו רכבת קלה ברחוב בר-אילן בירושלים הביאו עד היום להפסד מצטבר של 400 מיליון שקלים - כך על פי ההערכות של גורמי התכנון והביצוע במשרד התחבורה.",
+      "normalized": "שוטרי מחוז ירושלים פעלו במקום להשבת הסדר הציבורי לפני כחודשיים פרסמנו ב-n12 כי מחאות החרדים הקיצוניים המתנגדים להקמת קו רכבת קלה ברחוב בר-אילן בירושלים הביאו עד היום להפסד מצטבר של 400 מיליון שקלים - כך על פי ההערכות של גורמי התכנון והביצוע במשרד התחבורה",
+      "tokens": [
+        {
+          "t": "שוטרי",
+          "category": null
+        },
+        {
+          "t": "מחוז",
+          "category": null
+        },
+        {
+          "t": "ירושלים",
+          "category": null
+        },
+        {
+          "t": "פעלו",
+          "category": null
+        },
+        {
+          "t": "במקום",
+          "category": null
+        },
+        {
+          "t": "להשבת",
+          "category": null
+        },
+        {
+          "t": "הסדר",
+          "category": null
+        },
+        {
+          "t": "הציבורי",
+          "category": null
+        },
+        {
+          "t": "לפני",
+          "category": null
+        },
+        {
+          "t": "כחודשיים",
+          "category": null
+        },
+        {
+          "t": "פרסמנו",
+          "category": null
+        },
+        {
+          "t": "ב-n12",
+          "category": null
+        },
+        {
+          "t": "כי",
+          "category": null
+        },
+        {
+          "t": "מחאות",
+          "category": 1
+        },
+        {
+          "t": "החרדים",
+          "category": null
+        },
+        {
+          "t": "הקיצוניים",
+          "category": null
+        },
+        {
+          "t": "המתנגדים",
+          "category": null
+        },
+        {
+          "t": "להקמת",
+          "category": null
+        },
+        {
+          "t": "קו",
+          "category": null
+        },
+        {
+          "t": "רכבת",
+          "category": 4
+        },
+        {
+          "t": "קלה",
+          "category": null
+        },
+        {
+          "t": "ברחוב",
+          "category": null
+        },
+        {
+          "t": "בר-אילן",
+          "category": null
+        },
+        {
+          "t": "בירושלים",
+          "category": null
+        },
+        {
+          "t": "הביאו",
+          "category": null
+        },
+        {
+          "t": "עד",
+          "category": null
+        },
+        {
+          "t": "היום",
+          "category": null
+        },
+        {
+          "t": "להפסד",
+          "category": 3
+        },
+        {
+          "t": "מצטבר",
+          "category": null
+        },
+        {
+          "t": "של",
+          "category": null
+        },
+        {
+          "t": "400",
+          "category": null
+        },
+        {
+          "t": "מיליון",
+          "category": null
+        },
+        {
+          "t": "שקלים",
+          "category": null
+        },
+        {
+          "t": "-",
+          "category": null
+        },
+        {
+          "t": "כך",
+          "category": null
+        },
+        {
+          "t": "על",
+          "category": null
+        },
+        {
+          "t": "פי",
+          "category": null
+        },
+        {
+          "t": "ההערכות",
+          "category": null
+        },
+        {
+          "t": "של",
+          "category": null
+        },
+        {
+          "t": "גורמי",
+          "category": null
+        },
+        {
+          "t": "התכנון",
+          "category": null
+        },
+        {
+          "t": "והביצוע",
+          "category": null
+        },
+        {
+          "t": "במשרד",
+          "category": null
+        },
+        {
+          "t": "התחבורה",
+          "category": 4
+        }
+      ],
+      "window_len": 44,
+      "counts": [
+        1,
+        0,
+        1,
+        2,
+        0,
+        0,
+        0
+      ],
+      "cat_words": 4,
+      "active": 3,
+      "max_count": 2,
+      "dominance": 0.5
+    }
+  },
+  "sources": [
+    {
+      "id": "ynet",
+      "discovery": "rss",
+      "feeds": [
+        "https://www.ynet.co.il/Integration/StoryRss2.xml",
+        "https://www.ynet.co.il/Integration/StoryRss1854.xml"
+      ],
+      "dom_selectors": [
+        "div.article-body span[data-text='true']",
+        "div.ArticleBodyComponent",
+        "[data-contents='true']"
+      ],
+      "bespoke_he": "שכבת DOM ייעודית ל־draft.js של ynet",
+      "source_he": "ynet",
+      "articles": 624,
+      "avg_chars": 1683,
+      "min_chars": 100,
+      "max_chars": 21701
+    },
+    {
+      "id": "mako",
+      "discovery": "rss",
+      "feeds": [
+        "https://rcs.mako.co.il/rss/news-israel.xml",
+        "https://rcs.mako.co.il/rss/news-world.xml",
+        "https://rcs.mako.co.il/rss/news-law.xml",
+        "https://rcs.mako.co.il/rss/news-military.xml"
+      ],
+      "dom_selectors": [
+        "[class*='ArticleBodyWrapper'] p"
+      ],
+      "bespoke_he": null,
+      "source_he": "mako",
+      "articles": 290,
+      "avg_chars": 2367,
+      "min_chars": 438,
+      "max_chars": 8355
+    },
+    {
+      "id": "haaretz",
+      "discovery": "rss",
+      "feeds": [
+        "https://www.haaretz.co.il/srv/rss---feedly",
+        "https://www.haaretz.co.il/srv/rss---feedly?section=news"
+      ],
+      "dom_selectors": [
+        "[data-testid='article-body-wrapper'] p[data-testid='rich-text']"
+      ],
+      "bespoke_he": null,
+      "source_he": "הארץ",
+      "articles": 235,
+      "avg_chars": 349,
+      "min_chars": 103,
+      "max_chars": 739
+    },
+    {
+      "id": "news12",
+      "discovery": "rss",
+      "feeds": [
+        "https://rcs.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml"
+      ],
+      "dom_selectors": [
+        "[class*='ArticleBodyWrapper'] p"
+      ],
+      "bespoke_he": null,
+      "source_he": "חדשות 12",
+      "articles": 20,
+      "avg_chars": 3715,
+      "min_chars": 135,
+      "max_chars": 18498
+    },
+    {
+      "id": "channel14",
+      "discovery": "rss",
+      "feeds": [
+        "https://www.c14.co.il/feed/"
+      ],
+      "dom_selectors": [
+        "article p",
+        ".entry-content p"
+      ],
+      "bespoke_he": null,
+      "source_he": "ערוץ 14",
+      "articles": 9,
+      "avg_chars": 1520,
+      "min_chars": 230,
+      "max_chars": 2653
+    },
+    {
+      "id": "reshet13",
+      "discovery": "next_data",
+      "feeds": [
+        "https://13tv.co.il/news/newsfeed/"
+      ],
+      "dom_selectors": [
+        "[class*='articleContent'] p",
+        "[class*='ArticleBody'] p",
+        "article p"
+      ],
+      "bespoke_he": "אין RSS — הגילוי סורק את __NEXT_DATA__ של הפיד",
+      "source_he": "רשת 13",
+      "articles": 0,
+      "avg_chars": 0,
+      "min_chars": 0,
+      "max_chars": 0
+    }
+  ],
+  "windows": {
+    "total": 18086,
+    "null_dominance": 7064,
+    "avg_len": 18.4,
+    "min_len": 1,
+    "max_len": 68,
+    "at_or_over_cap": 231,
+    "per_article": {
+      "avg": 15.4,
+      "min": 1,
+      "max": 446
+    },
+    "dominance_hist": [
+      {
+        "bucket": "0.34-0.5",
+        "n": 198
+      },
+      {
+        "bucket": "0.5-0.75",
+        "n": 3218
+      },
+      {
+        "bucket": "0.75-1.0",
+        "n": 415
+      },
+      {
+        "bucket": "1.0",
+        "n": 6759
+      },
+      {
+        "bucket": "<0.34",
+        "n": 432
+      },
+      {
+        "bucket": "null",
+        "n": 7064
+      }
+    ],
+    "active_hist": [
+      {
+        "bucket": "0",
+        "n": 7064
+      },
+      {
+        "bucket": "1",
+        "n": 6759
+      },
+      {
+        "bucket": "2",
+        "n": 3095
+      },
+      {
+        "bucket": "3",
+        "n": 965
+      },
+      {
+        "bucket": "4",
+        "n": 182
+      },
+      {
+        "bucket": "5",
+        "n": 21
+      }
+    ]
+  },
+  "comments": {
+    "total": 38492,
+    "articles_with_comments": 644,
+    "avg_chars": 84,
+    "avg_likes": 14.45,
+    "max_likes": 1827,
+    "aggregates": 960,
+    "avg_audience_mean": 0.0261,
+    "avg_audience_p85": 0.0562,
+    "avg_num_comments": 40.1,
+    "max_num_comments": 805
+  },
+  "lexicon": {
+    "per_category": [
+      {
+        "category": 1,
+        "name_he": "פוליטיקה",
+        "base": 63
+      },
+      {
+        "category": 2,
+        "name_he": "ביטחון",
+        "base": 78
+      },
+      {
+        "category": 3,
+        "name_he": "כלכלה",
+        "base": 76
+      },
+      {
+        "category": 4,
+        "name_he": "חברה",
+        "base": 29
+      },
+      {
+        "category": 5,
+        "name_he": "משפט",
+        "base": 27
+      },
+      {
+        "category": 6,
+        "name_he": "זהות/דת",
+        "base": 28
+      },
+      {
+        "category": 7,
+        "name_he": "בינלאומי",
+        "base": 28
+      }
+    ],
+    "article_base": 329,
+    "article_expanded": 4142,
+    "article_factor": 12.6,
+    "comment_base": 182,
+    "comment_expanded": 2394,
+    "comment_factor": 13.2
+  },
+  "retrieval": {
+    "model": "intfloat/multilingual-e5-small",
+    "dims": 384,
+    "vectors": 752,
+    "bytes": 1155072,
+    "query_ms": 0.0093,
+    "min_text_chars": 400,
+    "passage_lead_chars": 400,
+    "cluster_sim": 0.9,
+    "keyword_jaccard": 0.25,
+    "corpus": {
+      "total": 1178,
+      "indexed": 752,
+      "too_short": 426,
+      "per_source": [
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "articles": 624,
+          "indexed": 353
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "articles": 290,
+          "indexed": 290
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "articles": 235,
+          "indexed": 82
+        },
+        {
+          "source": "news12",
+          "source_he": "חדשות 12",
+          "articles": 20,
+          "indexed": 19
+        },
+        {
+          "source": "channel14",
+          "source_he": "ערוץ 14",
+          "articles": 9,
+          "indexed": 8
+        }
+      ]
+    },
+    "events": {
+      "total": 69,
+      "versions": 146,
+      "three_plus": 8
+    },
+    "keyword": {
+      "found": 17,
+      "total": 77,
+      "recall": 0.2208,
+      "zero_overlap": 15,
+      "blind_events": 52,
+      "median": 0.0952,
+      "histogram": [
+        {
+          "label": "0",
+          "n": 15
+        },
+        {
+          "label": "0-0.05",
+          "n": 4
+        },
+        {
+          "label": "0.05-0.10",
+          "n": 22
+        },
+        {
+          "label": "0.10-0.25",
+          "n": 19
+        },
+        {
+          "label": "0.25+",
+          "n": 17
+        }
+      ]
+    },
+    "similarity": {
+      "pairs": 282376,
+      "mean": 0.8036,
+      "median": 0.803,
+      "histogram": [
+        {
+          "label": "<0.70",
+          "n": 3
+        },
+        {
+          "label": "0.70-0.80",
+          "n": 125855
+        },
+        {
+          "label": "0.80-0.85",
+          "n": 148590
+        },
+        {
+          "label": "0.85-0.90",
+          "n": 7449
+        },
+        {
+          "label": "0.90-0.95",
+          "n": 422
+        },
+        {
+          "label": "0.95-1.00",
+          "n": 57
+        }
+      ],
+      "above": [
+        {
+          "threshold": 0.8,
+          "n": 156518,
+          "pct": 55.429
+        },
+        {
+          "threshold": 0.86,
+          "n": 3879,
+          "pct": 1.374
+        },
+        {
+          "threshold": 0.88,
+          "n": 1154,
+          "pct": 0.409
+        },
+        {
+          "threshold": 0.9,
+          "n": 479,
+          "pct": 0.17
+        },
+        {
+          "threshold": 0.92,
+          "n": 197,
+          "pct": 0.07
+        },
+        {
+          "threshold": 0.95,
+          "n": 57,
+          "pct": 0.02
+        }
+      ]
+    },
+    "sweep": [
+      {
+        "threshold": 0.84,
+        "events": 55,
+        "three_plus": 25,
+        "versions": 140,
+        "chosen": false
+      },
+      {
+        "threshold": 0.86,
+        "events": 83,
+        "three_plus": 19,
+        "versions": 187,
+        "chosen": false
+      },
+      {
+        "threshold": 0.88,
+        "events": 75,
+        "three_plus": 9,
+        "versions": 160,
+        "chosen": false
+      },
+      {
+        "threshold": 0.9,
+        "events": 69,
+        "three_plus": 8,
+        "versions": 146,
+        "chosen": true
+      },
+      {
+        "threshold": 0.92,
+        "events": 50,
+        "three_plus": 0,
+        "versions": 100,
+        "chosen": false
+      },
+      {
+        "threshold": 0.94,
+        "events": 30,
+        "three_plus": 0,
+        "versions": 60,
+        "chosen": false
+      }
+    ],
+    "example": {
+      "topic_he": "בינלאומי",
+      "seed": {
+        "source": "mako",
+        "source_he": "mako",
+        "title": "דיווח | ראש ממשלת בריטניה הוזהר: פוטין צפוי להגיב בקרוב נגד הממלכה"
+      },
+      "neighbours": [
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "title": "\"דיילי מייל\": בבריטניה נערכים למתקפה רוסית בגלל התמיכה באוקראינה",
+          "cos": 0.9275,
+          "jaccard": 0.0,
+          "shared": [],
+          "kept": true
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "title": "דיווח: ארה\"ב הזהירה את פוטין; רוסיה מאיימת על בריטניה",
+          "cos": 0.9209,
+          "jaccard": 0.2,
+          "shared": [
+            "בריטניה",
+            "דיווח",
+            "פוטין"
+          ],
+          "kept": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "title": "רוסיה איימה לתקוף יעדים צבאיים של בריטניה בשל השימוש של אוקראינה בטילים בריטיים",
+          "cos": 0.9024,
+          "jaccard": 0.0476,
+          "shared": [
+            "בריטניה"
+          ],
+          "kept": true
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "title": "ראש ממשלת בריטניה: אפגש עם טראמפ ואלחץ עליו לספק מיירטים לאוקראינה",
+          "cos": 0.9017,
+          "jaccard": 0.1667,
+          "shared": [
+            "בריטניה",
+            "ממשלת",
+            "ראש"
+          ],
+          "kept": false
+        }
+      ],
+      "rejected": {
+        "source": "ynet",
+        "source_he": "ynet",
+        "title": "דיווחים: ראש ה-CIA הזהיר את רוסיה מפני תקיפת נאט\"ו וסיוע לאיראן",
+        "cos": 0.8985
+      }
+    },
+    "duplicates": {
+      "threshold": 0.999,
+      "pairs": 3,
+      "examples": [
+        {
+          "cos": 1.0,
+          "source": "mako",
+          "source_he": "mako",
+          "title": "שר החוץ הסורי: המגעים עם ישראל על הסכם ביטחוני הופסקו בגלל התקיפה",
+          "url_a": "https://www.mako.co.il/news-world/2026_q3/Article-62f24700dbd20a1026.htm",
+          "url_b": "https://www.mako.co.il/news-military/2026_q3/Article-62f24700dbd20a1026.htm",
+          "id_a": "8cac6e75d06a",
+          "id_b": "989b936948ad"
+        },
+        {
+          "cos": 1.0,
+          "source": "ynet",
+          "source_he": "ynet",
+          "title": "החשש מ\"מלכוד 92'\" - והעקשנות של וינטר שמרתיחה את גוש נתניהו: \"תוקע אותנו\"",
+          "url_a": "https://www.ynet.co.il/news/elections2026/article/h1fnnatdgx",
+          "url_b": "https://www.ynet.co.il/news/article/h1fnnatdgx",
+          "id_a": "9f2af15bbce6",
+          "id_b": "ffac27760e1a"
+        },
+        {
+          "cos": 1.0,
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "title": "חיילים מעידים: נשלחנו ללוות מיליציה בעזה. התברר שזו בוררות. המחיר נקבע בשטח,החמוש ירה לו ברגליים",
+          "url_a": "https://www.haaretz.co.il/news/security/2026-08-26/ty-article-magazine/0000019f-e5ac-dfd7-a19f-e7ee664b0000",
+          "url_b": "https://www.haaretz.co.il/news/security/2026-08-26/ty-article-magazine/.premium/0000019f-e5ac-dfd7-a19f-e7ee664b0000",
+          "id_a": "aa159102f63c",
+          "id_b": "ce6095238053"
+        }
+      ]
+    },
+    "slots": {
+      "policies": [
+        {
+          "key": "fifo",
+          "label_he": "הנכנס הראשון יוצא ראשון",
+          "note_he": "בלי חשבונאות לכל גישה"
+        },
+        {
+          "key": "lru",
+          "label_he": "הכי מזמן שהיה בשימוש",
+          "note_he": "שעון גישה לכל פריט"
+        },
+        {
+          "key": "lfu",
+          "label_he": "הכי מעט בשימוש",
+          "note_he": "מונה גישות לכל פריט"
+        },
+        {
+          "key": "rr",
+          "label_he": "פינוי אקראי",
+          "note_he": "ממוצע 20 ריצות, בסיס להשוואה"
+        }
+      ],
+      "rows": [
+        {
+          "k": 50,
+          "fifo": 45,
+          "total": 77,
+          "lru": 45,
+          "lfu": 35,
+          "rr": 35
+        },
+        {
+          "k": 100,
+          "fifo": 56,
+          "total": 77,
+          "lru": 56,
+          "lfu": 53,
+          "rr": 47
+        },
+        {
+          "k": 200,
+          "fifo": 64,
+          "total": 77,
+          "lru": 64,
+          "lfu": 61,
+          "rr": 59
+        },
+        {
+          "k": 376,
+          "fifo": 69,
+          "total": 77,
+          "lru": 69,
+          "lfu": 69,
+          "rr": 68
+        },
+        {
+          "k": 400,
+          "fifo": 70,
+          "total": 77,
+          "lru": 70,
+          "lfu": 70,
+          "rr": 70
+        },
+        {
+          "k": 752,
+          "fifo": 77,
+          "total": 77,
+          "lru": 77,
+          "lfu": 77,
+          "rr": 77
+        }
+      ],
+      "corpus": 752,
+      "freshness": {
+        "events": 69,
+        "corpus_days": 4.8,
+        "per_day": 156,
+        "p50_hours": 3.9,
+        "p75_hours": 6.7,
+        "p90_hours": 75.5,
+        "windows": [
+          {
+            "hours": 6,
+            "covered": 0.6232,
+            "slots": 39
+          },
+          {
+            "hours": 12,
+            "covered": 0.7681,
+            "slots": 78
+          },
+          {
+            "hours": 24,
+            "covered": 0.7971,
+            "slots": 156
+          },
+          {
+            "hours": 48,
+            "covered": 0.8841,
+            "slots": 312
+          },
+          {
+            "hours": 72,
+            "covered": 0.8986,
+            "slots": 468
+          },
+          {
+            "hours": 168,
+            "covered": 1.0,
+            "slots": 1092
+          }
+        ]
+      },
+      "current": {
+        "window_hours": null,
+        "policy": null,
+        "resident": 752
+      }
+    }
+  },
+  "evals": {
+    "golden_set": {
+      "pairs": 160,
+      "same": 68,
+      "labelled_by": [
+        "human"
+      ],
+      "human_reviewed": true,
+      "agreement": {
+        "reviewed": 160,
+        "agreed": 129,
+        "rate": 0.8063,
+        "flipped_to_same": 29,
+        "flipped_to_not_same": 2
+      }
+    },
+    "precision_sweep": [
+      {
+        "threshold": 0.94,
+        "labelled_accepted": 25,
+        "true_positives": 23,
+        "precision": 0.92,
+        "ci_low": 0.7503,
+        "ci_high": 0.9778
+      },
+      {
+        "threshold": 0.92,
+        "labelled_accepted": 50,
+        "true_positives": 38,
+        "precision": 0.76,
+        "ci_low": 0.6259,
+        "ci_high": 0.857
+      },
+      {
+        "threshold": 0.9,
+        "labelled_accepted": 80,
+        "true_positives": 53,
+        "precision": 0.6625,
+        "ci_low": 0.5536,
+        "ci_high": 0.7565
+      },
+      {
+        "threshold": 0.88,
+        "labelled_accepted": 90,
+        "true_positives": 57,
+        "precision": 0.6333,
+        "ci_low": 0.5302,
+        "ci_high": 0.7255
+      },
+      {
+        "threshold": 0.86,
+        "labelled_accepted": 125,
+        "true_positives": 68,
+        "precision": 0.544,
+        "ci_low": 0.4567,
+        "ci_high": 0.6287
+      }
+    ],
+    "recall": {
+      "region": "cosine >= 0.86",
+      "floor": 0.86,
+      "estimated_same_pairs_in_region": 721.7,
+      "by_threshold": [
+        {
+          "threshold": 0.94,
+          "recall": 0.0497
+        },
+        {
+          "threshold": 0.92,
+          "recall": 0.0888
+        },
+        {
+          "threshold": 0.9,
+          "recall": 0.1761
+        },
+        {
+          "threshold": 0.86,
+          "recall": 1.0
+        }
+      ],
+      "bands": {
+        "0.94-1.01": {
+          "labelled": 25,
+          "same": 23,
+          "population": 39,
+          "estimated_same": 35.9
+        },
+        "0.92-0.94": {
+          "labelled": 25,
+          "same": 15,
+          "population": 47,
+          "estimated_same": 28.2
+        },
+        "0.90-0.92": {
+          "labelled": 30,
+          "same": 15,
+          "population": 126,
+          "estimated_same": 63.0
+        },
+        "0.86-0.90": {
+          "labelled": 45,
+          "same": 15,
+          "population": 1784,
+          "estimated_same": 594.7
+        },
+        "0.82-0.86": {
+          "labelled": 20,
+          "same": 0,
+          "population": 35358,
+          "estimated_same": 0.0
+        },
+        "0.00-0.82": {
+          "labelled": 15,
+          "same": 0,
+          "population": 137469,
+          "estimated_same": 0.0
+        }
+      },
+      "below_region": {
+        "labelled": 35,
+        "same_found": 0,
+        "population": 172827,
+        "rate_upper_95": 0.0857
+      }
+    },
+    "head_to_head": {
+      "embedding": {
+        "threshold": 0.9,
+        "labelled_accepted": 80,
+        "true_positives": 53,
+        "positives": 68,
+        "precision": 0.6625,
+        "recall_on_sample": 0.7794,
+        "recall_ci": [
+          0.6674,
+          0.8615
+        ]
+      },
+      "keyword": {
+        "threshold": 0.25,
+        "labelled_accepted": 12,
+        "true_positives": 12,
+        "positives": 68,
+        "precision": 1.0,
+        "precision_ci": [
+          0.7575,
+          1.0
+        ],
+        "recall_on_sample": 0.1765,
+        "recall_ci": [
+          0.1039,
+          0.2836
+        ],
+        "zero_overlap_positives": 18
+      }
+    },
+    "live_threshold": 0.9
+  },
+  "framing": {
+    "model": "gpt-4o-mini",
+    "temperature": 0,
+    "lead_chars": 500,
+    "max_tokens": {
+      "framing": 260,
+      "contrast": 700
+    },
+    "contrast_versions": 5,
+    "keys": [
+      "actor",
+      "responsibility",
+      "loaded_terms",
+      "voice",
+      "lead_perspective"
+    ],
+    "framing_system": "אתה מנתח מסגור תקשורתי. בהינתן כותרת ופסקה ראשונה של ידיעה בעברית, החזר JSON בלבד, בלי טקסט נוסף ובלי גדרות קוד, עם המפתחות הבאים בדיוק: {\"actor\": \"מי מוצג כמבצע הפעולה, או null אם הניסוח סביל\", \"responsibility\": \"למי מיוחסת אחריות למצב, או null אם לא מיוחסת\", \"loaded_terms\": [\"מילות הערכה טעונות בכותרת בלבד — שמות תואר או כינויים שיפוטיים; רשימה ריקה אם הכותרת ניטרלית\"], \"voice\": \"active או passive\", \"lead_perspective\": \"מנקודת מבט של מי נפתחת הידיעה\"}",
+    "contrast_system": "אתה מנתח מסגור תקשורתי. תקבל כמה גרסאות של אותה ידיעה בדיוק, מכלי תקשורת שונים. המשימה: לומר מה ייחודי בכל גרסה ביחס לאחרות — לא לסכם אותה. החזר JSON בלבד: {\"per_source\":[{\"source\":\"...\",\"distinctive\":\"במשפט אחד, מה הגרסה הזאת מדגישה או משמיטה שהאחרות לא\",\"evidence\":\"ציטוט קצר מהכותרת או מהפתיח של אותה גרסה שמדגים זאת\"}],\"shared\":\"מה כל הגרסאות מסכימות עליו\"}",
+    "cache": {
+      "framing": 146,
+      "contrast": 68
+    },
+    "distribution": {
+      "total": 146,
+      "voice": [
+        {
+          "label": "active",
+          "n": 142
+        },
+        {
+          "label": "passive",
+          "n": 4
+        }
+      ],
+      "terms_per_article": [
+        {
+          "terms": 0,
+          "n": 22
+        },
+        {
+          "terms": 1,
+          "n": 39
+        },
+        {
+          "terms": 2,
+          "n": 55
+        },
+        {
+          "terms": 3,
+          "n": 20
+        },
+        {
+          "terms": 4,
+          "n": 9
+        },
+        {
+          "terms": 5,
+          "n": 1
+        }
+      ],
+      "actor_null": 4,
+      "responsibility_null": 37
+    },
+    "verifier": {
+      "terms_total": 250,
+      "terms_rejected": 4,
+      "actors_total": 142,
+      "actors_rejected": 0,
+      "actors_exact": 139,
+      "actors_word_level": 3,
+      "quotes_total": 144,
+      "quotes_rejected": 33,
+      "quote_reasons": [
+        {
+          "kind": "paraphrase",
+          "n": 11
+        },
+        {
+          "kind": "punct",
+          "n": 20
+        },
+        {
+          "kind": "wrapper",
+          "n": 2
+        }
+      ]
+    },
+    "acronyms": {
+      "framing_hits": 33,
+      "framing_total": 146,
+      "contrast_hits": 33,
+      "contrast_total": 68,
+      "distinct": 33,
+      "examples": [
+        "ארה\"ב",
+        "ב\"יריית",
+        "באו\"ם",
+        "בנאט\"ו",
+        "בנתב\"ג",
+        "היועמ\"שית",
+        "הימ\"מ",
+        "המו\"מ",
+        "המל\"ל",
+        "הפצ\"רית"
+      ]
+    },
+    "term_example": {
+      "source": "ynet",
+      "source_he": "ynet",
+      "title": "ארדואן: \"פרובוקציות ומזימות לא יעצרו את טורקיה\"",
+      "lead": "נשיא טורקיה רג'יפ טאיפ ארדואן כתב אחר הצהריים (יום רביעי) ברשת X - מבלי להזכיר את ישראל - כי \"אלו החושבים שיצליחו לעצור את הצעידה המבורכת של טורקיה ושל האומה הטורקית באמצעות פרובוקציות, מזימות ומלכודות, נידונו לאכזבה. אנו לא נסטה מהדרך שאותה אנו יודעים כנכונה, וגם לא נפנה לדרכים אחרות בעקבות פרובוקציות של אחרים\".   דבריו של ארדואן מגיעים בצל ההסלמה החריפה במתיחות בין ישראל לטורקיה סביב הנוכחות הטורקית בסוריה. בשבוע שעבר תקף חיל האוויר את בסיס אבו א-דוהור בצפון-מערב סוריה, לאחר שבישראל טענו כי אנ",
+      "framing": {
+        "actor": "רג'יפ טאיפ ארדואן",
+        "responsibility": null,
+        "loaded_terms": [
+          "מברכת"
+        ],
+        "voice": "active",
+        "lead_perspective": "של ארדואן"
+      },
+      "kept": [],
+      "dropped": [
+        "מברכת"
+      ]
+    },
+    "quote_examples": [
+      {
+        "kind": "punct",
+        "source": "ynet",
+        "source_he": "ynet",
+        "evidence": "רשות שדות התעופה הודיעה הבוקר (ראשון) על צעדים שננקטו בשיתוף ועד העובדים במטרה להקל את העומס בנמל.",
+        "excerpt": "דיין לא הוסר החשש מעיצומים במהלך החגים: רשות שדות התעופה הודיעה הבוקר (ראשון) על צעדים שננקטו בשיתוף ועד העובדים במטרה להקל את העומס בנמל, כולל קליטה והכשרת עובדים חדשים. אלא שס"
+      },
+      {
+        "kind": "paraphrase",
+        "source": "mako",
+        "source_he": "mako",
+        "evidence": "אנשי איזנקוט טוענים כי רמת הסיכון כלפיו עלתה. [...] במטה טוענים כי ההימנעות מאבטחה נובעת מטעמים פוליטיים.",
+        "excerpt": "השבכ החליט שלא לספק אבטחה לגדי איזנקוט. אנשי איזנקוט טוענים כי רמת הסיכון כלפיו עלתה. השבכ יספק איש קשר ומודיעין ללא מעטפת אבט"
+      },
+      {
+        "kind": "wrapper",
+        "source": "haaretz",
+        "source_he": "הארץ",
+        "evidence": "כותרת: \"ראש ממשלת קנדה עשה דבר שמנהיגים מעטים בעולם מעיזים לעשות, ואמר 'לא' לטראמפ\"",
+        "excerpt": "ראש ממשלת קנדה עשה דבר שמנהיגים מעטים בעולם מעיזים לעשות, ואמר לא לטראמפ ראש ממשלת קנדה מארק קרני עשה שלשום (שיש"
+      }
+    ],
+    "contrast_example": {
+      "topic_he": "כלכלה",
+      "shared": "כל הגרסאות מסכימות על כך שהיו שיבושים משמעותיים בנתב\"ג בעקבות השביתה.",
+      "per_source": [
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "title": "למרות ההודעה על חזרה לשגרה: הכאוס בנתב\"ג נמשך אל תוך הלילה",
+          "distinctive": "הגרסה מדגישה את הכאוס הנמשך ואת חילופי ההאשמות בין ועד העובדים להנהלה.",
+          "evidence": "הכאוס נמשך אל תוך הלילה: השיבושים בנתבג שהותירו אלפי נוסעים מול תורים, עיכובים וחוסר ודאות נמשכים אל תוך הלילה.",
+          "kept": true
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "title": "בנתב\"ג הודיעו על צעדים להקלת העומס, אך החשש מכאוס בחגים עדיין קיים | זו הסיבה",
+          "distinctive": "הגרסה מתמקדת בצעדים שננקטו להקלת העומס ובחשש מעיצומים עתידיים.",
+          "evidence": "רשות שדות התעופה הודיעה הבוקר (ראשון) על צעדים שננקטו בשיתוף ועד העובדים במטרה להקל את העומס בנמל.",
+          "kept": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "title": "נתניהו הורה להדיח מהליכוד את יו\"ר ועד העובדים ברשות שדות התעופה עקב השביתה",
+          "distinctive": "הגרסה מתמקדת בהחלטת נתניהו להדיח את יו\"ר ועד העובדים בעקבות השביתה.",
+          "evidence": "ראש הממשלה בנימין נתניהו הורה הערב (חמישי) להדיח מהליכוד את יו\"ר ועד העובדים ברשות שדות התעופה.",
+          "kept": false
+        }
+      ]
+    }
+  },
+  "audience": {
+    "polar_lexicon_forms": 2394,
+    "quantile": 0.85,
+    "comments": {
+      "total": 38492,
+      "articles": 644,
+      "len_mean": 15.5,
+      "len_median": 11.0,
+      "len_max": 196,
+      "len_under_4": 4056,
+      "zero_polar": 29358,
+      "ratio_mean": 0.02811,
+      "ratio_hist": [
+        {
+          "label": "0",
+          "n": 29358
+        },
+        {
+          "label": "0-0.02",
+          "n": 400
+        },
+        {
+          "label": "0.02-0.05",
+          "n": 2259
+        },
+        {
+          "label": "0.05-0.10",
+          "n": 2914
+        },
+        {
+          "label": "0.10-0.20",
+          "n": 2170
+        },
+        {
+          "label": "0.20+",
+          "n": 1391
+        }
+      ]
+    },
+    "weight": {
+      "curve": [
+        {
+          "likes": 0,
+          "weight": 1.0
+        },
+        {
+          "likes": 1,
+          "weight": 1.693
+        },
+        {
+          "likes": 3,
+          "weight": 2.386
+        },
+        {
+          "likes": 10,
+          "weight": 3.398
+        },
+        {
+          "likes": 30,
+          "weight": 4.434
+        },
+        {
+          "likes": 100,
+          "weight": 5.615
+        },
+        {
+          "likes": 300,
+          "weight": 6.707
+        },
+        {
+          "likes": 1827,
+          "weight": 8.511
+        }
+      ],
+      "max_likes": 1827,
+      "inert": 18526,
+      "shift_mean": 0.00199,
+      "shift_p85": 0.00519,
+      "articles": 644,
+      "articles_unaffected": 528,
+      "per_source": [
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "comments": 22308,
+          "likes": 549699,
+          "avg_likes": 24.64,
+          "inert": 3711,
+          "articles": 194,
+          "articles_unaffected": 115,
+          "mean_p85_shift": 0.00723
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "comments": 12286,
+          "likes": 0,
+          "avg_likes": 0.0,
+          "inert": 12286,
+          "articles": 252,
+          "articles_unaffected": 252,
+          "mean_p85_shift": 0.0
+        },
+        {
+          "source": "news12",
+          "source_he": "חדשות 12",
+          "comments": 2119,
+          "likes": 0,
+          "avg_likes": 0.0,
+          "inert": 2119,
+          "articles": 19,
+          "articles_unaffected": 19,
+          "mean_p85_shift": 0.0
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "comments": 1779,
+          "likes": 6424,
+          "avg_likes": 3.61,
+          "inert": 410,
+          "articles": 179,
+          "articles_unaffected": 142,
+          "mean_p85_shift": 0.01083
+        }
+      ]
+    },
+    "controversy": {
+      "articles": 644,
+      "nonzero": 0,
+      "at_one_like": 0.0,
+      "at_even_split": 1.0
+    },
+    "aggregate": {
+      "p85_mean": 0.0562,
+      "p85_median": 0.05,
+      "p85_zero": 146,
+      "p85_one": 1,
+      "mean_median": 0.0218,
+      "p85_hist": [
+        {
+          "label": "0",
+          "n": 146
+        },
+        {
+          "label": "0-0.02",
+          "n": 31
+        },
+        {
+          "label": "0.02-0.05",
+          "n": 138
+        },
+        {
+          "label": "0.05-0.10",
+          "n": 226
+        },
+        {
+          "label": "0.10-0.20",
+          "n": 91
+        },
+        {
+          "label": "0.20+",
+          "n": 12
+        }
+      ],
+      "counts": {
+        "median": 18.0,
+        "under_5": 58,
+        "under_10": 124,
+        "total": 644
+      }
+    },
+    "artifacts": {
+      "ratio_one": 124,
+      "single_token": 111,
+      "examples": [
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "text": "נכון",
+          "likes": 6,
+          "len": 1
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "text": "פושע",
+          "likes": 4,
+          "len": 1
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "text": "טיפש",
+          "likes": 3,
+          "len": 1
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "text": "יפה!",
+          "likes": 2,
+          "len": 1
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "text": "מעולה",
+          "likes": 11,
+          "len": 1
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "text": "נכון",
+          "likes": 4,
+          "len": 1
+        }
+      ]
+    },
+    "research": {
+      "citation": "Simchon, Brady & Van Bavel (2022), PNAS Nexus",
+      "source_words": 205,
+      "lemmas": 191,
+      "lemmas_affective": 122,
+      "lemmas_issue": 69,
+      "provenance": {
+        "simchon": 110,
+        "israeli": 11,
+        "media": 34,
+        "review": 36
+      },
+      "forms": 2480,
+      "comments": 38492,
+      "with_any": 13208,
+      "with_affective": 7888,
+      "with_issue": 7607,
+      "with_both": 2287,
+      "hits_affective": 10503,
+      "hits_issue": 10588,
+      "top_affective": [
+        {
+          "word": "בושה",
+          "n": 656
+        },
+        {
+          "word": "טרור",
+          "n": 395
+        },
+        {
+          "word": "פשע",
+          "n": 352
+        },
+        {
+          "word": "שקר",
+          "n": 333
+        },
+        {
+          "word": "נשק",
+          "n": 331
+        },
+        {
+          "word": "רצח",
+          "n": 298
+        }
+      ],
+      "top_issue": [
+        {
+          "word": "ממשלה",
+          "n": 1802
+        },
+        {
+          "word": "ימין",
+          "n": 930
+        },
+        {
+          "word": "יהודים",
+          "n": 726
+        },
+        {
+          "word": "שמאל",
+          "n": 709
+        },
+        {
+          "word": "מלחמה",
+          "n": 623
+        },
+        {
+          "word": "חוק",
+          "n": 571
+        }
+      ],
+      "shipped_lemmas": 171,
+      "shipped_shared": 31
+    },
+    "example": {
+      "article_id": "f6d93e43b2d7f74169e0b3e890c0f6e9797778ec0167438313d6118c0a37bc19",
+      "source": "ynet",
+      "source_he": "ynet",
+      "title": "ומי ישלם על קריסת נתב\"ג?",
+      "comments": [
+        {
+          "text": "שרת התחבורה ומפלגתה צריכים לשלם, לעוף מהשלטון.",
+          "likes": 28,
+          "len": 7,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 4.367
+        },
+        {
+          "text": "רפובליקת בננות אין דין ואין דיין חוסר משילות אנדרלמוסיה וזלזול בציבור משלמי המיסים. תיירים מחו\"ל וחברות תעופה זרות ימנעו מטיסות למדינה לא ברורה ולא צפויה שכל שני וחמישי יש בה בלאגן. ממש פשע. התעללות בקשישים, בפעוטות, בכלל הציבור. ניהול כושל, חייבים לפטר לאלתר את מנהל שדה התעופה.  בושה",
+          "likes": 26,
+          "len": 49,
+          "polar": 2,
+          "hits": [
+            "חייבים",
+            "בושה"
+          ],
+          "ratio": 0.0408,
+          "weight": 4.296
+        },
+        {
+          "text": "ישבתי על המזוודה בנתבג עצבנית רצח, חלאס עם הג'ובים והקומבינות של רגב, חייבים להעיף אותם בקלפי",
+          "likes": 25,
+          "len": 16,
+          "polar": 1,
+          "hits": [
+            "חייבים"
+          ],
+          "ratio": 0.0625,
+          "weight": 4.258
+        },
+        {
+          "text": "מה עם אחריות נושאי המשרה ישירות?\nנחמד שרון טל,עידן,שרון והחבורה הזו נהנת מיוקרה וכיבודים- מן הראוי שכאשר קורית \"\"תקלה\"\" כזו הם ישירות ייסעו בתוצאות-ושידע כל בעל משרה בכירה שעם הכח באה מידה רבה של אחריות(כולל אשמה בעיתות כשל!!)",
+          "likes": 8,
+          "len": 41,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 3.197
+        },
+        {
+          "text": "במדינה מתוקנת יש יותר משדה תעופהבינ\"ל אחד פעיל...במדינה כזו צריך שר התחבורה להתפטר....",
+          "likes": 4,
+          "len": 15,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 2.609
+        },
+        {
+          "text": "ביבי ושרה ישלמו הרי יש להם מליארדים בקריפטו ובפנמה.",
+          "likes": 3,
+          "len": 9,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 2.386
+        },
+        {
+          "text": "בנון ישלם",
+          "likes": 2,
+          "len": 2,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 2.099
+        },
+        {
+          "text": "מי ישלם? האזרחים שעובדים, כמובן",
+          "likes": 1,
+          "len": 5,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 1.693
+        },
+        {
+          "text": "אייזנקוט, גנץ, לפיד, מישהו מהם הציע השבוע איסור שביתה בנמלים?",
+          "likes": 1,
+          "len": 10,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 1.693
+        },
+        {
+          "text": "מי שמשלם  זה ששלם על טרור קפלן  האזרחים",
+          "likes": 0,
+          "len": 8,
+          "polar": 0,
+          "hits": [],
+          "ratio": 0.0,
+          "weight": 1.0
+        }
+      ],
+      "weighted": {
+        "mean": 0.016,
+        "p85": 0.0625
+      },
+      "unweighted": {
+        "mean": 0.01033,
+        "p85": 0.04082
+      },
+      "sum_weight": 27.599,
+      "target": 23.459,
+      "walk": [
+        {
+          "value": 0.0,
+          "weight": 4.367,
+          "cum": 4.367,
+          "hit": false
+        },
+        {
+          "value": 0.0,
+          "weight": 3.197,
+          "cum": 7.565,
+          "hit": false
+        },
+        {
+          "value": 0.0,
+          "weight": 2.609,
+          "cum": 10.174,
+          "hit": false
+        },
+        {
+          "value": 0.0,
+          "weight": 2.386,
+          "cum": 12.56,
+          "hit": false
+        },
+        {
+          "value": 0.0,
+          "weight": 2.099,
+          "cum": 14.659,
+          "hit": false
+        },
+        {
+          "value": 0.0,
+          "weight": 1.693,
+          "cum": 16.352,
+          "hit": false
+        },
+        {
+          "value": 0.0,
+          "weight": 1.693,
+          "cum": 18.045,
+          "hit": false
+        },
+        {
+          "value": 0.0,
+          "weight": 1.0,
+          "cum": 19.045,
+          "hit": false
+        },
+        {
+          "value": 0.0408,
+          "weight": 4.296,
+          "cum": 23.341,
+          "hit": false
+        },
+        {
+          "value": 0.0625,
+          "weight": 4.258,
+          "cum": 27.599,
+          "hit": true
+        }
+      ]
+    },
+    "hijack": {
+      "events": 69,
+      "comparable": 106,
+      "hijacked": 52,
+      "per_source": [
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "hijacked": 18,
+          "total": 47
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "hijacked": 24,
+          "total": 40
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "hijacked": 10,
+          "total": 18
+        },
+        {
+          "source": "news12",
+          "source_he": "חדשות 12",
+          "hijacked": 0,
+          "total": 1
+        }
+      ],
+      "pairs": [
+        {
+          "article_he": "ביטחון",
+          "comments_he": "פוליטיקה",
+          "n": 11
+        },
+        {
+          "article_he": "ביטחון",
+          "comments_he": "בינלאומי",
+          "n": 7
+        },
+        {
+          "article_he": "פוליטיקה",
+          "comments_he": "חברה",
+          "n": 4
+        },
+        {
+          "article_he": "בינלאומי",
+          "comments_he": "ביטחון",
+          "n": 4
+        },
+        {
+          "article_he": "משפט",
+          "comments_he": "ביטחון",
+          "n": 4
+        },
+        {
+          "article_he": "משפט",
+          "comments_he": "פוליטיקה",
+          "n": 4
+        }
+      ],
+      "examples": [
+        {
+          "num_comments": 576,
+          "source": "ynet",
+          "source_he": "ynet",
+          "title": "קרב התגמולים: האוצר עצר תשלומים לפצ\"רית - בניגוד להחלטת הרמטכ\"ל",
+          "article_he": "ביטחון",
+          "comments_he": "משפט",
+          "top_comment": "זה מטורף. לעצור הכל עד סיום ההליך הפלילי ואז להחליט.  החלטת הרמטכ\"ל יריקה בפרצופם של כל הלוחמים",
+          "top_likes": 603
+        },
+        {
+          "num_comments": 564,
+          "source": "ynet",
+          "source_he": "ynet",
+          "title": "נתניהו גינה, ביקורת על סוכות גם מתוך המפלגה: \"החלטנו להתאבד סופית?\"",
+          "article_he": "ביטחון",
+          "comments_he": "פוליטיקה",
+          "top_comment": "תגידו זה אמיתי?\nזאת המדינה שחלמו עליה הורינו?\nמה יקרה עכשיו אם חלילה  מישהו ינפץ אנדרטה לזכר יהודים בשואה באירופה? או פשוט יתקפו יהודים עם גרזן באמצע ",
+          "top_likes": 952
+        },
+        {
+          "num_comments": 549,
+          "source": "ynet",
+          "source_he": "ynet",
+          "title": "הוביל \"כנופיית פשע עם סכסוכי דמים\": זה ראש המאפיה הקווקזית שחוסל ליד קיסריה",
+          "article_he": "כלכלה",
+          "comments_he": "פוליטיקה",
+          "top_comment": "לקבור בחיריה",
+          "top_likes": 1622
+        }
+      ]
+    },
+    "deviation": [
+      {
+        "source": "ynet",
+        "source_he": "ynet",
+        "n": 41,
+        "mean": -0.0057,
+        "median": -0.0098
+      },
+      {
+        "source": "mako",
+        "source_he": "mako",
+        "n": 35,
+        "mean": 0.0074,
+        "median": 0.0107
+      },
+      {
+        "source": "haaretz",
+        "source_he": "הארץ",
+        "n": 16,
+        "mean": -0.0016,
+        "median": 0.0
+      },
+      {
+        "source": "news12",
+        "source_he": "חדשות 12",
+        "n": 1,
+        "mean": 0.0263,
+        "median": 0.0263
+      }
+    ]
+  },
+  "stats": {
+    "constants": {
+      "bootstrap_iterations": 4000,
+      "bootstrap_seed": 20260828,
+      "bootstrap_min_n": 3,
+      "permutation_iterations": 2000,
+      "min_segment": 8,
+      "min_cell_events": 10,
+      "alpha": 0.05
+    },
+    "events": 69,
+    "raw_snapshot": [
+      {
+        "source": "ynet",
+        "source_he": "ynet",
+        "n": 600,
+        "mean": 0.8357
+      },
+      {
+        "source": "mako",
+        "source_he": "mako",
+        "n": 290,
+        "mean": 0.7959
+      },
+      {
+        "source": "haaretz",
+        "source_he": "הארץ",
+        "n": 222,
+        "mean": 0.8107
+      },
+      {
+        "source": "news12",
+        "source_he": "חדשות 12",
+        "n": 20,
+        "mean": 0.8267
+      },
+      {
+        "source": "channel14",
+        "source_he": "ערוץ 14",
+        "n": 9,
+        "mean": 0.8042
+      }
+    ],
+    "metrics": [
+      {
+        "key": "dominance",
+        "label_he": "דומיננטיות לקסיקון",
+        "n": 146,
+        "variance": {
+          "total": 0.014295,
+          "between": 0.008854,
+          "within": 0.005072,
+          "between_share": 0.6194,
+          "within_share": 0.3548
+        },
+        "outlets": [
+          {
+            "source": "ynet",
+            "source_he": "ynet",
+            "n": 66,
+            "raw_mean": 0.8253,
+            "mean": 0.0173,
+            "lo": 0.00447,
+            "hi": 0.03088,
+            "significant": true,
+            "p": 0.01
+          },
+          {
+            "source": "mako",
+            "source_he": "mako",
+            "n": 51,
+            "raw_mean": 0.7772,
+            "mean": -0.02329,
+            "lo": -0.03793,
+            "hi": -0.00875,
+            "significant": true,
+            "p": 0.0
+          },
+          {
+            "source": "haaretz",
+            "source_he": "הארץ",
+            "n": 28,
+            "raw_mean": 0.7699,
+            "mean": -0.02238,
+            "lo": -0.06637,
+            "hi": 0.01581,
+            "significant": false,
+            "p": 0.2785
+          },
+          {
+            "source": "news12",
+            "source_he": "חדשות 12",
+            "n": 1,
+            "raw_mean": 0.9429,
+            "mean": null,
+            "lo": null,
+            "hi": null,
+            "significant": false,
+            "p": null
+          }
+        ]
+      },
+      {
+        "key": "audience_p85",
+        "label_he": "אחוזון 85 של הקהל",
+        "n": 93,
+        "variance": {
+          "total": 0.00193,
+          "between": 0.001166,
+          "within": 0.000789,
+          "between_share": 0.6043,
+          "within_share": 0.4088
+        },
+        "outlets": [
+          {
+            "source": "ynet",
+            "source_he": "ynet",
+            "n": 41,
+            "raw_mean": 0.0445,
+            "mean": -0.00567,
+            "lo": -0.01394,
+            "hi": 0.00273,
+            "significant": false,
+            "p": 0.179
+          },
+          {
+            "source": "mako",
+            "source_he": "mako",
+            "n": 35,
+            "raw_mean": 0.0597,
+            "mean": 0.00739,
+            "lo": -0.00196,
+            "hi": 0.01598,
+            "significant": false,
+            "p": 0.1075
+          },
+          {
+            "source": "haaretz",
+            "source_he": "הארץ",
+            "n": 16,
+            "raw_mean": 0.0461,
+            "mean": -0.00163,
+            "lo": -0.01613,
+            "hi": 0.01354,
+            "significant": false,
+            "p": 0.8215
+          },
+          {
+            "source": "news12",
+            "source_he": "חדשות 12",
+            "n": 1,
+            "raw_mean": 0.0526,
+            "mean": null,
+            "lo": null,
+            "hi": null,
+            "significant": false,
+            "p": null
+          }
+        ]
+      }
+    ],
+    "curve": {
+      "source": "ynet",
+      "source_he": "ynet",
+      "points": [
+        {
+          "n": 3,
+          "mean": 0.01276,
+          "lo": -0.02974,
+          "hi": 0.05547,
+          "width": 0.08521
+        },
+        {
+          "n": 5,
+          "mean": 0.02063,
+          "lo": -0.02062,
+          "hi": 0.0587,
+          "width": 0.07932
+        },
+        {
+          "n": 10,
+          "mean": 0.01488,
+          "lo": -0.01881,
+          "hi": 0.04801,
+          "width": 0.06682
+        },
+        {
+          "n": 20,
+          "mean": 0.01331,
+          "lo": -0.01083,
+          "hi": 0.03695,
+          "width": 0.04778
+        },
+        {
+          "n": 40,
+          "mean": 0.01566,
+          "lo": -0.00146,
+          "hi": 0.03249,
+          "width": 0.03396
+        },
+        {
+          "n": 66,
+          "mean": 0.0173,
+          "lo": 0.00447,
+          "hi": 0.03088,
+          "width": 0.0264
+        }
+      ]
+    },
+    "cells_meta": [
+      {
+        "key": "dominance",
+        "label_he": "דומיננטיות לקסיקון",
+        "total": 19,
+        "usable": 4,
+        "significant": 0,
+        "tempting": 2
+      },
+      {
+        "key": "audience_p85",
+        "label_he": "אחוזון 85 של הקהל",
+        "total": 18,
+        "usable": 3,
+        "significant": 0,
+        "tempting": 2
+      }
+    ],
+    "cells": {
+      "dominance": [
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "ביטחון",
+          "n": 30,
+          "mean": 0.0071,
+          "lo": -0.01047,
+          "hi": 0.02411,
+          "usable": true,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "ביטחון",
+          "n": 28,
+          "mean": -0.00537,
+          "lo": -0.02148,
+          "hi": 0.01082,
+          "usable": true,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "פוליטיקה",
+          "n": 15,
+          "mean": 0.02574,
+          "lo": -0.00128,
+          "hi": 0.05037,
+          "usable": true,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "פוליטיקה",
+          "n": 12,
+          "mean": -0.01455,
+          "lo": -0.05676,
+          "hi": 0.02456,
+          "usable": true,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "חברה",
+          "n": 9,
+          "mean": 0.02484,
+          "lo": -0.02033,
+          "hi": 0.06715,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "ביטחון",
+          "n": 8,
+          "mean": -0.05655,
+          "lo": -0.16117,
+          "hi": 0.0333,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "חברה",
+          "n": 6,
+          "mean": -0.04303,
+          "lo": -0.08979,
+          "hi": 0.00184,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "פוליטיקה",
+          "n": 6,
+          "mean": -0.06416,
+          "lo": -0.11197,
+          "hi": -0.02479,
+          "usable": false,
+          "significant": false,
+          "tempting": true
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "משפט",
+          "n": 6,
+          "mean": 0.02454,
+          "lo": -0.01416,
+          "hi": 0.06259,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "משפט",
+          "n": 5,
+          "mean": -0.02874,
+          "lo": -0.06992,
+          "hi": 0.0177,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "בינלאומי",
+          "n": 5,
+          "mean": 0.00813,
+          "lo": -0.03453,
+          "hi": 0.04798,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "בינלאומי",
+          "n": 5,
+          "mean": -0.05014,
+          "lo": -0.09644,
+          "hi": -0.00748,
+          "usable": false,
+          "significant": false,
+          "tempting": true
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "חברה",
+          "n": 3,
+          "mean": 0.01153,
+          "lo": -0.08007,
+          "hi": 0.09799,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "בינלאומי",
+          "n": 3,
+          "mean": 0.0684,
+          "lo": 0.0,
+          "hi": 0.13489,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "משפט",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "news12",
+          "source_he": "חדשות 12",
+          "topic_he": "פוליטיקה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "כלכלה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "כלכלה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "כלכלה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        }
+      ],
+      "audience_p85": [
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "ביטחון",
+          "n": 19,
+          "mean": -0.00362,
+          "lo": -0.01659,
+          "hi": 0.01069,
+          "usable": true,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "ביטחון",
+          "n": 17,
+          "mean": 0.00459,
+          "lo": -0.00976,
+          "hi": 0.01771,
+          "usable": true,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "פוליטיקה",
+          "n": 10,
+          "mean": -0.00246,
+          "lo": -0.01536,
+          "hi": 0.01004,
+          "usable": true,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "פוליטיקה",
+          "n": 8,
+          "mean": -0.00853,
+          "lo": -0.03028,
+          "hi": 0.01167,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "פוליטיקה",
+          "n": 6,
+          "mean": 0.01244,
+          "lo": -0.00982,
+          "hi": 0.03761,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "ביטחון",
+          "n": 5,
+          "mean": 0.00043,
+          "lo": -0.01343,
+          "hi": 0.01471,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "חברה",
+          "n": 5,
+          "mean": -0.00899,
+          "lo": -0.03935,
+          "hi": 0.01764,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "חברה",
+          "n": 4,
+          "mean": -0.00542,
+          "lo": -0.02719,
+          "hi": 0.01421,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "משפט",
+          "n": 4,
+          "mean": 0.02,
+          "lo": 0.00556,
+          "hi": 0.03367,
+          "usable": false,
+          "significant": false,
+          "tempting": true
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "משפט",
+          "n": 4,
+          "mean": -0.02,
+          "lo": -0.03367,
+          "hi": -0.00556,
+          "usable": false,
+          "significant": false,
+          "tempting": true
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "בינלאומי",
+          "n": 3,
+          "mean": 0.01702,
+          "lo": 0.0,
+          "hi": 0.02674,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "בינלאומי",
+          "n": 2,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "news12",
+          "source_he": "חדשות 12",
+          "topic_he": "פוליטיקה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "mako",
+          "source_he": "mako",
+          "topic_he": "כלכלה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "ynet",
+          "source_he": "ynet",
+          "topic_he": "כלכלה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "כלכלה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "בינלאומי",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        },
+        {
+          "source": "haaretz",
+          "source_he": "הארץ",
+          "topic_he": "חברה",
+          "n": 1,
+          "mean": null,
+          "lo": null,
+          "hi": null,
+          "usable": false,
+          "significant": false,
+          "tempting": false
+        }
+      ]
+    },
+    "scans": [
+      {
+        "metric": "dominance",
+        "metric_he": "דומיננטיות לקסיקון",
+        "source": "ynet",
+        "source_he": "ynet",
+        "n": 66,
+        "too_short": false,
+        "at": "2026-08-25 18:36",
+        "before": 0.03756,
+        "after": 0.00041,
+        "shift": -0.03715,
+        "statistic": 2.7116,
+        "p": 0.0725,
+        "detected": false
+      },
+      {
+        "metric": "dominance",
+        "metric_he": "דומיננטיות לקסיקון",
+        "source": "mako",
+        "source_he": "mako",
+        "n": 51,
+        "too_short": false,
+        "at": "2026-08-25 12:42",
+        "before": -0.04661,
+        "after": -0.00414,
+        "shift": 0.04247,
+        "statistic": 2.8068,
+        "p": 0.041,
+        "detected": true
+      },
+      {
+        "metric": "dominance",
+        "metric_he": "דומיננטיות לקסיקון",
+        "source": "haaretz",
+        "source_he": "הארץ",
+        "n": 28,
+        "too_short": false,
+        "at": "2026-08-25 06:41",
+        "before": -0.05667,
+        "after": 0.01719,
+        "shift": 0.07386,
+        "statistic": 1.7562,
+        "p": 0.2914,
+        "detected": false
+      },
+      {
+        "metric": "dominance",
+        "metric_he": "דומיננטיות לקסיקון",
+        "source": "news12",
+        "source_he": "חדשות 12",
+        "n": 1,
+        "too_short": true,
+        "at": null,
+        "before": null,
+        "after": null,
+        "shift": null,
+        "statistic": null,
+        "p": null,
+        "detected": false
+      },
+      {
+        "metric": "audience_p85",
+        "metric_he": "אחוזון 85 של הקהל",
+        "source": "ynet",
+        "source_he": "ynet",
+        "n": 41,
+        "too_short": false,
+        "at": "2026-08-25 06:41",
+        "before": -0.00893,
+        "after": -0.00189,
+        "shift": 0.00704,
+        "statistic": 0.8189,
+        "p": 0.9755,
+        "detected": false
+      },
+      {
+        "metric": "audience_p85",
+        "metric_he": "אחוזון 85 של הקהל",
+        "source": "mako",
+        "source_he": "mako",
+        "n": 35,
+        "too_short": false,
+        "at": "2026-08-23 13:41",
+        "before": 0.02059,
+        "after": 0.00348,
+        "shift": -0.01711,
+        "statistic": 1.5883,
+        "p": 0.4393,
+        "detected": false
+      },
+      {
+        "metric": "audience_p85",
+        "metric_he": "אחוזון 85 של הקהל",
+        "source": "haaretz",
+        "source_he": "הארץ",
+        "n": 16,
+        "too_short": false,
+        "at": "2026-08-24 06:53",
+        "before": -0.0091,
+        "after": 0.00584,
+        "shift": 0.01494,
+        "statistic": 0.9738,
+        "p": 0.3428,
+        "detected": false
+      },
+      {
+        "metric": "audience_p85",
+        "metric_he": "אחוזון 85 של הקהל",
+        "source": "news12",
+        "source_he": "חדשות 12",
+        "n": 1,
+        "too_short": true,
+        "at": null,
+        "before": null,
+        "after": null,
+        "shift": null,
+        "statistic": null,
+        "p": null,
+        "detected": false
+      }
+    ],
+    "multiplicity": {
+      "ci_tests": 6,
+      "cell_tests": 7,
+      "scan_tests": 6,
+      "tests": 19,
+      "alpha": 0.05,
+      "bonferroni": 0.00263,
+      "expected_false": 0.95,
+      "hits": [
+        {
+          "what": "mako · דומיננטיות לקסיקון",
+          "p": 0.0,
+          "source_he": "mako",
+          "metric_he": "דומיננטיות לקסיקון",
+          "direction": "below"
+        },
+        {
+          "what": "ynet · דומיננטיות לקסיקון",
+          "p": 0.01,
+          "source_he": "ynet",
+          "metric_he": "דומיננטיות לקסיקון",
+          "direction": "above"
+        },
+        {
+          "what": "mako · דומיננטיות לקסיקון · נקודת שינוי",
+          "p": 0.041,
+          "source_he": "mako",
+          "metric_he": "דומיננטיות לקסיקון",
+          "direction": "shift"
+        }
+      ],
+      "survivors": [
+        {
+          "what": "mako · דומיננטיות לקסיקון",
+          "p": 0.0,
+          "source_he": "mako",
+          "metric_he": "דומיננטיות לקסיקון",
+          "direction": "below"
+        }
+      ]
+    },
+    "power": {
+      "source": "demo/data/demo_set.json",
+      "rows": [
+        {
+          "n": 20,
+          "power_1sd": 0.4667,
+          "power_half_sd": 0.1667
+        },
+        {
+          "n": 40,
+          "power_1sd": 0.7733,
+          "power_half_sd": 0.26
+        },
+        {
+          "n": 75,
+          "power_1sd": 0.9667,
+          "power_half_sd": 0.42
+        }
+      ],
+      "iterations": 150
+    },
+    "pairing": {
+      "sizes": [
+        {
+          "versions": 2,
+          "events": 61
+        },
+        {
+          "versions": 3,
+          "events": 8
+        }
+      ],
+      "two_version": 61,
+      "events": 69,
+      "pairs": [
+        {
+          "a": "mako",
+          "a_he": "mako",
+          "b": "ynet",
+          "b_he": "ynet",
+          "events": 48
+        },
+        {
+          "a": "haaretz",
+          "a_he": "הארץ",
+          "b": "ynet",
+          "b_he": "ynet",
+          "events": 25
+        },
+        {
+          "a": "haaretz",
+          "a_he": "הארץ",
+          "b": "mako",
+          "b_he": "mako",
+          "events": 11
+        },
+        {
+          "a": "news12",
+          "a_he": "חדשות 12",
+          "b": "ynet",
+          "b_he": "ynet",
+          "events": 1
+        }
+      ],
+      "top_pair_two_version": 40
+    },
+    "coverage": [
+      {
+        "source": "ynet",
+        "source_he": "ynet",
+        "covered": 66,
+        "total_events": 69,
+        "share": 0.9565,
+        "in_snapshot": 624
+      },
+      {
+        "source": "mako",
+        "source_he": "mako",
+        "covered": 51,
+        "total_events": 69,
+        "share": 0.7391,
+        "in_snapshot": 290
+      },
+      {
+        "source": "haaretz",
+        "source_he": "הארץ",
+        "covered": 28,
+        "total_events": 69,
+        "share": 0.4058,
+        "in_snapshot": 235
+      },
+      {
+        "source": "news12",
+        "source_he": "חדשות 12",
+        "covered": 1,
+        "total_events": 69,
+        "share": 0.0145,
+        "in_snapshot": 20
+      },
+      {
+        "source": "channel14",
+        "source_he": "ערוץ 14",
+        "covered": 0,
+        "total_events": 69,
+        "share": 0.0,
+        "in_snapshot": 9
+      }
+    ]
+  },
+  "economy": {
+    "constants": {
+      "model": "gpt-4o-mini",
+      "temperature": 0,
+      "embed_model": "intfloat/multilingual-e5-small",
+      "price_prompt_per_m": 0.15,
+      "price_completion_per_m": 0.6,
+      "lead_chars": 500,
+      "contrast_lead_chars": 400,
+      "contrast_versions": 5,
+      "framing_max_tokens": 260,
+      "contrast_max_tokens": 700
+    },
+    "bill": {
+      "calls": 214,
+      "cached_outputs": 214,
+      "covered": true,
+      "prompt_tokens": 96717,
+      "completion_tokens": 23981,
+      "total_tokens": 120698,
+      "prompt_usd": 0.014508,
+      "completion_usd": 0.014389,
+      "usd": 0.028897,
+      "reported_usd": 0.028896,
+      "completion_per_call": 112.1,
+      "completion_token_share": 0.1987,
+      "completion_bill_share": 0.4979,
+      "price_prompt_per_m": 0.15,
+      "price_completion_per_m": 0.6
+    },
+    "stages": [
+      {
+        "key": "crawl",
+        "label_he": "איסוף",
+        "kind": "free",
+        "n": 1178,
+        "unit_he": "כתבות",
+        "detail_he": "מוריד דפים, מחלץ טקסט, ומזהה כפילויות לפי sha256",
+        "usd": 0.0
+      },
+      {
+        "key": "windows",
+        "label_he": "חלונות",
+        "kind": "free",
+        "n": 18086,
+        "unit_he": "חלונות",
+        "detail_he": "מפצל למשפטים לפי חוקים, וחותך כל חלון ב־60 טוקנים",
+        "usd": 0.0
+      },
+      {
+        "key": "comments",
+        "label_he": "תגובות",
+        "kind": "free",
+        "n": 38492,
+        "unit_he": "תגובות",
+        "detail_he": "סופר בכל תגובה מילים מהמילון. חיפוש ברשימה, לא מודל",
+        "usd": 0.0
+      },
+      {
+        "key": "lexicon",
+        "label_he": "מילון",
+        "kind": "free",
+        "n": 4142,
+        "unit_he": "צורות",
+        "detail_he": "הורחב פעם אחת מראש. בזמן ריצה נשאלת רק שאלת שייכות",
+        "usd": 0.0
+      },
+      {
+        "key": "embed",
+        "label_he": "וקטורים",
+        "kind": "local",
+        "n": 752,
+        "unit_he": "וקטורים",
+        "detail_he": "intfloat/multilingual-e5-small רץ על המחשב הזה. מודל אמיתי, בלי חשבון",
+        "usd": 0.0
+      },
+      {
+        "key": "cluster",
+        "label_he": "אשכול אירועים",
+        "kind": "free",
+        "n": 69,
+        "unit_he": "אירועים",
+        "detail_he": "מודד זווית בין וקטורים ומשווה לסף. אריתמטיקה בלבד",
+        "usd": 0.0
+      },
+      {
+        "key": "framing",
+        "label_he": "חילוץ מסגור",
+        "kind": "paid",
+        "n": 146,
+        "unit_he": "קריאות",
+        "detail_he": "שואל מי מוצג כמבצע ולמי מיוחסת אחריות. לקוד אין תשובה",
+        "usd": 0.014424
+      },
+      {
+        "key": "contrast",
+        "label_he": "ניתוח קונטרסטיבי",
+        "kind": "paid",
+        "n": 68,
+        "unit_he": "קריאות",
+        "detail_he": "שואל מה ייחודי בכל גרסה. גרסה בודדת לא עונה על זה",
+        "usd": 0.014472
+      },
+      {
+        "key": "verify",
+        "label_he": "אימות",
+        "kind": "free",
+        "n": 394,
+        "unit_he": "בדיקות",
+        "detail_he": "מחפש כל ביטוי וכל ציטוט בטקסט המקורי. השוואת מחרוזות",
+        "usd": 0.0
+      },
+      {
+        "key": "stats",
+        "label_he": "סטטיסטיקה",
+        "kind": "free",
+        "n": 19,
+        "unit_he": "בדיקות",
+        "detail_he": "דגימות חוזרות, ערבוב תוויות, תיקון לריבוי בדיקות. numpy",
+        "usd": 0.0
+      }
+    ],
+    "rate": {
+      "prompt_chars": 245680,
+      "prompt_tokens": 96717,
+      "chars_per_token": 2.54,
+      "output_chars": 57758,
+      "completion_tokens": 23981,
+      "output_chars_per_token": 2.408,
+      "gap": 0.052,
+      "examples": [
+        {
+          "label_he": "הנחיית המערכת של המסגור",
+          "chars": 457,
+          "tokens": 180
+        },
+        {
+          "label_he": "פתיח מלא, בגבול החיתוך",
+          "chars": 500,
+          "tokens": 197
+        },
+        {
+          "label_he": "קריאת מסגור טיפוסית, הכל כלול",
+          "chars": 1034,
+          "tokens": 407
+        }
+      ]
+    },
+    "prompt": {
+      "framing": {
+        "calls": 146,
+        "system_chars": 457,
+        "user_median": 577.0,
+        "user_mean": 568.3,
+        "total_chars": 149693,
+        "system_share": 0.4457,
+        "max_tokens": 260
+      },
+      "contrast": {
+        "calls": 68,
+        "system_chars": 361,
+        "user_median": 998.0,
+        "user_mean": 1050.6,
+        "total_chars": 95987,
+        "system_share": 0.2557,
+        "max_tokens": 700,
+        "lead_chars": 400,
+        "versions": [
+          {
+            "versions": 2,
+            "events": 60
+          },
+          {
+            "versions": 3,
+            "events": 8
+          }
+        ]
+      },
+      "system_chars_total": 91270,
+      "system_tokens": 35933,
+      "system_share_of_prompt": 0.3715,
+      "framing_share": 0.6093
+    },
+    "truncation": {
+      "lead_chars": 500,
+      "versions": 146,
+      "median_chars": 1912.0,
+      "over_cap": 120,
+      "sent_chars": 71394,
+      "dropped_chars": 263629,
+      "dropped_tokens": 103791,
+      "dropped_usd": 0.015569,
+      "would_be_prompt_tokens": 200508,
+      "median_share_sent": 0.2616
+    },
+    "split": [
+      {
+        "key": "framing",
+        "label_he": "חילוץ מסגור",
+        "calls": 146,
+        "prompt_tokens": 58930,
+        "completion_tokens": 9307,
+        "usd": 0.014424,
+        "per_call_usd": 9.9e-05,
+        "derived": true
+      },
+      {
+        "key": "contrast",
+        "label_he": "ניתוח קונטרסטיבי",
+        "calls": 68,
+        "prompt_tokens": 37787,
+        "completion_tokens": 14674,
+        "usd": 0.014472,
+        "per_call_usd": 0.000213,
+        "derived": true
+      }
+    ],
+    "per_unit": [
+      {
+        "label_he": "לאירוע חוצה־ערוצים",
+        "n": 69,
+        "usd": 0.000419
+      },
+      {
+        "label_he": "לגרסה שנותחה",
+        "n": 146,
+        "usd": 0.000198
+      },
+      {
+        "label_he": "לכתבה בתמונת המצב",
+        "n": 1178,
+        "usd": 2.5e-05
+      },
+      {
+        "label_he": "לתגובה שנוקדה",
+        "n": 38492,
+        "usd": 0.0
+      }
+    ],
+    "cache": {
+      "entries": 214,
+      "framing": 146,
+      "contrast": 68,
+      "showtime_calls": 0,
+      "showcases": 3,
+      "calls_per_loop": 4,
+      "loop_usd": 0.00051,
+      "show_hours": 8,
+      "loop_minutes": 5,
+      "loops": 96,
+      "day_usd": 0.049,
+      "day_calls": 384
+    },
+    "strawman": {
+      "articles": 1178,
+      "article_chars": 1906535,
+      "comments": 38492,
+      "comment_chars": 3234865,
+      "calls": 39670,
+      "system_chars": 18129190,
+      "system_share": 0.7791,
+      "prompt_tokens": 9161650,
+      "completion_tokens": 4445450,
+      "per_call_completion": 112.1,
+      "usd": 4.0415,
+      "ratio": 139.9,
+      "days": 4.82,
+      "month_usd": 25.15,
+      "agents_month_usd": 0.18,
+      "scene": {
+        "articles": 752,
+        "prompt_per_article": 900,
+        "completion_per_article": 150,
+        "usd": 0.1692
+      }
+    },
+    "excluded": [
+      {
+        "key": "classify",
+        "label_he": "סיווג קטגוריה בפייפליין",
+        "detail_he": "openai/gpt-4o-mini מקבל כותרת ו־1200 תווים ראשונים מכל כתבה. רץ בענן כל 6 שעות, על כל כתבה שנאספה",
+        "n": 1176,
+        "unit_he": "כתבות שכבר תויגו",
+        "prompt_tokens": 707330,
+        "usd": 0.1853,
+        "estimate": true
+      },
+      {
+        "key": "enrich",
+        "label_he": "סיכום והערכת הטיה",
+        "detail_he": "נוצרים לפי בקשה מהאתר ונשמרים. הם לא רצים בלוח זמנים, ולכן אין להם חשבון קבוע",
+        "n": null,
+        "unit_he": null,
+        "prompt_tokens": null,
+        "usd": null,
+        "estimate": false
+      },
+      {
+        "key": "embed",
+        "label_he": "זמן המעבד של מודל הווקטורים",
+        "detail_he": "intfloat/multilingual-e5-small לא צורך טוקנים. הוא כן צורך חשמל וזמן, ואלה לא נספרים בשום שורה",
+        "n": 752,
+        "unit_he": "וקטורים",
+        "prompt_tokens": null,
+        "usd": null,
+        "estimate": false
+      },
+      {
+        "key": "dev",
+        "label_he": "ריצות פיתוח שנזרקו",
+        "detail_he": "קובץ השימוש מצטבר על פני ריצות הכנה. ניסויי הנחיה שנמחקו לא נספרו, והמספר מתאר את המטמון שנשאר",
+        "n": null,
+        "unit_he": null,
+        "prompt_tokens": null,
+        "usd": null,
+        "estimate": false
+      }
+    ]
+  },
+  "repair": {
+    "constants": {
+      "model": "gpt-4o-mini",
+      "max_attempts": 1,
+      "max_attempts_measured": 2,
+      "max_tokens": 500,
+      "lead_chars": 500,
+      "contrast_lead_chars": 400
+    },
+    "verifier": {
+      "quotes_total": 144,
+      "quotes_rejected": 33,
+      "terms_total": 250,
+      "terms_rejected": 4
+    },
+    "loop": {
+      "candidates_framing": 4,
+      "candidates_contrast": 26,
+      "entered": 30,
+      "calls": 36,
+      "fixed_fully": 23,
+      "unchanged": 7,
+      "violations_before": 37,
+      "violations_after": 5,
+      "regrounded": 14,
+      "nulled": 15,
+      "destroyed": 0
+    },
+    "attempts": [
+      {
+        "n": 1,
+        "calls": 30,
+        "accepted": 23,
+        "detail_he": "תיקן 23 מתוך 30"
+      },
+      {
+        "n": 2,
+        "calls": 6,
+        "accepted": 0,
+        "detail_he": "תיקן 0 מתוך 6. זה מה שעלה לדעת"
+      }
+    ],
+    "bill": {
+      "prompt_tokens": 21116,
+      "completion_tokens": 1865,
+      "usd": 0.004286,
+      "per_item_usd": 0.00014287,
+      "layer_usd": 0.028897,
+      "total_usd": 0.033183,
+      "share_of_layer": 0.1483
+    },
+    "guards": [
+      {
+        "key": "verifier_judges",
+        "title_he": "אותו מאמת שופט גם את התיקון",
+        "detail_he": "המודל לא מאשר את עצמו. תיקון עובר את אותה בדיקת העתקה מילה במילה, ולכן לא יכול להלבין ציטוט מומצא."
+      },
+      {
+        "key": "same_window",
+        "title_he": "התיקון מקבל את אותו חלון טקסט",
+        "detail_he": "400 תווים, כמו הקריאה שנפסלה. חלון רחב יותר היה מאשר ציטוט מטקסט שהקריאה הראשונה לא ראתה."
+      },
+      {
+        "key": "no_regression",
+        "title_he": "תיקון שמוחק ראיה נדחה",
+        "detail_he": "פחות הפרות זה לא מספיק — תשובה שכולה null גם היא בלי הפרות. תיקון מתקבל רק אם מספר הציטוטים המאומתים לא ירד."
+      },
+      {
+        "key": "fallback",
+        "title_he": "בלי הלולאה חוזרים למצב הקודם",
+        "detail_he": "אין רשת או שהתיקון נכשל — הציטוט נשאר ריק, בדיוק כמו לפני. אף פעם לא ציטוט שגוי."
+      }
+    ],
+    "regression": {
+      "destroyed_before_guard": 13,
+      "destroyed_now": 0
+    },
+    "stage": {
+      "events": 3,
+      "recovered": 3
+    },
+    "example": {
+      "source": "haaretz",
+      "before": "אני רוצה לחיות במדינה שבה כל אחד ירגיש גאה להיות יהודי.",
+      "after": "אני רוצה לחיות במדינה שבה כל אחד ירגיש גאה להיות יהודי, ובאותה נשימה לזכור תמיד את היסוד של 'חביב אדם שנברא בצלם' - מדינה יהודית, דמוקרטית וליברלית, שמחברת בין חלקי החברה ושבה כולם לוקחים חלק ונושאים באחריות לעתידה.",
+      "headline": "אחרי שעזב את יש עתיד: אלעזר שטרן מצטרף לגדי איזנקוט"
+    }
+  }
+}
