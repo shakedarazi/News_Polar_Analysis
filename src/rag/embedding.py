@@ -10,39 +10,68 @@ every comparison are articles embedded during ingestion.
 Retrieval is not like that. One side of the comparison is a question typed a
 second ago, so *something on the API host* has to turn text into a vector. e5
 cannot, and never will on this plan. So retrieval uses a hosted embedding
-model, over HTTP, with no local weights: the API embeds the question, ingestion
-embeds the chunks, and both get vectors from the same place.
+model, over HTTP, with no local weights.
 
 The two vector spaces do not meet and must not be compared. e5 keeps
 `articles.title_embedding` and the event threshold measured against it
-(ADR 0005); this owns `article_chunks.embedding`. Two columns, two models, two
-purposes.
+(ADR 0005); this owns `article_chunks.embedding`.
 
-**Cost.** `text-embedding-3-small` is priced per token and the corpus is small:
-around 10k chunks at ~150 tokens each is roughly 1.5M tokens, a few cents to
-embed the whole corpus once, and a fraction of a cent per thousand questions
-after that. Chunks are embedded once and re-embedded only when the model or the
-chunking changes, which the `embedding_model` column gates.
+**Two gateways, one vector space.** Like src/nlp/llm.py, this has two entry
+points because the two credit pools are real: questions are embedded on Render
+against api.openai.com, chunks are embedded on GitHub Actions through
+OpenRouter. Both resolve to OpenAI's `text-embedding-3-small` — OpenRouter
+routes `openai/text-embedding-3-small` to OpenAI — which is the only reason a
+chunk vector and a query vector are comparable at all. That is the invariant
+this module exists to protect, and `_check` below is what makes a violation
+loud instead of silent.
 
-**Dimensions.** The model is Matryoshka-trained, so asking for 512 of its 1536
-dimensions is a documented truncation, not a lossy hack. It is a third of the
-storage and a third of the bytes moved out of Neon on every index scan — and
-Neon's transfer quota is not hypothetical here, it was exhausted once already
-(ADR 0005). Changing this number invalidates every stored vector.
+The provider-prefixed id is a request detail, never a stored one. The column
+records the bare model name from either gateway, so the version gate does not
+see two names for one model and re-embed the corpus on every run — the same
+distinction the codebase already draws for `openai/gpt-4o-mini` vs
+`gpt-4o-mini`.
+
+**Why the truncation happens here and not at the provider.** OpenAI accepts a
+`dimensions` argument that returns a shortened vector; OpenRouter's embeddings
+endpoint documents only `model`, `input` and `encoding_format`. Sending it
+anyway would mean a parameter honoured on one host and possibly dropped on the
+other — 512 floats from Render, 1536 from Actions, and two incomparable halves
+of one column. So neither side sends it: both ask for the full vector and cut
+it the same way, in `_truncate`. The model is Matryoshka-trained, so the
+leading dimensions are the informative ones and truncating then renormalising
+is the documented operation, not a hack.
+
+Storing 512 rather than 1536 is a third of the bytes an index scan moves out of
+Neon, whose transfer quota this project has already exhausted once (ADR 0005).
+The two thirds discarded travel from the provider to us, which costs nothing
+and is not billed by the float.
+
+**Cost.** Around 10k chunks at ~150 tokens is roughly 1.5M tokens — a few cents
+to embed the corpus once at $0.02/M, and a fraction of a cent per thousand
+questions after that. Chunks are re-embedded only when the model or the
+chunking changes, which `embedding_model` gates.
 """
 
 from __future__ import annotations
 
-import os
+import math
 
-from src.nlp.openai_config import USER_KEY_ENV
+from src.nlp.openai_config import get_ingestion_openai_client, get_openai_client
 
-EMBEDDING_KEY_ENV = "OPENAI_EMBEDDING_API_KEY"
-
-# Pinned, like EMBED_MODEL in src/analysis/embeddings.py. Written into
-# sql/migrations/011_rag_chunks.sql as vector(512); a different model or a
-# different dimension count means a different column.
+# Pinned, like EMBED_MODEL in src/analysis/embeddings.py, and stored in
+# article_chunks.embedding_model as written here — bare, whichever gateway
+# produced it.
 EMBED_MODEL = "text-embedding-3-small"
+
+# What each gateway is asked for. OpenRouter addresses models by
+# provider/model; api.openai.com by the bare name.
+USER_REQUEST_MODEL = EMBED_MODEL
+INGESTION_REQUEST_MODEL = f"openai/{EMBED_MODEL}"
+
+# The model's native width, and what we keep of it. Written into
+# sql/migrations/011_rag_chunks.sql as vector(512); changing either number
+# invalidates every stored vector.
+NATIVE_DIMENSIONS = 1536
 EMBED_DIMENSIONS = 512
 
 # The provider's cap is 8191 tokens per input; this is a character bound well
@@ -50,83 +79,73 @@ EMBED_DIMENSIONS = 512
 # question cannot become an expensive request.
 MAX_INPUT_CHARS = 4000
 
-# Batches of 128 keep a single request comfortably inside the provider's payload
-# limit while still amortising the round trip over the whole corpus.
+# Batches of 128 keep one request comfortably inside the payload limit while
+# amortising the round trip over the corpus.
 DEFAULT_BATCH_SIZE = 128
 
 
-def _require_key() -> str:
-    """The embedding key.
+def _truncate(vector: list[float]) -> list[float]:
+    """Cut a Matryoshka vector to EMBED_DIMENSIONS and renormalise it.
 
-    Falls back to the user-facing key, which is the one place in this codebase
-    where a key fallback is correct rather than dangerous. On Render both names
-    hold the same real OpenAI key. On GitHub Actions `OPENAI_API_KEY` is not set
-    at all — the OpenRouter key is injected as `OPENAI_INGESTION_API_KEY`
-    (see .github/workflows/ingestion.yml) — so the fallback finds nothing there
-    and the error below is what a maintainer sees, rather than chunk vectors
-    quietly coming from a different provider than the query vectors.
+    Renormalising is not optional: a truncated vector is no longer unit length,
+    and cosine distance in Postgres is computed on what is stored. Both hosts
+    run this same function on the same model output, which is what keeps a
+    chunk vector and a query vector in one space.
     """
-    key = os.environ.get(EMBEDDING_KEY_ENV) or os.environ.get(USER_KEY_ENV)
-    if not key:
+    if len(vector) < EMBED_DIMENSIONS:
         raise RuntimeError(
-            f"{EMBEDDING_KEY_ENV} is not set. Retrieval needs an OpenAI key on "
-            "both hosts: the API embeds the question, ingestion embeds the "
-            "chunks, and the two vectors are only comparable if they come from "
-            "the same provider and model."
+            f"{EMBED_MODEL} returned {len(vector)} dimensions, fewer than the "
+            f"{EMBED_DIMENSIONS} the column stores. The model or the gateway "
+            "changed; re-measure before shipping."
         )
-    return key
+    head = vector[:EMBED_DIMENSIONS]
+    norm = math.sqrt(sum(x * x for x in head))
+    if norm == 0:
+        raise RuntimeError("Embedding provider returned a zero vector")
+    return [x / norm for x in head]
 
 
-def _client():
-    """An OpenAI client pinned to api.openai.com.
-
-    Deliberately ignores OPENAI_BASE_URL. A gateway may serve a given model id
-    from a different backend, and a chunk vector and a query vector that came
-    from two backends are not in the same space — a failure that shows up as
-    quietly bad search results, never as an error.
-    """
-    from openai import OpenAI
-
-    timeout = float(os.environ.get("OPENAI_EMBEDDING_TIMEOUT_SECONDS", "20"))
-    return OpenAI(api_key=_require_key(), timeout=timeout)
-
-
-def _embed(inputs: list[str]) -> list[list[float]]:
-    response = _client().embeddings.create(
-        model=EMBED_MODEL,
-        input=inputs,
-        dimensions=EMBED_DIMENSIONS,
-    )
+def _embed(client, model: str, inputs: list[str]) -> list[list[float]]:
+    response = client.embeddings.create(model=model, input=inputs)
     # The provider documents the response as index-ordered, but sorting costs
     # nothing and a silently shuffled batch would mislabel every vector in it.
-    vectors = [item.embedding for item in sorted(response.data, key=lambda d: d.index)]
-    for vector in vectors:
-        if len(vector) != EMBED_DIMENSIONS:
-            raise RuntimeError(
-                f"{EMBED_MODEL} returned {len(vector)} dimensions, "
-                f"but the column is vector({EMBED_DIMENSIONS})"
-            )
-    return vectors
+    ordered = sorted(response.data, key=lambda d: d.index)
+    return [_truncate(item.embedding) for item in ordered]
 
 
 def embed_query(text: str) -> list[float]:
-    """Embed one question, on the API host. One vector, one HTTP round trip."""
+    """Embed one question, on the API host, against the user-facing key.
+
+    One vector, one HTTP round trip, on the same balance as the answer that
+    follows it.
+    """
     cleaned = (text or "").strip()[:MAX_INPUT_CHARS]
     if not cleaned:
         raise ValueError("Cannot embed an empty query")
-    return _embed([cleaned])[0]
+    # The clients from openai_config already carry OPENAI_TIMEOUT_SECONDS, which
+    # exists so a hung provider cannot hold a Render worker — and the assistant
+    # spinner — for the SDK's ten-minute default. One bound, set in one place.
+    return _embed(get_openai_client(), USER_REQUEST_MODEL, [cleaned])[0]
 
 
 def embed_passages(
     texts: list[str], *, batch_size: int = DEFAULT_BATCH_SIZE
 ) -> list[list[float]]:
-    """Embed chunk texts during ingestion, in provider-sized batches."""
+    """Embed chunk texts during ingestion, on the ingestion key.
+
+    Same model as `embed_query`, reached through OpenRouter rather than
+    directly — see the note on the two gateways above. If that ever stops being
+    true, the vectors stop being comparable and search quality degrades with no
+    error anywhere, which is why the model ids are constants in this file
+    rather than environment variables.
+    """
     if not texts:
         return []
+    client = get_ingestion_openai_client()
     vectors: list[list[float]] = []
     for start in range(0, len(texts), batch_size):
         batch = [t[:MAX_INPUT_CHARS] for t in texts[start : start + batch_size]]
-        vectors.extend(_embed(batch))
+        vectors.extend(_embed(client, INGESTION_REQUEST_MODEL, batch))
     return vectors
 
 

@@ -107,8 +107,8 @@ STEP_FAILED=0
   # what lets the API embed a visitor's question with the same model.
   #
   # A bonus step, and internally split again: the chunking half needs no key
-  # and always runs, so a missing OPENAI_EMBEDDING_API_KEY costs the semantic
-  # half of retrieval and leaves the lexical half working.
+  # and always runs, so a missing or failing embedding provider costs the
+  # semantic half of retrieval and leaves the lexical half working.
   run_bonus_step python "$ROOT/pipeline/embed_chunks.py"
   echo "=== Retrieval chunks finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""

@@ -47,7 +47,7 @@ wants the paragraph that answers the question, which is usually not in the first
 invalidate the event threshold.
 
 So: `text-embedding-3-small` over HTTP, at 512 of its 1,536 Matryoshka
-dimensions, in `article_chunks.embedding`. No local weights, so the same call
+dimensions, in `article_chunks.embedding`. No local weights, so the same model
 embeds a chunk on GitHub Actions and a question on Render. Two columns, two
 models, two purposes; they are never compared.
 
@@ -55,6 +55,37 @@ The cost is small enough not to be the deciding factor: a few cents to embed
 the corpus once, and a fraction of a cent per thousand questions. 512
 dimensions rather than 1,536 is a third of the bytes an index scan moves out of
 Neon, whose transfer quota this project has already exhausted once.
+
+### Two gateways, one vector space, no third key
+
+The obvious reading of "both hosts must use the same model" is that both need a
+key to the same provider, and that ingestion therefore needs a real OpenAI key
+alongside its OpenRouter one. It does not. OpenRouter serves an embeddings
+endpoint, and `openai/text-embedding-3-small` routes to OpenAI — so the
+existing pair of keys is enough: questions are embedded on Render's OpenAI key,
+chunks on the OpenRouter key that already pays for classify. This mirrors
+`user_json` / `ingestion_json` in `src/nlp/llm.py`, and adds no third credit
+pool.
+
+The provider-prefixed model id is a request detail and is never stored. The
+column records the bare name from either gateway, so the version gate does not
+see two names for one model and re-embed the corpus every run — the same
+distinction the codebase already draws between `openai/gpt-4o-mini` and
+`gpt-4o-mini`.
+
+**The truncation to 512 happens in our code, not at the provider.** OpenAI
+accepts a `dimensions` argument; OpenRouter's embeddings endpoint documents
+only `model`, `input` and `encoding_format`. Sending it anyway would risk a
+parameter honoured on one host and dropped on the other, which is 512 floats
+from Render against 1,536 from Actions in one column. Neither side sends it:
+both ask for the full vector and cut it identically, truncating and
+renormalising — the documented Matryoshka operation. The discarded two thirds
+travel from the provider to us, which is neither billed nor Neon's egress.
+
+That both gateways resolve to the same model is the load-bearing assumption
+here, and it is the one that would fail quietly: mismatched vectors degrade
+search results without raising anything. The dimension check is the guard that
+turns the detectable part of it into an error.
 
 ## Hybrid, because neither channel is enough
 

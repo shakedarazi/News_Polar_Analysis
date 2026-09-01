@@ -21,13 +21,9 @@ services:
       # OPENAI_MODEL is not secret; provisioned automatically.
       - key: OPENAI_MODEL
         value: gpt-4o-mini
-      # Embeds the visitor's question so it can be compared against the chunk
-      # vectors ingestion wrote. Must be the same provider and model on both
-      # hosts or the two vectors are not in the same space. Optional here only
-      # in the sense that the assistant degrades to keyword matching without
-      # it; if unset it falls back to OPENAI_API_KEY above, which on this host
-      # is the same real OpenAI key. See src/rag/embedding.py.
-      - key: OPENAI_EMBEDDING_API_KEY
-        sync: false
+      # The assistant embeds the visitor's question on OPENAI_API_KEY above —
+      # no extra key. Ingestion embeds the chunks through OpenRouter, and both
+      # resolve to OpenAI's text-embedding-3-small, which is what makes the two
+      # vectors comparable. See src/rag/embedding.py.
       - key: CORS_ORIGINS
         sync: false

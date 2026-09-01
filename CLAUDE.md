@@ -53,7 +53,7 @@ python pipeline/build_lexicon.py    # expands data/lexicon_base/* and data/comme
 python pipeline/analyze_articles.py [--limit N] [--force]              # lexicon polarity scoring
 python pipeline/analyze_articles.py --polarization-only [--limit N]   # research-lexicon (two-axis) rescore only
 python pipeline/embed_articles.py [--limit N] [--cluster-only]        # embeddings + event clustering (needs requirements-embed.txt)
-python pipeline/embed_chunks.py [--chunk-only] [--embed-only]         # assistant retrieval chunks (needs OPENAI_EMBEDDING_API_KEY)
+python pipeline/embed_chunks.py [--chunk-only] [--embed-only]         # assistant retrieval chunks (embeds on the ingestion key)
 python pipeline/import_json_to_db.py  # one-time legacy JSON import
 ```
 `requirements-embed.txt` (sentence-transformers, torch) is installed **only** by the GitHub Actions ingestion job —
