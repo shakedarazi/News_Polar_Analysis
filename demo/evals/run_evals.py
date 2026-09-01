@@ -177,6 +177,9 @@ def recall_report(rows: list[dict]) -> dict:
     sparse_population = sum(b["population"] for b in sparse.values())
     return {
         "region": f"cosine >= {MEASURED_FLOOR}",
+        # carried, not restated: the tab prints this number in three places and
+        # a UI copy of it would outlive a change to MEASURED_FLOOR.
+        "floor": MEASURED_FLOOR,
         "estimated_same_pairs_in_region": round(total_measured, 1),
         "by_threshold": by_threshold,
         "bands": {

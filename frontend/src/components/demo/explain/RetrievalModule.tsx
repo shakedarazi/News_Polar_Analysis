@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import type { Facts, RetrievalNeighbour } from "./facts";
-import { BarRow, Chip, Panel, Stage, SubNav, type TabDef } from "./kit";
+import { BarRow, Caveat, Chip, Panel, Stage, SubNav, type TabDef } from "./kit";
 
 const TABS: TabDef[] = [
   { id: "why", label_he: "איך מזהים אותו סיפור" },
   { id: "how", label_he: "האינדקס והסף שנבחר" },
+  { id: "eval", label_he: "כמה מזה נכון" },
 ];
 
 interface Props {
@@ -25,6 +26,13 @@ interface Props {
  * by this retriever, so every claim about them says "of the cases the system
  * found" — there is no manual ground truth and the screen never implies one.
  *
+ * The third tab grades the first two. The sweep in "how" picks 0.90 off event
+ * counts, which says nothing about whether the events are right; the eval says
+ * how often they are, against 160 pairs sampled independently of what the
+ * retriever returned (demo/evals/golden/). It reports a number that makes the
+ * system look worse, because the alternative is a screen that only measures
+ * what it already found.
+ *
  * Dropped on purpose (see demo/README.md items 44-46, 54): the bounded-index
  * eviction replay. It measures a problem this corpus does not have yet, and a
  * tab of hypotheticals is volume, not depth.
@@ -37,6 +45,7 @@ export function RetrievalModule({ facts }: Props) {
       <SubNav tabs={TABS} active={tab} onSelect={setTab} />
       {tab === "why" && <SameStory facts={facts} />}
       {tab === "how" && <IndexAndCut facts={facts} />}
+      {tab === "eval" && <Measured facts={facts} />}
     </div>
   );
 }
@@ -412,6 +421,182 @@ function IndexAndCut({ facts }: Props) {
               {tight.three_plus} אירועים שסוקרו בשלושה ערוצים, ובלי שלושה
               ערוצים אין מה להשוות.
             </p>
+          </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
+    </Stage>
+  );
+}
+
+/* ── 3. how often the threshold is right ────────────────────────── */
+
+function Measured({ facts }: Props) {
+  const e = facts?.evals;
+  const g = e?.golden_set;
+  const live = e?.precision_sweep.find((r) => r.threshold === e.live_threshold);
+  const tightest = e?.precision_sweep[0];
+  const liveRecall = e?.recall.by_threshold.find(
+    (r) => r.threshold === e.live_threshold,
+  );
+  const tightRecall = e?.recall.by_threshold.find(
+    (r) => tightest && r.threshold === tightest.threshold,
+  );
+  const emb = e?.head_to_head.embedding;
+  const kw = e?.head_to_head.keyword;
+
+  return (
+    <Stage cols="grid-cols-[52%_1fr]">
+      <Panel
+        title={
+          live
+            ? `בסף החי, ‏${live.true_positives} מתוך ${live.labelled_accepted} הזוגות שהמערכת מחברת הם אותו אירוע`
+            : "כמה מהחיבורים נכונים"
+        }
+        hint="דיוק — מהמחוברים, כמה צדקו · כיסוי — מהאירועים, כמה נמצאו"
+      >
+        {e && live && liveRecall && tightest && tightRecall ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
+              הטבלה בלשונית הקודמת בוחרת סף לפי כמה אירועים נוצרים. זה לא אומר
+              שהם נכונים. ‏{e.golden_set.pairs} זוגות כתבות נדגמו מהקורפוס{" "}
+              <b>בלי קשר למה שהמאחזר החזיר</b>, בשש רצועות קרבה, ותויגו אחד־אחד:
+              אותו אירוע, או לא.
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <Big value={pct(live.precision ?? 0)} label="דיוק בסף החי" tone="bad" />
+              <Big
+                value={pct(liveRecall.recall)}
+                label={`כיסוי מעל ${e.recall.floor}`}
+                tone="good"
+              />
+            </div>
+            <div className="flex flex-col gap-2.5">
+              {e.precision_sweep.map((row) => (
+                <BarRow
+                  key={row.threshold}
+                  label={`סף ${row.threshold.toFixed(2)}`}
+                  n={Math.round((row.precision ?? 0) * 100)}
+                  max={100}
+                  unit="%"
+                  tone={row.threshold === e.live_threshold ? "accent" : "bad"}
+                  note={
+                    row.threshold === e.live_threshold
+                      ? `${row.true_positives}/${row.labelled_accepted} — הסף החי`
+                      : `${row.true_positives}/${row.labelled_accepted}`
+                  }
+                />
+              ))}
+            </div>
+            <p className="text-[15.5px] leading-snug text-[var(--dk-ink-3)]">
+              כל שורה: מתוך הזוגות שעוברים את הסף, כמה אחוזים באמת אותו אירוע.
+              ‏0% = כולם שגויים, ‏100% = כולם נכונים. ‏
+              {pct(live.precision ?? 0)} בסף החי, בטווח{" "}
+              <span dir="ltr">
+                {pct(live.ci_low)}–{pct(live.ci_high)}
+              </span>{" "}
+              ב־95% ביטחון.
+            </p>
+            <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
+              הסף נשאר על {e.live_threshold.toFixed(2)}. הידוק ל־
+              {tightest.threshold.toFixed(2)} מעלה את הדיוק ל־
+              {pct(tightest.precision ?? 0)} ומפיל את הכיסוי מ־
+              {pct(liveRecall.recall)} ל־{pct(tightRecall.recall)}: הוא מוריד
+              יותר מחצי מהשגיאות, ומוותר על{" "}
+              {(10 * (1 - tightRecall.recall / liveRecall.recall)).toFixed(0)} מכל
+              עשרה אירועים שהיו נמצאים. אירוע שלא נמצא לא מושווה בין ערוצים,
+              וזה כל מה שהמסך הזה קיים בשבילו.
+            </p>
+          </div>
+        ) : (
+          <Missing />
+        )}
+      </Panel>
+
+      <Panel title="השיטה המדויקת יותר היא זו שהוחלפה">
+        {e && g && emb && kw ? (
+          <div className="flex flex-col gap-3.5">
+            <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
+              אותן {g.pairs} שאלות, שתי שיטות. חיפוש מילולי לא טועה כאן אף פעם —
+              והוא לא מוצא את רוב האירועים.
+            </p>
+            <div className="flex flex-col gap-2.5">
+              <BarRow
+                label="מילים · דיוק"
+                n={Math.round((kw.precision ?? 0) * 100)}
+                max={100}
+                unit="%"
+                tone="good"
+                note={`${kw.true_positives}/${kw.labelled_accepted}`}
+              />
+              <BarRow
+                label="מילים · כיסוי"
+                n={Math.round((kw.recall_on_sample ?? 0) * 100)}
+                max={100}
+                unit="%"
+                tone="bad"
+                note={`${kw.true_positives}/${kw.positives}`}
+              />
+              <BarRow
+                label="משמעות · דיוק"
+                n={Math.round((emb.precision ?? 0) * 100)}
+                max={100}
+                unit="%"
+                tone="bad"
+                note={`${emb.true_positives}/${emb.labelled_accepted}`}
+              />
+              <BarRow
+                label="משמעות · כיסוי"
+                n={Math.round((emb.recall_on_sample ?? 0) * 100)}
+                max={100}
+                unit="%"
+                tone="good"
+                note={`${emb.true_positives}/${emb.positives}`}
+              />
+            </div>
+            <p className="text-[18px] leading-relaxed text-[var(--dk-ink-2)]">
+              הבחירה היא בין מסך שמראה מעט השוואות נכונות למסך שמראה הרבה
+              השוואות שחלקן שגויות. נבחרה השנייה, מפני ש־
+              {kw.zero_overlap_positives ?? 0} מהאירועים כאן לא חולקים אף מילה
+              ולשיטה הראשונה אין דרך להגיע אליהם בכלל.
+            </p>
+
+            <div className="rounded-xl border border-[var(--dk-border)] bg-[var(--dk-surface-2)]/50 px-3.5 py-2.5">
+              <div className="flex items-center gap-2.5">
+                <Chip tone={g.human_reviewed ? "good" : "warn"}>
+                  {g.agreement
+                    ? `${g.agreement.reviewed} מתוך ${g.pairs} נסקרו על ידי אדם`
+                    : "לא נסקר"}
+                </Chip>
+                {g.agreement && (
+                  <span className="text-[15px] text-[var(--dk-ink-2)]">
+                    הסכמה עם המודל {pct(g.agreement.rate)} (
+                    {g.agreement.agreed}/{g.agreement.reviewed})
+                  </span>
+                )}
+              </div>
+              {g.agreement && (
+                <p className="mt-1.5 text-[15px] leading-snug text-[var(--dk-ink-3)]">
+                  שאר התיוגים נעשו על ידי מודל שפה. כל{" "}
+                  {g.agreement.flipped_to_not_same} ההכרעות שהסוקר הפך נטו
+                  לאותו כיוון — ל&rdquo;לא אותו אירוע&ldquo; — כך שהמספרים
+                  משמאל הם ככל הנראה הגבול העליון, לא הערכת חסר.
+                </p>
+              )}
+            </div>
+
+            <Caveat>
+              הכיסוי נמדד רק מעל קרבה {e.recall.floor}. מתחת לזה נמצאו{" "}
+              {e.recall.below_region.same_found} אירועים ב־
+              {e.recall.below_region.labelled} תיוגים על פני{" "}
+              {num(e.recall.below_region.population)} זוגות — חסם של{" "}
+              {pct(e.recall.below_region.rate_upper_95)}, לא מדידה.
+            </Caveat>
+            <Caveat>
+              נמדד זוג מול זוג. האשכול עצמו בונה קבוצות בסבב אחד חמדני, ולכן
+              דיוק על זוגות אינו דיוק על אירועים.
+            </Caveat>
           </div>
         ) : (
           <Missing />

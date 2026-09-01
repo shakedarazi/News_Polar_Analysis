@@ -333,12 +333,15 @@ export function BarRow({
   max,
   tone = "accent",
   note,
+  unit,
 }: {
   label: string;
   n: number;
   max: number;
   tone?: "accent" | "good" | "bad" | "muted";
   note?: string;
+  /** appended to the value, for bars whose number is not a count */
+  unit?: string;
 }) {
   const colors: Record<string, string> = {
     accent: "bg-[var(--dk-accent)]",
@@ -366,6 +369,7 @@ export function BarRow({
         className="w-[52px] shrink-0 text-left font-mono text-[13.5px] text-[var(--dk-ink-2)]"
       >
         {n.toLocaleString("en-US")}
+        {unit}
       </span>
       {note && (
         <span className="w-[112px] shrink-0 text-[13px] text-[var(--dk-ink-3)]">

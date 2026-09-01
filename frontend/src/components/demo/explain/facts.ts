@@ -804,6 +804,54 @@ export interface EconomyFacts {
   excluded: EconomyExcluded[];
 }
 
+export interface EvalsPrecisionRow {
+  threshold: number;
+  labelled_accepted: number;
+  true_positives: number;
+  precision: number | null;
+  ci_low: number;
+  ci_high: number;
+}
+export interface EvalsMethod {
+  threshold: number;
+  labelled_accepted: number;
+  true_positives: number;
+  positives: number;
+  precision: number | null;
+  recall_on_sample: number | null;
+  zero_overlap_positives?: number;
+}
+export interface EvalsFacts {
+  golden_set: {
+    pairs: number;
+    same: number;
+    labelled_by: string[];
+    human_reviewed: boolean;
+    agreement: {
+      reviewed: number;
+      agreed: number;
+      rate: number;
+      flipped_to_same: number;
+      flipped_to_not_same: number;
+    } | null;
+  };
+  precision_sweep: EvalsPrecisionRow[];
+  recall: {
+    region: string;
+    floor: number;
+    estimated_same_pairs_in_region: number;
+    by_threshold: { threshold: number; recall: number }[];
+    below_region: {
+      labelled: number;
+      same_found: number;
+      population: number;
+      rate_upper_95: number;
+    };
+  };
+  head_to_head: { embedding: EvalsMethod; keyword: EvalsMethod };
+  live_threshold: number;
+}
+
 export interface Facts {
   available: true;
   corpus: { articles: number };
@@ -815,6 +863,9 @@ export interface Facts {
   comments: CommentFacts;
   lexicon: LexiconFacts;
   retrieval: RetrievalFacts;
+  /** optional on purpose: a facts file built before this block existed is a
+      valid facts file, and the evals tab degrades to its Missing state. */
+  evals?: EvalsFacts;
   framing: FramingFacts;
   audience: AudienceFacts;
   stats: StatsFacts;

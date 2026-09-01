@@ -2357,6 +2357,20 @@ def _repair_example(contraster, snap, cluster_fn, versions_cap, normalise,
     return best[1] if best else None
 
 
+def build_evals() -> dict:
+    """The retrieval threshold scored against the committed golden set.
+
+    Reads demo/evals/golden/event_pairs.jsonl and nothing else -- not the
+    snapshot, not demo/data/evals.json. The labels are in git and the
+    arithmetic is deterministic, so this block cannot drift from the file a
+    reviewer actually edited, and it survives a facts rebuild on a machine
+    that never ran the eval.
+    """
+    from demo.evals import run_evals
+
+    return run_evals.build()
+
+
 def main() -> int:
     if not config.SQLITE_PATH.exists():
         print(f"missing snapshot: {config.SQLITE_PATH}", file=sys.stderr)
@@ -2375,6 +2389,10 @@ def main() -> int:
             "comments": build_comments(conn),
             "lexicon": build_lexicon(),
             "retrieval": build_retrieval(conn),
+            # next to retrieval because it grades retrieval: the sweep in the
+            # tile above picks a threshold, and this is the only block that
+            # says how often that threshold is right.
+            "evals": build_evals(),
             "framing": build_framing(),
             "audience": build_audience(conn),
             "stats": build_stats(conn),
@@ -2399,6 +2417,13 @@ def main() -> int:
     ret = facts["retrieval"]
     print(f"  index {ret['vectors']}x{ret['dims']} · {ret['events']['total']} events · "
           f"keyword recall {ret['keyword']['found']}/{ret['keyword']['total']}")
+    ev = facts["evals"]
+    live = next(r for r in ev["precision_sweep"]
+                if r["threshold"] == ev["live_threshold"])
+    g = ev["golden_set"]
+    print(f"  evals: precision {live['precision']:.0%} at the live "
+          f"{ev['live_threshold']} cut · {g['same']} same in {g['pairs']} pairs · "
+          f"human_reviewed={g['human_reviewed']}")
     v = facts["framing"]["verifier"]
     print(f"  verifier: {v['terms_rejected']}/{v['terms_total']} terms and "
           f"{v['quotes_rejected']}/{v['quotes_total']} quotes rejected")

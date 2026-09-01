@@ -709,3 +709,53 @@ def test_the_biggest_excluded_cost_is_the_pipelines_own_classifier():
     )
     # the things with no number at all must still be named, not omitted
     assert {x["key"] for x in e["excluded"]} >= {"classify", "enrich", "embed", "dev"}
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_evals_block_grades_the_threshold_the_retriever_actually_uses():
+    """The tab's whole claim is that this measurement is about the live cut.
+
+    A sweep that no longer contains the threshold in use, or a threshold that
+    drifted away from CLUSTER_SIM, would leave the screen reporting a number
+    for a system nobody is running.
+    """
+    from demo.core.framing import CLUSTER_SIM
+
+    facts = json.loads(FACTS_PATH.read_text(encoding="utf-8"))
+    e = facts["evals"]
+    assert e["live_threshold"] == CLUSTER_SIM
+    live = [r for r in e["precision_sweep"] if r["threshold"] == CLUSTER_SIM]
+    assert len(live) == 1, "the sweep must price the threshold in use"
+    assert any(r["threshold"] == CLUSTER_SIM for r in e["recall"]["by_threshold"])
+    # the sweep is monotone by construction: a looser cut accepts a superset
+    accepted = [r["labelled_accepted"] for r in e["precision_sweep"]]
+    assert accepted == sorted(accepted), "loosening the cut cannot accept fewer"
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_screen_cannot_call_model_labels_ground_truth():
+    """`human_reviewed` is what the tab keys its provenance chip off.
+
+    It is false today (29 of 160 reviewed) and it must stay false until every
+    row carries a human label — a partly reviewed set that reports itself as
+    reviewed is the one failure this whole eval exists to prevent.
+    """
+    e = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["evals"]
+    g = e["golden_set"]
+    assert g["human_reviewed"] == ("claude-opus-5" not in g["labelled_by"])
+    if not g["human_reviewed"]:
+        assert g["agreement"] is not None, (
+            "an unreviewed set must still report how much of it was checked"
+        )
+        assert g["agreement"]["reviewed"] < g["pairs"]
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_recall_floor_is_carried_not_restated():
+    """The tab prints the floor in three places and reads it from one field."""
+    from demo.evals.run_evals import MEASURED_FLOOR
+
+    r = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["evals"]["recall"]
+    assert r["floor"] == MEASURED_FLOOR
+    assert str(MEASURED_FLOOR) in r["region"]
+    assert r["below_region"]["same_found"] == 0 or r["below_region"]["rate_upper_95"] > 0
