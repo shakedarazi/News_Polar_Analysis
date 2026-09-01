@@ -139,6 +139,10 @@ export type SourcePolarityBreakdown = {
   mid_count: number;
   low_count: number;
   avg_polarity: number | null;
+  /** How many of the analyzed articles carry the research-lexicon reading. */
+  polarization_count: number;
+  avg_issue: number | null;
+  avg_affective: number | null;
 };
 
 export type DashboardFilters = {
