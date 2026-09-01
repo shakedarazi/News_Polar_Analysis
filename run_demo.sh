@@ -15,6 +15,9 @@ if [ ! -f demo/data/demo.sqlite ] || [ ! -f demo/data/demo_set.json ]; then
   echo "Missing demo artifacts. Run (with network, once, before the show):"
   echo "  PYTHONPATH=. python demo/snapshot/export_snapshot.py"
   echo "  PYTHONPATH=. python demo/snapshot/prepare_demo.py"
+  echo
+  echo "Only want to look at the screen? The dashboard needs neither:"
+  echo "  cd frontend && npm install && npm run dev   ->   localhost:3000/demo?mock=1"
   exit 1
 fi
 
