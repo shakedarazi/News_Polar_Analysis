@@ -271,3 +271,50 @@ class TestDenominatorsAreRead:
         printed = src.split("def main()", 1)[1]
         assert "positives)" not in printed.replace("['positives']}", "")
         assert "45 positives" not in printed
+
+
+class TestLabelConsistency:
+    """The set repeats articles across pairs, so the labels can contradict
+    each other without any single row looking wrong.
+
+    If A and B are the same event and B and C are the same event, then A and C
+    are the same event -- that is what "same event" means. A golden set that
+    violates this is not applying one definition, and every precision number
+    read off it is an average over two different questions.
+    """
+
+    def test_same_is_transitive_wherever_the_set_can_check_it(self):
+        import itertools
+        from collections import defaultdict
+
+        rows = ev.load_golden()
+        label = {frozenset((r["a"]["article_id"], r["b"]["article_id"])): r["label"]
+                 for r in rows}
+        adjacent = defaultdict(set)
+        for pair, value in label.items():
+            if value == "same":
+                x, y = tuple(pair)
+                adjacent[x].add(y)
+                adjacent[y].add(x)
+
+        broken = [
+            (hub, x, y)
+            for hub, neighbours in adjacent.items()
+            for x, y in itertools.combinations(sorted(neighbours), 2)
+            if label.get(frozenset((x, y))) == "not_same"
+        ]
+        assert not broken, (
+            f"{len(broken)} transitivity violations: an article is 'same event' "
+            f"as two others that are 'not_same' as each other"
+        )
+
+    def test_the_check_above_is_not_vacuous(self):
+        """It only means something while articles recur across pairs."""
+        from collections import Counter
+
+        rows = ev.load_golden()
+        seen = Counter()
+        for r in rows:
+            seen[r["a"]["article_id"]] += 1
+            seen[r["b"]["article_id"]] += 1
+        assert sum(1 for n in seen.values() if n > 1) >= 20
