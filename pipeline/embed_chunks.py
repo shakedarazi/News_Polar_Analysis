@@ -21,6 +21,14 @@ from __future__ import annotations
 import argparse
 import sys
 import time
+from pathlib import Path
+
+# run_ingestion.sh invokes these scripts by absolute path, which puts
+# pipeline/ on sys.path rather than the repo root, so `import src.*` fails.
+# Every other script in this directory already does this; these two were the
+# exceptions, and the ingestion log said so on every scheduled run.
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 from src.common.hashing import chunk_id_from_position
 from src.db.chunks import (
