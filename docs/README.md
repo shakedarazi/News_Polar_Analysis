@@ -21,7 +21,7 @@ Code, Airflow DAGs, and SQL must be derived from the documents in this folder �
 
 Any change that affects determinism, schemas, IDs, algorithms, or metrics must be documented here first.
 
-> **מימוש נוכחי בקוד:** ראו `CLAUDE.md` בשורש. ‏[`implementation.md`](implementation.md) הוא מסמך היסטורי — הקוד שהוא מתאר נמחק ומעולם לא רץ בצינור.
+> **מימוש נוכחי בקוד:** ראו `CLAUDE.md` בשורש, ואת `docs/adr/` להחלטות.
 
 ---
 
