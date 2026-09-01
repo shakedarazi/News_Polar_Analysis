@@ -1,0 +1,118 @@
+name: CI
+
+# The test suite ran on developer machines and nowhere else until now, so a
+# branch could be pushed, reviewed and merged with it red. Ingestion is the only
+# other workflow and it is schedule/dispatch only, which never gates a change.
+#
+# Deliberately push-on-main plus pull_request, rather than push on every branch:
+# a branch with an open PR would otherwise be checked twice for every commit,
+# once as a push and once as a PR, and the two runs cannot share a concurrency
+# group because their refs differ. The cost is that a branch with no PR yet is
+# not checked; opening the PR checks it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run's answer irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Python tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is what actually runs the code: Render pins 3.11.9 (render.yaml)
+        # and the ingestion job uses 3.11. 3.12 is what developers have locally,
+        # and is here so a version-specific break is caught by CI rather than by
+        # whoever next opens the repo.
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # requirements.txt plus numpy, and deliberately NOT requirements-embed.txt.
+      # No test loads a model - tests/test_semantic_events.py builds its vectors
+      # by hand precisely so the clustering can be tested without one - so
+      # installing torch here would add minutes per run and prove nothing.
+      # numpy is not in requirements.txt because the API never imports it (there
+      # is a test asserting as much); it is the one embed dependency the tests
+      # genuinely need.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install "numpy>=1.26.0"
+
+      # No browser install: the two tests that mention Playwright only fake the
+      # module name on an exception class, they never launch Chromium.
+      - name: Run tests
+        env:
+          PYTHONPATH: .
+        run: pytest tests/ -q
+
+      # The split that keeps the API deployable on a 512MB host is an import
+      # graph, which nothing else would notice breaking. An `import numpy` added
+      # to a module the API happens to reach would pass every test above.
+      - name: Assert the API pulls in no heavy dependencies
+        env:
+          PYTHONPATH: .
+        run: |
+          python - <<'PY'
+          import sys
+          import src.api.app  # noqa: F401
+          heavy = sorted(
+              m for m in ("torch", "sentence_transformers", "transformers", "numpy")
+              if m in sys.modules
+          )
+          if heavy:
+              raise SystemExit(
+                  f"src.api.app imported {heavy}. These do not fit on Render's free "
+                  "tier and the API does not need them - it reads vectors that "
+                  "ingestion writes. See src/analysis/embeddings.py."
+              )
+          print("API import graph is clean")
+          PY
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      # tsc first, and it earns its place: the NaN the article page rendered
+      # against an older API was found by making the polarization fields
+      # optional and letting the compiler reject every unguarded reader.
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
