@@ -42,6 +42,13 @@ SOURCES: dict[str, SourceConfig] = {
     ),
     "news12": SourceConfig(
         # News 12 articles are hosted on mako.co.il and share its DOM template.
+        #
+        # Dormant since 2026-08-07: this feed's newest item has that date and
+        # discovery now returns the same 20 already-stored URLs every run. It is
+        # left in place rather than repointed at a live mako feed, because the
+        # live ones are already crawled as "mako" and re-crawling them under a
+        # second label would double-count one newsroom in every source chart.
+        # See "Source" and "Dormant source" in CONTEXT.md.
         feeds=["https://rcs.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml"],
         dom_selectors=["[class*='ArticleBodyWrapper'] p"],
     ),

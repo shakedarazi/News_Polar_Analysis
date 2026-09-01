@@ -13,32 +13,7 @@ import {
 import type { SourcePolarityBreakdown } from "@/lib/types";
 import { polarityStackPercents, sourceLabel } from "@/lib/format";
 import { EmptyState } from "./EmptyState";
-import { LOGO_COLOR, LOGO_TEXT } from "./SourceLogo";
-
-type AxisTickProps = {
-  x?: string | number;
-  y?: string | number;
-  payload?: { value: string };
-};
-
-function SourceAxisTick(props: AxisTickProps) {
-  const x = Number(props.x ?? 0);
-  const y = Number(props.y ?? 0);
-  const source = props.payload?.value ?? "";
-  const color = LOGO_COLOR[source] ?? "#64748B";
-  const logoText = LOGO_TEXT[source] ?? source.slice(0, 2).toUpperCase();
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <circle cx={-118} cy={0} r={10} fill={color} />
-      <text x={-118} y={0} dy={3} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">
-        {logoText}
-      </text>
-      <text x={-8} y={0} dy={4} textAnchor="end" fontSize={12} fill="var(--text-secondary)">
-        {sourceLabel(source)}
-      </text>
-    </g>
-  );
-}
+import { isSmallSample, makeSourceAxisTick, SMALL_SAMPLE_MIN } from "./SourceAxisTick";
 
 export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] }) {
   if (data.length === 0) {
@@ -60,6 +35,11 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
     };
   });
 
+  // The bar shows shares of the analysed articles, so that — not the total
+  // crawled — is the n a reader needs to judge the bar by.
+  const counts = Object.fromEntries(rows.map((r) => [r.name, r.analyzed]));
+  const SourceAxisTick = makeSourceAxisTick(counts);
+  const smallSamples = rows.filter((r) => isSmallSample(r.analyzed));
   const height = Math.max(160, rows.length * 64);
 
   return (
@@ -135,6 +115,14 @@ export function SourcePolarityChart({ data }: { data: SourcePolarityBreakdown[] 
         או גבוהה (מעל 15%) לפי ממוצע התגובות. זה לא אותו מדד כמו כתבות בולטות למטה, שמדרגות
         לפי שיא התגובות. הפילוח הוא רק מתוך כתבות שכבר יש להן ניתוח תגובות. מקור בלי ניתוח
         מופיע כשורה ריקה.
+        {smallSamples.length > 0 && (
+          <>
+            {" "}
+            הרוחב של כל עמודה זהה בלי קשר לכמות הכתבות שמאחוריה, ולכן מספר הכתבות מופיע
+            ליד שם המקור. {smallSamples.map((r) => sourceLabel(r.name)).join(", ")} נמדדו על
+            פחות מ־{SMALL_SAMPLE_MIN} כתבות — הפילוח שלהם יכול להתהפך מכמה כתבות בודדות.
+          </>
+        )}
       </p>
     </div>
   );

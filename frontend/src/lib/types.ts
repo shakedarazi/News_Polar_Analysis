@@ -90,6 +90,17 @@ export type ArticleDetail = {
   aggregation: Aggregation | null;
   windows: WindowFeature[];
   comments: CommentItem[];
+  /** The event this article belongs to, or null when it stands alone.
+   * Optional because Vercel and Render deploy independently: an API older
+   * than this field omits the key entirely. */
+  event?: ArticleEventLink | null;
+};
+
+export type ArticleEventLink = {
+  event_id: string;
+  title: string | null;
+  article_count: number;
+  source_count: number;
 };
 
 export type LeadingArticle = {

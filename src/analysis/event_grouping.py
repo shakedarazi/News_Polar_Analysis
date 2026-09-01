@@ -264,3 +264,20 @@ def get_event_article_ids(event_id: str) -> list[str] | None:
     if members is None:
         return None
     return [m.article_id for m in sorted(members, key=lambda a: a.first_seen_at)]
+
+
+def find_event_for_article(article_id: str) -> dict | None:
+    """Return the event summary for the event this article belongs to, or None.
+
+    Deliberately a scan of the same grouping every other reader sees, rather
+    than a read of `articles.event_id`: that column is only one of the two ways
+    an event can be defined here (the lexical fallback assigns no column at
+    all), and it stays set on articles whose event has since fallen below
+    MIN_EVENT_SIZE. Going through _grouped_articles() means an article links to
+    an event exactly when /events would show that event, and costs no extra
+    round trip because the corpus is already cached.
+    """
+    for event_id, members in _grouped_articles().items():
+        if any(m.article_id == article_id for m in members):
+            return _event_summary(event_id, members)
+    return None

@@ -1,17 +1,23 @@
 """Read-only queries for the event timeline.
 
-Event detection itself lives in src/analysis/event_grouping.py (deterministic
-grouping over category + time proximity + title overlap — see that module
-for why no persistent event/cluster id was needed). This module joins in the
-per-article display fields already computed elsewhere in the system:
-audience polarity (article_comments_agg), AI summary sentiment
+Event detection itself lives in src/analysis/event_grouping.py: articles are
+grouped by embedding similarity during ingestion and carry the resulting
+`articles.event_id`, with the older title-overlap grouping kept only as a
+fallback for a corpus no embedding pass has reached (docs/adr/0005). Which of
+the two is in force is decided per corpus, so this module never has to ask.
+It joins in the per-article display fields already computed elsewhere in the
+system: audience polarity (article_comments_agg), AI summary sentiment
 (articles.summary_sentiment), and political bias (articles.bias_*) — never
 recomputing or approximating any of them.
 """
 
 from __future__ import annotations
 
-from src.analysis.event_grouping import get_event_article_ids, get_events
+from src.analysis.event_grouping import (
+    find_event_for_article,
+    get_event_article_ids,
+    get_events,
+)
 from src.db.config import require_database_url
 from src.db.connection import get_connection
 
@@ -154,6 +160,24 @@ def list_events(
         events = [e for e in events if e["first_seen_at"].date().isoformat() <= end_date]
 
     return events[:limit]
+
+
+def get_article_event(article_id: str) -> dict | None:
+    """The event one article belongs to, as the little the article page needs
+    to link back to it — or None when the article stands alone.
+
+    Only the fields already in the cached grouping are returned, so this adds
+    no query to the article detail request.
+    """
+    event = find_event_for_article(article_id)
+    if event is None:
+        return None
+    return {
+        "event_id": event["event_id"],
+        "title": event["title"],
+        "article_count": event["article_count"],
+        "source_count": event["source_count"],
+    }
 
 
 def get_event_detail(event_id: str) -> dict | None:

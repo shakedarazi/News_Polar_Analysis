@@ -14,6 +14,12 @@ from src.crawling.extractors import extract_article_with_fallback
 from src.crawling.retry import fetch_with_retry
 from src.crawling.rss_utils import BROWSER_HEADERS, NO_LIMIT
 
+# Dormant: every request to 13tv.co.il — this path, the section index, and the
+# bare domain — answers HTTP 403, with or without browser headers, from both a
+# developer machine and the Actions runner. The block is at the site's edge, not
+# in this parsing, so no header or retry change fixes it; clearing it would take
+# a real browser session. The crawler is kept, and keeps being scheduled, so the
+# day the block lifts the source resumes on its own.
 NEWSFEED_URL = "https://13tv.co.il/news/newsfeed/"
 
 DOM_SELECTORS = ["[class*='articleContent'] p", "[class*='ArticleBody'] p", "article p"]
