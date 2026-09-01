@@ -469,7 +469,7 @@ function Measured({ facts }: Props) {
               <Big
                 value={pct(liveRecall.recall)}
                 label={`כיסוי מעל ${e.recall.floor}`}
-                tone="good"
+                tone={liveRecall.recall >= 0.5 ? "good" : "bad"}
               />
             </div>
             <div className="flex flex-col gap-2.5">
@@ -578,10 +578,14 @@ function Measured({ facts }: Props) {
               </div>
               {g.agreement && (
                 <p className="mt-1.5 text-[15px] leading-snug text-[var(--dk-ink-3)]">
-                  שאר התיוגים נעשו על ידי מודל שפה. כל{" "}
-                  {g.agreement.flipped_to_not_same} ההכרעות שהסוקר הפך נטו
-                  לאותו כיוון — ל&rdquo;לא אותו אירוע&ldquo; — כך שהמספרים
-                  משמאל הם ככל הנראה הגבול העליון, לא הערכת חסר.
+                  {g.human_reviewed
+                    ? "כל שורה נבדקה בעין. המודל תייג קודם, והתיוג שלו הוסתר עד אחרי ההכרעה — "
+                    : "שאר התיוגים נעשו על ידי מודל שפה. "}
+                  הסוקר הפך {g.agreement.flipped_to_same} הכרעות ל&rdquo;אותו
+                  אירוע&ldquo; ו־{g.agreement.flipped_to_not_same} לכיוון ההפוך.
+                  {g.agreement.flipped_to_same > g.agreement.flipped_to_not_same
+                    ? " המודל מפספס יותר משהוא ממציא, וזה בדיוק מה שמספר הכיסוי משמאל אומר."
+                    : " המודל מחבר יותר משהוא מפספס, וזה בדיוק מה שמספר הדיוק משמאל אומר."}
                 </p>
               )}
             </div>
