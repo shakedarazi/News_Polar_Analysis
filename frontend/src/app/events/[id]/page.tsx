@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import { getEventDetail } from "@/lib/api";
+import { getEventDeviation, getEventDetail } from "@/lib/api";
 import { formatDate, formatPercent } from "@/lib/format";
 import { EventTimeline } from "@/components/EventTimeline";
+import { EventVersionComparison } from "@/components/EventVersionComparison";
 
 export default async function EventPage({
   params,
@@ -17,6 +18,10 @@ export default async function EventPage({
   } catch {
     notFound();
   }
+
+  // Never fails the page: this endpoint is newer than the event detail one,
+  // and Vercel can be a deploy ahead of Render.
+  const deviation = await getEventDeviation(id).catch(() => null);
 
   const biasEntries = event.bias_distribution ? Object.entries(event.bias_distribution) : [];
 
@@ -90,6 +95,19 @@ export default async function EventPage({
           </div>
         )}
       </header>
+
+      {deviation && event.source_count > 1 && (
+        <section className="card p-6">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            איך כל מקור נבדל באירוע הזה
+          </h2>
+          <p className="mb-4 mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            פולריות התגובות בכל גרסה, מול חציון האירוע. כיוון שכל המקורות כאן מסקרים את
+            אותו אירוע, ההבדל ביניהם אינו בחירת הסיפור אלא הסיקור עצמו.
+          </p>
+          <EventVersionComparison data={deviation} />
+        </section>
+      )}
 
       <section>
         <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">

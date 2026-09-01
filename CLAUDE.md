@@ -99,11 +99,17 @@ not used by the deployed system.
    (`src/nlp/categories.py`). Decoupled from crawl and from analyze — `pipeline/classify_articles.py` runs after
    analyze via `run_bonus_step`, so a classify failure never fails the ingestion run.
 6. **AI enrichment** (optional, off the critical path) — per-article summary (`src/nlp/summarize.py`), political
-   bias/framing estimate (`src/nlp/bias.py`), and a Q&A assistant that answers only from what's in the DB
-   (`src/nlp/qa.py`). No pipeline script: generated on demand by `POST /api/articles/{id}/summary/generate` and
-   `.../bias/generate`, cached in `articles.summary_*` / `articles.bias_*` columns (`sql/migrations/004_summary.sql`,
-   `005_bias.sql`) so a regenerate is opt-in, not automatic. Never let analyze/classify depend on these — they're
-   enrichment, not the deterministic core.
+   lean estimate (`src/nlp/bias.py`), structural framing extraction (`src/nlp/framing.py`), and a Q&A assistant
+   that answers only from what's in the DB (`src/nlp/qa.py`). No pipeline script: generated on demand by
+   `POST /api/articles/{id}/summary/generate`, `.../bias/generate` and `.../framing/generate`, cached in
+   `articles.summary_*` / `bias_*` / `framing_*` columns (`sql/migrations/004_summary.sql`, `005_bias.sql`,
+   `010_framing.sql`) so a regenerate is opt-in, not automatic. Never let analyze/classify depend on these —
+   they're enrichment, not the deterministic core.
+   Framing is the one AI output that is checked before it is stored: `verify_framing` requires every extracted
+   string to occur in the same `EXTRACT_LEAD_CHARS` (500) the model read. Extraction and verification must keep
+   sharing that one constant — when they were 500 and 600, a term appearing only in 500-600 passed verification
+   though the model never saw it. Rejected values are kept in `framing_dropped_terms` / `framing_actor_grounded`
+   and shown, because a verifier whose work is invisible is indistinguishable from no verifier.
 7. **Derived signals** — trending topics (`src/db/trending.py`) and smart alerts (`src/analysis/alerts.py`,
    deduped via `dedup_key` in `sql/migrations/006_alerts.sql`) are computed from already-analyzed data on read
    (alert detection runs inside `GET /api/alerts` itself), not separately crawled or scheduled.
@@ -113,9 +119,13 @@ not used by the deployed system.
    torch and the read path must not pull 1.4k×384 floats out of Neon on every poll. `src/analysis/event_grouping.py`
    keeps the old title-Jaccard grouping as a *fallback*, used only when no embedding pass has run — chosen per
    corpus, never per article. See `docs/adr/0005`.
-8. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only except the two `.../generate` AI endpoints and
-   the alert-read mutations, backed by `src/db/browse.py` / `trending.py` / `events.py` / `summary.py` / `bias.py`
-   / `alerts.py`. Runs schema migrations (`src/db/migrations.py` — applies every file in `sql/migrations/` in
+8. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only except the three `.../generate` AI endpoints
+   and the alert-read mutations, backed by `src/db/browse.py` / `trending.py` / `events.py` / `summary.py` /
+   `bias.py` / `framing.py` / `event_stats.py` / `alerts.py`. `GET /api/analytics/event-deviation` and
+   `GET /api/events/{id}/deviation` serve the within-event outlet comparison (`src/analysis/event_stats.py`) —
+   pure Python with no numpy, because nothing on the API import path may pull numpy in (asserted in CI).
+   Keep it distinct from `/api/analytics/polarity-by-source`: that one averages an outlet's whole output, which
+   mostly measures which stories it chose to cover. Runs schema migrations (`src/db/migrations.py` — applies every file in `sql/migrations/` in
    sorted order, no version tracking table) on startup. `frontend/` (Next.js App Router) consumes this API via
    `frontend/src/lib/api.ts`; pages live under `frontend/src/app/` (`/`, `/articles`, `/articles/[id]`, `/events`,
    `/events/[id]`, `/assistant`, `/about`), shared UI in `frontend/src/components/`. `web/` is a legacy static

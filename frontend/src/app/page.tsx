@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Calendar, FileText, Flame, Globe, Tags, TrendingUp } from "lucide-react";
 import {
   getCategories,
+  getEventDeviationProfile,
   getPolarityBySource,
   getPolarityTrend,
   getSources,
@@ -14,6 +15,7 @@ import { StatsCard } from "@/components/StatsCard";
 import { PolarityTrendChart } from "@/components/PolarityTrendChart";
 import { SourcePolarityChart } from "@/components/SourcePolarityChart";
 import { SourceAxesChart } from "@/components/SourceAxesChart";
+import { EventDeviationChart } from "@/components/EventDeviationChart";
 import { SourcesGrid } from "@/components/SourcesGrid";
 import { TopicsCloud } from "@/components/TopicsCloud";
 import { LeadingArticles } from "@/components/LeadingArticles";
@@ -34,9 +36,12 @@ export default async function DashboardPage({
     end_date: sp.end_date,
   };
 
-  let stats, trend, sourceBreakdown, sources, categories;
+  const deviationMetric =
+    sp.metric === "dominance" ? "dominance" : "audience_mean";
+
+  let stats, trend, sourceBreakdown, sources, categories, deviation;
   try {
-    [stats, trend, sourceBreakdown, sources, categories] = await Promise.all([
+    [stats, trend, sourceBreakdown, sources, categories, deviation] = await Promise.all([
       getStats(filters),
       getPolarityTrend(filters),
       getPolarityBySource({
@@ -46,6 +51,9 @@ export default async function DashboardPage({
       }),
       getSources(),
       getCategories(),
+      // Never lets the whole dashboard fail: this is the newest endpoint, and
+      // Vercel can be a deploy ahead of Render.
+      getEventDeviationProfile(deviationMetric, filters.category).catch(() => null),
     ]);
   } catch {
     return (
@@ -127,6 +135,44 @@ export default async function DashboardPage({
                 פילוח קיטוב לפי אתרי חדשות
               </h2>
               <SourcePolarityChart data={sourceBreakdown} />
+            </section>
+
+            <section id="within-event" className="card scroll-mt-24 p-5">
+              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-base font-semibold text-slate-800 dark:text-slate-200">
+                  אותו אירוע, מקורות שונים
+                </h2>
+                <div className="flex gap-1 text-xs">
+                  {[
+                    { key: "audience_mean", label: "תגובות הקהל" },
+                    { key: "dominance", label: "טקסט הכתבה" },
+                  ].map((option) => (
+                    <Link
+                      key={option.key}
+                      href={{ query: { ...sp, metric: option.key } }}
+                      scroll={false}
+                      className={
+                        deviationMetric === option.key
+                          ? "rounded-md bg-[var(--purple)] px-2 py-0.5 font-semibold text-white"
+                          : "rounded-md px-2 py-0.5 text-slate-500 hover:bg-[var(--border)] dark:text-slate-400"
+                      }
+                    >
+                      {option.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                הפילוח שלמעלה מודד בעיקר אילו סיפורים כל מקור בוחר לסקר. כאן הסיפור מוחזק
+                קבוע: רק אירועים שסוקרו ביותר ממקור אחד, וכל מקור מושווה לחציון של אותו אירוע.
+              </p>
+              {deviation ? (
+                <EventDeviationChart profile={deviation} />
+              ) : (
+                <p className="text-sm text-slate-400 dark:text-slate-500">
+                  ההשוואה בתוך אירועים אינה זמינה כרגע.
+                </p>
+              )}
             </section>
 
             <section id="axes" className="card scroll-mt-24 p-5">

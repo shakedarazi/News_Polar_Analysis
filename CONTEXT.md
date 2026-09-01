@@ -58,3 +58,27 @@ string, and titles alone collapse it. One definition, in
 The superseded event detection: title-token Jaccard ≥ 0.34 within a category and
 a 72-hour window. Retained only as the fallback for a database with no embeddings
 yet, chosen per corpus and never per article. See `docs/adr/0005`.
+
+**Framing**:
+The structural variables of how a story is told, extracted per article by
+`src.nlp.framing`: who is named as the actor, to whom responsibility is
+attributed, active or passive voice, whose point of view the lead opens from,
+and any evaluative terms in the headline. Structural, not evaluative — two
+articles can share a bias label and a sentiment and still differ here.
+_Avoid_: Bias, slant (both are `bias_label`, a different column and a different
+question)
+
+**Grounding**:
+The deterministic string check every extracted framing value passes before it is
+stored: the value must occur in the same 500 characters the model was shown.
+Extraction and verification share one constant so the two windows cannot drift.
+Both errors it makes put less on the screen rather than more.
+_Avoid_: Validation, fact-check (it verifies presence in the text, not truth)
+
+**Within-event deviation**:
+An outlet's distance from the median of one event on a given metric, and the
+only per-outlet comparison that is about coverage rather than story selection.
+Each outlet contributes one version per event — its most-commented article — so
+a prolific outlet cannot become the median it is measured against.
+_Avoid_: Source average, outlet bias score (a raw per-source mean measures which
+stories that outlet covers)

@@ -52,6 +52,32 @@ export default function AboutPage() {
       </section>
 
       <section className="card space-y-4 p-6">
+        <h2 className="text-lg font-semibold">השוואה בתוך אירוע</h2>
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+          ממוצע גולמי של אתר חדשות מודד בעיקר אילו סיפורים הוא בוחר לסקר — אתר שמסקר יותר
+          פוליטיקה יקבל ציון גבוה יותר מאתר שמסקר תאונות, ואף אחד מהמספרים האלה אינו אומר
+          משהו על אופן הסיקור. לכן ההשוואה בין האתרים נעשית <strong>בתוך</strong> אירועים:
+          רק סיפורים שסוקרו על ידי יותר ממקור אחד, כשכל מקור נמדד מול חציון אותו אירוע. כל
+          מקור נספר פעם אחת לכל אירוע — הכתבה שקיבלה הכי הרבה תגובות — כדי שמקור שפרסם
+          כמה המשכים לאותו סיפור לא יהפוך בעצמו לחציון שמולו הוא נמדד.
+        </p>
+      </section>
+
+      <section className="card space-y-4 p-6">
+        <h2 className="text-lg font-semibold">מסגור ואימות</h2>
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+          לכל כתבה מחולצים משתני מסגור: מי מוצג כמבצע הפעולה, למי מיוחסת אחריות, האם
+          הכותרת נכתבה בקול פעיל או סביל, ומנקודת מבט של מי נפתחת הידיעה. זהו ניתוח מבני
+          של הניסוח, ולא הערכה של נכונות הכתבה או של עמדתה הפוליטית — אלה שדות נפרדים.
+        </p>
+        <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+          כל ערך שמחולץ נבדק מול הטקסט לפני שהוא נשמר: הביטוי חייב להופיע כלשונו באותם 500
+          תווים שהמודל קרא. ביטוי שלא נמצא יורד ואינו מוצג — הוא מופיע רק ברשימת הביטויים
+          שנפסלו, כדי שיהיה אפשר לראות שהבדיקה אכן רצה.
+        </p>
+      </section>
+
+      <section className="card space-y-4 p-6">
         <h2 className="text-lg font-semibold">תיוג AI (נפרד)</h2>
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
           קטגוריות כמו פוליטיקה, ביטחון וכלכלה מגיעות מ-OpenAI ומשמשות לסינון

@@ -293,3 +293,65 @@ export type EventDetail = {
   avg_audience_mean: number | null;
   timeline: EventTimelineItem[];
 };
+
+export type ArticleFramingStatus = "missing" | "ready";
+
+/** Structural framing variables, already verified server-side: everything in
+ * `loaded_terms` occurs in the text the model was shown. `dropped_terms` is
+ * what the verifier rejected — evidence the check ran, not an error log.
+ * Fields are optional because an API deployed before this feature omits the
+ * keys entirely, and Vercel and Render deploy independently. */
+export type ArticleFraming = {
+  status: ArticleFramingStatus;
+  actor?: string | null;
+  rejected_actor?: string | null;
+  responsibility?: string | null;
+  loaded_terms?: string[];
+  dropped_terms?: string[];
+  voice?: "active" | "passive" | null;
+  lead_perspective?: string | null;
+  model?: string | null;
+  generated_at?: string | null;
+};
+
+/** One outlet's distance from the median of the same event, over many events.
+ * Both intervals come from the same bootstrap; `significant_adjusted` is the
+ * Bonferroni-corrected one and the only field that should be read as a claim. */
+export type SourceDeviation = {
+  source: string;
+  events: number;
+  mean_deviation: number;
+  ci_low: number | null;
+  ci_high: number | null;
+  significant: boolean;
+  ci_low_adjusted: number | null;
+  ci_high_adjusted: number | null;
+  significant_adjusted: boolean;
+};
+
+export type EventDeviationProfile = {
+  metric: string;
+  sources: SourceDeviation[];
+  events_used: number;
+  events_considered: number;
+  pair_events: number;
+  pair_share: number | null;
+  tests_run: number;
+  min_observations: number;
+};
+
+export type EventVersionDeviation = {
+  article_id: string;
+  source: string;
+  value: number;
+  deviation: number;
+  num_comments: number;
+};
+
+export type EventDeviation = {
+  event_id: string;
+  metric: string;
+  median: number | null;
+  comparable: boolean;
+  versions: EventVersionDeviation[];
+};
