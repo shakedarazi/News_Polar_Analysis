@@ -53,6 +53,7 @@ python pipeline/build_lexicon.py    # expands data/lexicon_base/* and data/comme
 python pipeline/analyze_articles.py [--limit N] [--force]              # lexicon polarity scoring
 python pipeline/analyze_articles.py --polarization-only [--limit N]   # research-lexicon (two-axis) rescore only
 python pipeline/embed_articles.py [--limit N] [--cluster-only]        # embeddings + event clustering (needs requirements-embed.txt)
+python pipeline/embed_chunks.py [--chunk-only] [--embed-only]         # assistant retrieval chunks (needs OPENAI_EMBEDDING_API_KEY)
 python pipeline/import_json_to_db.py  # one-time legacy JSON import
 ```
 `requirements-embed.txt` (sentence-transformers, torch) is installed **only** by the GitHub Actions ingestion job —
@@ -119,7 +120,18 @@ not used by the deployed system.
    torch and the read path must not pull 1.4k×384 floats out of Neon on every poll. `src/analysis/event_grouping.py`
    keeps the old title-Jaccard grouping as a *fallback*, used only when no embedding pass has run — chosen per
    corpus, never per article. See `docs/adr/0005`.
-8. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only except the three `.../generate` AI endpoints
+8. **Assistant retrieval** (`src/rag/`) — the `/assistant` chat answers from the corpus, not from the model's own
+   knowledge. Articles are split into ~700-char overlapping passages (`src/rag/chunking.py`, reusing
+   `src/nlp/sentence_splitter.py`) into `article_chunks`, and embedded by `pipeline/embed_chunks.py` with
+   `text-embedding-3-small` at 512 dims. **This is a second, deliberate vector space** — it is *not*
+   `articles.title_embedding`, and the two are never compared: e5 needs torch, which the API host cannot have,
+   and retrieval must embed the visitor's question *at request time*. `src/db/chunks.py::search_chunks` fuses a
+   pgvector cosine channel with a trigram `ILIKE` channel via Reciprocal Rank Fusion, **in SQL** — nothing on the
+   API path may import numpy. A question costs one embedding call plus one completion: there is no planner call
+   (both the summary stats and the passages are always fetched) and no query-rewrite call (a follow-up prepends
+   the previous user turn). Missing embedding key ⇒ lexical-only, `degraded: true`, and the UI says so.
+   See `docs/adr/0007`.
+9. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only except the three `.../generate` AI endpoints
    and the alert-read mutations, backed by `src/db/browse.py` / `trending.py` / `events.py` / `summary.py` /
    `bias.py` / `framing.py` / `event_stats.py` / `alerts.py`. `GET /api/analytics/event-deviation` and
    `GET /api/events/{id}/deviation` serve the within-event outlet comparison (`src/analysis/event_stats.py`) —
@@ -170,6 +182,13 @@ The system also runs 24/7 in the cloud, decoupling ingestion scheduling from API
   article's windows or comments, to preserve determinism.
 - AI summary/bias/assistant (step 6 above) are optional enrichment generated on demand and cached — never make
   the deterministic pipeline (classify/analyze) depend on them, and never treat their absence as an error state.
+- Every LLM JSON call goes through `src/nlp/llm.py` (`user_json` / `ingestion_json`) — don't hand-roll another
+  `chat.completions.create`. The two entry points are the two credit pools (Render's real OpenAI key vs the
+  OpenRouter key on Actions) and `src/nlp/openai_config.py` deliberately has no fallback between them.
+- The two vector spaces are separate and must never be compared: `articles.title_embedding` is e5-small/384 for
+  events (threshold calibrated per ADR 0005), `article_chunks.embedding` is text-embedding-3-small/512 for
+  retrieval. Changing either model, its dimension count, or the text that gets embedded invalidates the stored
+  vectors — the `embedding_model` column on each is the gate that forces a re-embed.
 
 ## Reference docs
 `docs/architecture/overview.md` explains the *why* behind the design (determinism, batch-over-streaming,

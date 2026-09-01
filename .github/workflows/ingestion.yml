@@ -66,6 +66,16 @@ jobs:
           OPENAI_INGESTION_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_INGESTION_BASE_URL: https://openrouter.ai/api/v1
           OPENAI_INGESTION_MODEL: openai/gpt-4o-mini
+          # A real OpenAI key, in its own secret, for the assistant's retrieval
+          # chunks. It cannot be the OpenRouter key above: the API embeds the
+          # visitor's question on Render against api.openai.com, and a chunk
+          # vector from a different provider is not comparable to it.
+          #
+          # Costs a few cents for the whole corpus once, then a fraction of
+          # that per run. If the secret is absent the chunking half still runs
+          # and the assistant falls back to keyword search — see
+          # pipeline/embed_chunks.py.
+          OPENAI_EMBEDDING_API_KEY: ${{ secrets.OPENAI_EMBEDDING_API_KEY }}
         run: bash scripts/run_ingestion.sh
 
       - name: Upload ingestion logs

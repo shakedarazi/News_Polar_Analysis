@@ -97,6 +97,21 @@ STEP_FAILED=0
   run_bonus_step python "$ROOT/pipeline/embed_articles.py"
   echo "=== Embeddings finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
+  echo "=== Retrieval chunks for the assistant (bonus): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  # Splits new articles into passages and embeds them, so the assistant can
+  # search the text of the corpus rather than substring-match its titles.
+  #
+  # Deliberately after the event embeddings and separate from them: these are a
+  # different model in a different vector space for a different job, and unlike
+  # those, they come over HTTP rather than from a local checkpoint - which is
+  # what lets the API embed a visitor's question with the same model.
+  #
+  # A bonus step, and internally split again: the chunking half needs no key
+  # and always runs, so a missing OPENAI_EMBEDDING_API_KEY costs the semantic
+  # half of retrieval and leaves the lexical half working.
+  run_bonus_step python "$ROOT/pipeline/embed_chunks.py"
+  echo "=== Retrieval chunks finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo ""
   echo "=== Classification started (bonus, leftover time only): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   run_bonus_step python "$ROOT/pipeline/classify_articles.py" --limit 80 --max-minutes 10
   echo "=== Classification finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="

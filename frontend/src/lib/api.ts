@@ -6,6 +6,7 @@ import type {
   ArticleFraming,
   ArticlesResponse,
   AskResponse,
+  AskTurn,
   CategoryStat,
   DashboardFilters,
   DashboardStats,
@@ -138,10 +139,14 @@ export function getArticleClient(id: string) {
   return getJson<ArticleDetail>(`/api/articles/${id}`);
 }
 
-export function askAssistant(question: string) {
+export function askAssistant(question: string, history: AskTurn[] = []) {
   // Relative path -> same-origin Next.js route (frontend/src/app/api/ask/route.ts),
   // which proxies server-side to the Python API. Avoids CORS entirely.
-  return postJson<AskResponse>("/api/ask", { question });
+  //
+  // The conversation is held here and sent with each question. The API is
+  // stateless and its host spins down when idle, so a server-side session
+  // store would be the only part of it that had to survive that.
+  return postJson<AskResponse>("/api/ask", { question, history });
 }
 
 export function getArticleSummaryClient(id: string) {
