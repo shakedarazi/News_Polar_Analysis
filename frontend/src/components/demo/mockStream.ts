@@ -444,10 +444,15 @@ function buildTimeline(): TimedEvent[] {
     total_tokens: 120_698,
     total_cost_usd: 0.0289,
     showtime_calls: 0,
-    corpus_articles: 752,
-    allllm_tokens_est: 789_600,
-    allllm_cost_est: 0.1779,
-    note_he: "אומדן: אותן כתבות אילו כל שלב היה קריאת מודל על הטקסט המלא",
+    // the measured strawman, same shape the backend emits: every article and
+    // every comment as its own call. The mock is what someone without the
+    // snapshot artifacts sees, so it cannot quote a number the live run retired.
+    corpus_articles: 1_178,
+    allllm_tokens_est: 13_607_100,
+    allllm_cost_est: 4.0415,
+    allllm_calls: 39_670,
+    note_he:
+      "נמדד: כל כתבה וכל תגובה כקריאת מודל נפרדת — 39,670 קריאות, פי 139.9 מהחשבון שמשמאל",
   });
   push(1_200, {
     type: "reasoning",
