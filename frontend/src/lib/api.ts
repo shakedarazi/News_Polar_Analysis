@@ -3,11 +3,14 @@ import type {
   AlertsResponse,
   ArticleBias,
   ArticleDetail,
+  ArticleFraming,
   ArticlesResponse,
   AskResponse,
   CategoryStat,
   DashboardFilters,
   DashboardStats,
+  EventDeviation,
+  EventDeviationProfile,
   EventDetail,
   EventSummary,
   PolarityTrendPoint,
@@ -155,6 +158,26 @@ export function getArticleBiasClient(id: string) {
 
 export function generateArticleBiasClient(id: string) {
   return postJson<ArticleBias>(`/api/articles/${id}/bias/generate`, {});
+}
+
+export function getArticleFramingClient(id: string) {
+  return getJson<ArticleFraming>(`/api/articles/${id}/framing`);
+}
+
+export function generateArticleFramingClient(id: string) {
+  return postJson<ArticleFraming>(`/api/articles/${id}/framing/generate`, {});
+}
+
+export function getEventDeviationProfile(metric = "audience_mean", category?: string) {
+  const qs = new URLSearchParams({ metric });
+  if (category) qs.set("category", category);
+  return fetchApi<EventDeviationProfile>(`/api/analytics/event-deviation?${qs}`);
+}
+
+export function getEventDeviation(eventId: string, metric = "audience_mean") {
+  return fetchApi<EventDeviation>(
+    `/api/events/${eventId}/deviation?metric=${encodeURIComponent(metric)}`,
+  );
 }
 
 export function getTrendingClient() {

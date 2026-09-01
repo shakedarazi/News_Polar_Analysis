@@ -9,6 +9,7 @@ import { DominanceChart } from "@/components/DominanceChart";
 import { CommentsList } from "@/components/CommentsList";
 import { AiSummaryCard } from "@/components/AiSummaryCard";
 import { PoliticalBiasMeter } from "@/components/PoliticalBiasMeter";
+import { FramingCard } from "@/components/FramingCard";
 import { AnalysisStatusBar } from "@/components/AnalysisStatusBar";
 
 export default async function ArticlePage({
@@ -70,6 +71,7 @@ export default async function ArticlePage({
 
       <AiSummaryCard articleId={article.article_id} hasContent={article.text.trim().length > 0} />
       <PoliticalBiasMeter articleId={article.article_id} hasContent={article.text.trim().length > 0} />
+      <FramingCard articleId={article.article_id} hasContent={article.text.trim().length > 0} />
 
       <AnalysisStatusBar
         hasWindows={article.windows.length > 0}

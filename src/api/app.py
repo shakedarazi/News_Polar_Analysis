@@ -24,7 +24,9 @@ from src.db.browse import (
 from src.db.alerts import count_unread, detect_and_save_alerts, list_alerts, mark_all_read, mark_read
 from src.db.bias import generate_and_save_bias, get_article_for_bias, get_bias
 from src.db.config import require_database_url
+from src.db.event_stats import get_event_deviation, get_source_profiles
 from src.db.events import get_event_detail, list_events
+from src.db.framing import generate_and_save_framing, get_article_for_framing, get_framing
 from src.db.migrations import apply_migrations
 from src.db.summary import generate_and_save_summary, get_article_for_summary, get_summary
 from src.db.trending import DEFAULT_LIMIT as TRENDING_DEFAULT_LIMIT
@@ -115,6 +117,38 @@ def api_polarity_by_source(
         start_date=start_date,
         end_date=end_date,
     )
+
+
+@app.get("/api/analytics/event-deviation")
+def api_event_deviation(
+    metric: str = Query("audience_mean"),
+    category: str | None = None,
+) -> dict:
+    """Per-outlet deviation from the median of the same event.
+
+    Deliberately a different endpoint from /polarity-by-source rather than more
+    fields on it: that one answers "how charged is this outlet's output", this
+    one answers "how charged is this outlet given the same story". Merging them
+    would invite reading one number as the other.
+    """
+    try:
+        return get_source_profiles(metric=metric, category=category)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/events/{event_id}/deviation")
+def api_event_deviation_detail(
+    event_id: str,
+    metric: str = Query("audience_mean"),
+) -> dict:
+    try:
+        result = get_event_deviation(event_id, metric=metric)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return result
 
 
 @app.get("/api/articles")
@@ -257,6 +291,29 @@ def api_generate_article_bias(article_id: str) -> dict:
     except Exception as exc:  # OpenAI/network/parsing errors
         raise HTTPException(status_code=502, detail=f"AI bias analysis failed: {exc}") from exc
     return _bias_response(bias)
+
+
+@app.get("/api/articles/{article_id}/framing")
+def api_get_article_framing(article_id: str) -> dict:
+    if get_article_for_framing(article_id) is None:
+        raise HTTPException(status_code=404, detail="Article not found")
+    framing = get_framing(article_id)
+    if framing is None:
+        return {"status": "missing"}
+    return {"status": "ready", **framing}
+
+
+@app.post("/api/articles/{article_id}/framing/generate")
+def api_generate_article_framing(article_id: str) -> dict:
+    try:
+        framing = generate_and_save_framing(article_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:  # OpenAI/network/parsing errors
+        raise HTTPException(status_code=502, detail=f"AI framing analysis failed: {exc}") from exc
+    return {"status": "ready", **framing}
 
 
 @app.get("/api/alerts")
