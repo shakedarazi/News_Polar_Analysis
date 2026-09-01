@@ -176,6 +176,7 @@ export type QaSourceArticle = {
   article_id: string;
   source: string;
   title: string | null;
+  url: string | null;
   primary_category: string | null;
   first_seen_at: string;
   snippet: string | null;
@@ -184,9 +185,18 @@ export type QaSourceArticle = {
   num_comments: number | null;
 };
 
+export type AskTurn = {
+  role: "user" | "assistant";
+  content: string;
+};
+
 export type AskResponse = {
   answer: string;
   sources: QaSourceArticle[];
+  // True when the vector half of retrieval was unavailable and the answer rests
+  // on keyword matching alone. Optional so the page still type-checks against
+  // an API host that has not been redeployed yet.
+  degraded?: boolean;
 };
 
 export type AiSummaryStatus = "missing" | "ready";

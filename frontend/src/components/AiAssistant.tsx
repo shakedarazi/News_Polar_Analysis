@@ -5,18 +5,23 @@ import Link from "next/link";
 import { Send, Sparkles, AlertTriangle } from "lucide-react";
 import { askAssistant } from "@/lib/api";
 import { formatDate, sourceLabel } from "@/lib/format";
-import type { QaSourceArticle } from "@/lib/types";
+import type { AskTurn, QaSourceArticle } from "@/lib/types";
 
 type Turn = {
   role: "user" | "assistant";
   content: string;
   sources?: QaSourceArticle[];
   isError?: boolean;
+  degraded?: boolean;
 };
+
+// Turns sent back with the next question. Four is two exchanges — enough for
+// "ומה לגבי הארץ?" to resolve, and the API caps it again on its side.
+const HISTORY_TURNS = 4;
 
 const EXAMPLE_QUESTIONS = [
   "כמה כתבות יש במערכת ומאילו מקורות?",
-  "אילו כתבות הכי קיטוביות בתגובות שלהן?",
+  "מה נכתב על יוקר המחיה בכתבות שנאספו?",
   "מה מדד הקיטוב הממוצע של הארץ לעומת ynet?",
 ];
 
@@ -35,15 +40,27 @@ export function AiAssistant() {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
 
+    // Built from the turns as they were before this question, and excluding
+    // errors — a failed request is not something the assistant said.
+    const history: AskTurn[] = turns
+      .filter((t) => !t.isError)
+      .slice(-HISTORY_TURNS)
+      .map((t) => ({ role: t.role, content: t.content }));
+
     setTurns((prev) => [...prev, { role: "user", content: trimmed }]);
     setInput("");
     setLoading(true);
 
     try {
-      const res = await askAssistant(trimmed);
+      const res = await askAssistant(trimmed, history);
       setTurns((prev) => [
         ...prev,
-        { role: "assistant", content: res.answer, sources: res.sources },
+        {
+          role: "assistant",
+          content: res.answer,
+          sources: res.sources,
+          degraded: res.degraded,
+        },
       ]);
     } catch (err) {
       setTurns((prev) => [
@@ -74,8 +91,9 @@ export function AiAssistant() {
               <Sparkles className="h-6 w-6" aria-hidden />
             </div>
             <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">
-              שאלו שאלה על הכתבות, המקורות והקיטוב שנאספו בפועל במערכת. העוזר עונה אך ורק על
-              סמך הנתונים הקיימים במסד הנתונים — לא על ידע כללי.
+              שאלו שאלה על הכתבות, המקורות והקיטוב שנאספו בפועל במערכת. העוזר מחפש בטקסט
+              הכתבות עצמן, זוכר את השיחה — אפשר להמשיך בשאלת המשך — ועונה אך ורק על סמך
+              הנתונים הקיימים במסד הנתונים, לא על ידע כללי.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {EXAMPLE_QUESTIONS.map((q) => (
@@ -113,6 +131,12 @@ export function AiAssistant() {
                 </div>
               )}
               <p className="whitespace-pre-wrap">{turn.content}</p>
+              {turn.degraded && (
+                <p className="mt-2 text-xs text-amber-700 dark:text-amber-500">
+                  החיפוש הסמנטי לא היה זמין — התשובה מבוססת על התאמת מילות חיפוש בלבד,
+                  וייתכן שקטעים רלוונטיים לא נמצאו.
+                </p>
+              )}
               {turn.sources && turn.sources.length > 0 && (
                 <div className="mt-3 space-y-1.5 border-t border-slate-200 dark:border-slate-700 pt-2">
                   <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">מבוסס על:</p>

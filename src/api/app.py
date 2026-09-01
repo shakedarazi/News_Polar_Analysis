@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.db.browse import (
     count_articles,
@@ -31,7 +33,10 @@ from src.db.migrations import apply_migrations
 from src.db.summary import generate_and_save_summary, get_article_for_summary, get_summary
 from src.db.trending import DEFAULT_LIMIT as TRENDING_DEFAULT_LIMIT
 from src.db.trending import get_trending_topics
-from src.nlp.qa import answer_question
+from src.nlp.llm import Message
+from src.rag.answer import answer_question
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = ROOT / "web" / "static"
@@ -183,8 +188,18 @@ def api_articles(
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
+class AskTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class AskRequest(BaseModel):
     question: str
+    # The conversation so far, oldest first, excluding the question being asked.
+    # Held by the client rather than in a server-side session: the API is
+    # otherwise stateless and runs on a host that spins down when idle, so a
+    # session store would be the only piece of it that needed to survive that.
+    history: list[AskTurn] = Field(default_factory=list, max_length=20)
 
 
 @app.post("/api/ai/ask")
@@ -192,15 +207,22 @@ def api_ai_ask(body: AskRequest) -> dict:
     question = body.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question must not be empty")
+    history = [Message(role=t.role, content=t.content) for t in body.history if t.content.strip()]
     try:
-        result = answer_question(question)
+        result = answer_question(question, history)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # OpenAI/network errors
-        raise HTTPException(status_code=502, detail=f"AI request failed: {exc}") from exc
-    return {"answer": result.answer, "sources": result.sources}
+        # The provider's own message goes to the log, not to the visitor. It is
+        # written for whoever holds the API key — a misconfigured one comes back
+        # as "Incorrect API key provided: sk-...", which the frontend rendered
+        # verbatim in a chat bubble.
+        logger.exception("Assistant request failed")
+        raise HTTPException(
+            status_code=502,
+            detail="העוזר אינו זמין כרגע. נסו שוב בעוד רגע.",
+        ) from exc
+    return {"answer": result.answer, "sources": result.sources, "degraded": result.degraded}
 
 
 @app.get("/api/articles/{article_id}")

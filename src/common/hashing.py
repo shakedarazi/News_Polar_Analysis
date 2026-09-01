@@ -48,3 +48,13 @@ def article_id_from_url(url: str) -> str:
 def comment_id_from_text(article_id: str, comment_text: str, local_index: int) -> str:
     """Compute comment_id = sha256(article_id + text + index) when source has no id."""
     return sha256_hex(f"{article_id}:{local_index}:{comment_text}")
+
+
+def chunk_id_from_position(article_id: str, ordinal: int) -> str:
+    """Compute chunk_id = sha256(article_id + ordinal).
+
+    Derived from position rather than from the chunk's text, so re-chunking an
+    article whose body was re-extracted overwrites its chunks in place instead
+    of leaving the old ones orphaned beside the new.
+    """
+    return sha256_hex(f"{article_id}:chunk:{ordinal}")

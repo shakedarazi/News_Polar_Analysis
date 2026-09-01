@@ -1,10 +1,16 @@
-"""Shared Hebrew title tokenization for the analysis layer.
+"""Shared Hebrew content-word tokenization.
 
-Used by both event_grouping.py (title-token Jaccard similarity, for
-clustering articles into an "event") and trending.py (n-gram entity/keyword
-frequency, for surfacing real trending entities instead of generic
-categories) — kept in one place so the two stay consistent instead of
-drifting into two different stopword lists / tokenizers.
+Used by event_grouping.py (title-token Jaccard similarity, for clustering
+articles into an "event"), trending.py (n-gram entity/keyword frequency, for
+surfacing real trending entities instead of generic categories), and
+src/rag/retrieval.py (the terms the lexical half of retrieval searches for) —
+kept in one place so they stay consistent instead of drifting into three
+different stopword lists and three different tokenizers.
+
+The stopword list was written against headlines, and reads that way, but every
+word in it is a word a *question* is equally better off without: the question
+words ("מה", "כמה", "האם") are already there, and the journalism verbs
+("הודיע", "דיווח") match thousands of chunks while narrowing nothing.
 """
 
 from __future__ import annotations

@@ -66,6 +66,11 @@ jobs:
           OPENAI_INGESTION_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_INGESTION_BASE_URL: https://openrouter.ai/api/v1
           OPENAI_INGESTION_MODEL: openai/gpt-4o-mini
+          # The assistant's retrieval chunks are embedded on this same
+          # OpenRouter key — its /embeddings endpoint routes
+          # openai/text-embedding-3-small to OpenAI, which is the same model
+          # Render uses to embed the visitor's question. No third key, and no
+          # third credit pool. See src/rag/embedding.py.
         run: bash scripts/run_ingestion.sh
 
       - name: Upload ingestion logs

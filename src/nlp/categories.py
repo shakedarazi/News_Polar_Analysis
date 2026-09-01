@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 CATEGORIES: tuple[str, ...] = (
     "פוליטיקה",
     "ביטחון",
@@ -27,7 +25,3 @@ CATEGORY_DESCRIPTIONS: dict[str, str] = {
     "בינלאומי": "חדשות מחוץ לישראל, דיפלומטיה, מלחמות בעולם",
     "אחר": "כתבות שלא מתאימות בבירור לאף קטגוריה אחרת",
 }
-
-# User-facing AI (summary / bias / Q&A) — official OpenAI model id.
-# Classify uses OPENAI_INGESTION_MODEL via src.nlp.openai_config instead.
-DEFAULT_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")

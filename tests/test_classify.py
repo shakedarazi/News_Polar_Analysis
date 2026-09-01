@@ -1,7 +1,5 @@
 """Tests for article classification parsing."""
 
-import json
-
 from src.nlp.categories import CATEGORIES
 from src.nlp.classify import _normalize_category, _parse_response
 
@@ -15,14 +13,17 @@ def test_normalize_category_unknown():
 
 
 def test_parse_response():
-    payload = json.dumps(
+    # The parse helpers take the decoded object: src/nlp/llm.py owns decoding,
+    # so a test that re-encodes a dict only to have it decoded again would be
+    # testing the json module.
+    result = _parse_response(
         {
             "primary_category": "פוליטיקה",
             "confidence": 0.91,
             "rationale": "הכתבה עוסקת בבחירות לכנסת",
-        }
+        },
+        "gpt-4o-mini",
     )
-    result = _parse_response(payload, "gpt-4o-mini")
     assert result.primary_category == "פוליטיקה"
     assert result.confidence == 0.91
     assert "בחירות" in result.rationale

@@ -7,15 +7,16 @@ nothing reaches a screen unless it occurs in the text the model was given.
 
 from __future__ import annotations
 
-import json
-
 from src.nlp.framing import EXTRACT_LEAD_CHARS, parse_framing, verify_framing
 
 TITLE = "השר הכריז על הצעד המבורך בישיבת הממשלה"
 LEAD = "שר האוצר הודיע היום כי התוכנית תיכנס לתוקף בחודש הבא, לאחר דיון ממושך."
 
 
-def response(**fields) -> str:
+def response(**fields) -> dict:
+    """The decoded object a model could have returned. Decoding — and the
+    Hebrew-acronym quote repair that goes with it — is src/nlp/llm.py's job now,
+    and is tested in tests/test_llm.py."""
     body = {
         "actor": None,
         "responsibility": None,
@@ -24,7 +25,7 @@ def response(**fields) -> str:
         "lead_perspective": None,
     }
     body.update(fields)
-    return json.dumps(body, ensure_ascii=False)
+    return body
 
 
 def parse(**fields):
@@ -104,7 +105,7 @@ def test_an_unrecognised_voice_is_dropped_rather_than_stored():
 
 def test_loaded_terms_that_are_not_a_list_degrade_to_empty():
     result = parse_framing(
-        json.dumps({"loaded_terms": "המבורך", "voice": "active"}, ensure_ascii=False),
+        {"loaded_terms": "המבורך", "voice": "active"},
         title=TITLE,
         text=LEAD,
         model="test-model",
@@ -112,11 +113,13 @@ def test_loaded_terms_that_are_not_a_list_degrade_to_empty():
     assert result.loaded_terms == []
 
 
-def test_an_unescaped_hebrew_acronym_quote_is_repaired():
-    """Hebrew acronyms carry a quote inside the word (צה"ל, ח"כ). A model not
-    held to JSON emits it raw, which breaks the string it sits in."""
-    raw = '{"actor": "צה"ל", "responsibility": null, "loaded_terms": [], "voice": "active", "lead_perspective": null}'
-    result = parse_framing(raw, title='צה"ל תקף הלילה', text="", model="test-model")
+def test_a_hebrew_acronym_actor_is_grounded():
+    """צה"ל carries a quote inside the word. Repairing the JSON around it is
+    tested in tests/test_llm.py; what matters here is that the quote marks do
+    not stop the verifier matching it against the headline."""
+    result = parse_framing(
+        response(actor='צה"ל'), title='צה"ל תקף הלילה', text="", model="test-model"
+    )
     assert result.actor == 'צה"ל'
     assert result.actor_grounded is True
 
