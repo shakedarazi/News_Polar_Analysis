@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ExternalLink, ArrowRight } from "lucide-react";
+import { ExternalLink, ArrowRight, Layers } from "lucide-react";
 import { getArticle } from "@/lib/api";
 import { formatDate, formatNumber, POLAR_MEAN_METRIC, POLAR_PEAK_METRIC, sourceLabel } from "@/lib/format";
 import { SourceBadge } from "@/components/SourceBadge";
@@ -60,6 +60,22 @@ export default async function ArticlePage({
           לכתבה המקורית ב-{sourceLabel(article.source)}
           <ExternalLink className="h-4 w-4" />
         </a>
+        {article.event && (
+          <Link
+            href={`/events/${article.event.event_id}`}
+            className="mt-4 flex items-start gap-2 rounded-lg border border-[var(--border)] bg-slate-50 p-3 text-sm hover:border-[var(--primary-light)] dark:bg-slate-800"
+          >
+            <Layers className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary-light)]" aria-hidden />
+            <span className="text-slate-600 dark:text-slate-300">
+              הכתבה הזו היא חלק מאירוע ש־{article.event.source_count} מקורות סיקרו ב־
+              {article.event.article_count} כתבות
+              {article.event.title ? `: ${article.event.title}` : ""}.{" "}
+              <span className="font-medium text-[var(--primary-light)]">
+                השוואה בין הגרסאות
+              </span>
+            </span>
+          </Link>
+        )}
         {article.category_rationale && (
           <p className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-sm text-slate-600 dark:text-slate-300">
             <strong className="text-slate-800 dark:text-slate-200">נימוק קטגוריה (AI):</strong>{" "}
@@ -79,8 +95,14 @@ export default async function ArticlePage({
         firstSeenAt={article.first_seen_at}
       />
 
+      {/* No "מחלוקת בקהל" card. controversy = 4p(1−p) is computed from
+          dislikes, and no Israeli source exposes a dislike count, so every row
+          in the corpus is exactly 0.0 or NULL. The column stays in the pipeline
+          — it would work the day a source starts reporting them — but a metric
+          that is structurally zero must not sit on screen beside metrics that
+          are measured. */}
       {agg && (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="card p-4">
             <PolarScore value={agg.audience_mean} label={POLAR_MEAN_METRIC} large />
             <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
@@ -89,14 +111,6 @@ export default async function ArticlePage({
           </div>
           <div className="card p-4">
             <PolarScore value={agg.audience_p85} label={POLAR_PEAK_METRIC} variant="peak" large />
-          </div>
-          <div className="card p-4">
-            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">מחלוקת בקהל</p>
-            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-              {agg.controversy_mean !== null
-                ? (agg.controversy_mean * 100).toFixed(1) + "%"
-                : "—"}
-            </p>
           </div>
           <div className="card p-4">
             <p className="text-xs font-medium text-slate-500 dark:text-slate-400">תגובות שנותחו</p>

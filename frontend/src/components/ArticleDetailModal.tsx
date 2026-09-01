@@ -157,21 +157,16 @@ export function ArticleDetailModal({
                 firstSeenAt={article.first_seen_at}
               />
 
+              {/* No "מחלוקת בקהל" tile — see the note on the same grid in
+                  app/articles/[id]/page.tsx. It is 4p(1−p) over dislikes, and
+                  no source reports dislikes, so the value is always 0.0. */}
               {agg && (
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                     <PolarScore value={agg.audience_mean} label={POLAR_MEAN_METRIC} />
                   </div>
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                     <PolarScore value={agg.audience_p85} label={POLAR_PEAK_METRIC} variant="peak" />
-                  </div>
-                  <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">מחלוקת בקהל</p>
-                    <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
-                      {agg.controversy_mean !== null
-                        ? `${(agg.controversy_mean * 100).toFixed(1)}%`
-                        : "—"}
-                    </p>
                   </div>
                   <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-3">
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400">תגובות שנותחו</p>

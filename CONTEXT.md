@@ -4,6 +4,14 @@ Batch pipeline that crawls Israeli news sites and analyzes audience comment pola
 
 ## Language
 
+**Source**:
+The crawler an article came through, stored on every article row and used as the outlet label everywhere on the site. A source is a feed, not a newsroom: `news12` and `mako` are both mako.co.il — Channel 12 publishes into that site, sharing its domain and its DOM selectors — and they are two sources only because they were two feeds. Nothing that compares outlets may treat the pair as independent evidence.
+_Avoid_: Site, publisher (both imply one source is one newsroom, which `news12` disproves)
+
+**Dormant source**:
+A source that is still declared, still listed, and no longer producing articles — `news12`, whose feed stopped updating on 2026-08-07, and `reshet13`, whose site answers every crawl with HTTP 403. Kept in the registry and named on `/about` rather than deleted, because a source that silently disappears looks like a source that was never there. Its old articles stay in the corpus and stay analysed; only the inflow stopped.
+_Avoid_: Broken source, dead source (a source crash is one failed run — this is a standing state)
+
 **Ingestion run**:
 One execution of the scheduled batch pipeline (crawl → fetch comments → analyze, then optional classify), identified by a single `run_id`. A run is composed of one sub-execution per source, which may execute in parallel; each sub-execution is tracked as its own row keyed by `(run_id, source)`.
 _Avoid_: Batch, job (too generic — use "ingestion run" for the whole pipeline execution)

@@ -25,7 +25,7 @@ from src.db.alerts import count_unread, detect_and_save_alerts, list_alerts, mar
 from src.db.bias import generate_and_save_bias, get_article_for_bias, get_bias
 from src.db.config import require_database_url
 from src.db.event_stats import get_event_deviation, get_source_profiles
-from src.db.events import get_event_detail, list_events
+from src.db.events import get_article_event, get_event_detail, list_events
 from src.db.framing import generate_and_save_framing, get_article_for_framing, get_framing
 from src.db.migrations import apply_migrations
 from src.db.summary import generate_and_save_summary, get_article_for_summary, get_summary
@@ -208,6 +208,10 @@ def api_article_detail(article_id: str) -> dict:
     article = get_article_detail(article_id)
     if not article:
         raise HTTPException(status_code=404, detail="Article not found")
+    # Attached here rather than inside get_article_detail: that function is
+    # plain SQL against one article, and the event an article belongs to is
+    # derived from the whole clustered corpus.
+    article["event"] = get_article_event(article_id)
     return article
 
 

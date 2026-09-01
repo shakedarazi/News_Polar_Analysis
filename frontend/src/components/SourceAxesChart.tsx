@@ -13,35 +13,10 @@ import {
 import type { SourcePolarityBreakdown } from "@/lib/types";
 import { sourceLabel } from "@/lib/format";
 import { EmptyState } from "./EmptyState";
-import { LOGO_COLOR, LOGO_TEXT } from "./SourceLogo";
+import { isSmallSample, makeSourceAxisTick, SMALL_SAMPLE_MIN } from "./SourceAxisTick";
 
 const ISSUE_COLOR = "#5B8DEF";
 const AFFECTIVE_COLOR = "#B06AB3";
-
-type AxisTickProps = {
-  x?: string | number;
-  y?: string | number;
-  payload?: { value: string };
-};
-
-function SourceAxisTick(props: AxisTickProps) {
-  const x = Number(props.x ?? 0);
-  const y = Number(props.y ?? 0);
-  const source = props.payload?.value ?? "";
-  const color = LOGO_COLOR[source] ?? "#64748B";
-  const logoText = LOGO_TEXT[source] ?? source.slice(0, 2).toUpperCase();
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <circle cx={-118} cy={0} r={10} fill={color} />
-      <text x={-118} y={0} dy={3} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">
-        {logoText}
-      </text>
-      <text x={-8} y={0} dy={4} textAnchor="end" fontSize={12} fill="var(--text-secondary)">
-        {sourceLabel(source)}
-      </text>
-    </g>
-  );
-}
 
 /**
  * The research polarization lexicon's two axes, per source.
@@ -81,6 +56,11 @@ export function SourceAxesChart({ data }: { data: SourcePolarityBreakdown[] }) {
   }
 
   const partial = rows.filter((r) => r.measured < r.analyzed);
+  // `measured`, not `analyzed`: these two averages are cut from the articles
+  // the research lexicon actually reached, which can be fewer.
+  const counts = Object.fromEntries(rows.map((r) => [r.name, r.measured]));
+  const SourceAxisTick = makeSourceAxisTick(counts);
+  const smallSamples = rows.filter((r) => isSmallSample(r.measured));
   const height = Math.max(180, rows.length * 72);
 
   return (
@@ -144,6 +124,14 @@ export function SourceAxesChart({ data }: { data: SourcePolarityBreakdown[] }) {
             {" "}
             עבור {partial.map((r) => sourceLabel(r.name)).join(", ")} הקריאה השנייה עדיין
             לא חושבה לכל הכתבות שנותחו, כך שהממוצע מבוסס על חלק מהן.
+          </>
+        )}
+        {smallSamples.length > 0 && (
+          <>
+            {" "}
+            מספר הכתבות שמאחורי כל ממוצע מופיע ליד שם המקור, כי אורך העמודה אינו מסגיר
+            אותו. {smallSamples.map((r) => sourceLabel(r.name)).join(", ")} נמדדו על פחות
+            מ־{SMALL_SAMPLE_MIN} כתבות, ויש לקרוא את הממוצע שלהם כהערכה גסה.
           </>
         )}
       </p>
