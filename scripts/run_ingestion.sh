@@ -83,6 +83,20 @@ STEP_FAILED=0
   run_bonus_step python "$ROOT/pipeline/analyze_articles.py" --polarization-only --limit 200
   echo "=== Research-lexicon rescore finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   echo ""
+  echo "=== Embeddings and event clustering (bonus): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  # Embeds articles crawled this run, then reclusters the whole corpus into
+  # events. A bonus step because it needs sentence-transformers, which only the
+  # GitHub Actions job installs (requirements-embed.txt) - run locally without
+  # it, this fails on the import and the run carries on. When no embedding has
+  # ever succeeded, event detection falls back to the lexical grouping, so the
+  # events page degrades rather than emptying.
+  #
+  # Reclustering is whole-corpus, not incremental: it is a 1.4k-square
+  # similarity matrix, under a second, and recomputing avoids having to decide
+  # what happens when a new article should have merged two existing events.
+  run_bonus_step python "$ROOT/pipeline/embed_articles.py"
+  echo "=== Embeddings finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
+  echo ""
   echo "=== Classification started (bonus, leftover time only): $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
   run_bonus_step python "$ROOT/pipeline/classify_articles.py" --limit 80 --max-minutes 10
   echo "=== Classification finished: $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="

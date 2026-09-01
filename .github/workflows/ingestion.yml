@@ -34,6 +34,26 @@ jobs:
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt
 
+      # Torch and sentence-transformers, for the article embeddings that back
+      # semantic event clustering. Deliberately a separate file and a separate
+      # step: Render installs requirements.txt and has 512MB of RAM, which
+      # torch does not fit in and does not need to - the API only reads the
+      # vectors this job writes. Kept non-fatal because embedding is a bonus
+      # step; if the install fails the run still crawls, fetches and analyses,
+      # and event detection falls back to the lexical grouping.
+      - name: Install embedding dependencies
+        continue-on-error: true
+        run: .venv/bin/pip install -r requirements-embed.txt
+
+      # Downloading multilingual-e5-small on every run costs about 470MB of
+      # transfer and a minute of the clock. Keyed on the requirements file, so
+      # a model change invalidates it.
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('requirements-embed.txt') }}-multilingual-e5-small
+
       - name: Install Playwright Chromium (haaretz comments)
         run: .venv/bin/playwright install --with-deps chromium
 
