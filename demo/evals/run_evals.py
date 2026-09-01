@@ -99,6 +99,33 @@ def wilson(successes: int, total: int, z: float = 1.96) -> tuple[float, float]:
     return (max(0.0, centre - margin), min(1.0, centre + margin))
 
 
+def agreement(rows: list[dict]) -> dict | None:
+    """How often the reviewer and the model land on the same answer.
+
+    Only defined over rows a human has actually seen, and it is a property of
+    the review rather than of the retriever — a low number does not mean the
+    threshold is worse, it means the definition in golden/README.md left more
+    room than it looks like it does. demo/evals/review.py keeps this honest by
+    hiding the model's answer until the reviewer commits to one; agreement
+    collected after showing it would only measure the button's default.
+    """
+    reviewed = [r for r in rows if r.get("labelled_by") == "human" and r.get("proposed_label")]
+    if not reviewed:
+        return None
+    agreed = sum(1 for r in reviewed if r["label"] == r["proposed_label"])
+    return {
+        "reviewed": len(reviewed),
+        "agreed": agreed,
+        "rate": round(agreed / len(reviewed), 4),
+        "flipped_to_same": sum(
+            1 for r in reviewed if r["label"] == "same" and r["proposed_label"] == "not_same"
+        ),
+        "flipped_to_not_same": sum(
+            1 for r in reviewed if r["label"] == "not_same" and r["proposed_label"] == "same"
+        ),
+    }
+
+
 def precision_at(rows: list[dict], threshold: float) -> dict:
     accepted = [r for r in rows if r["cosine"] >= threshold]
     hits = sum(1 for r in accepted if r["label"] == "same")
@@ -225,6 +252,7 @@ def build() -> dict:
             # baseline awaiting review, not an independent ground truth.
             "labelled_by": labellers,
             "human_reviewed": all(r.get("labelled_by") == "human" for r in rows),
+            "agreement": agreement(rows),
         },
         "precision_sweep": [precision_at(rows, t) for t in THRESHOLDS],
         "recall": recall_report(rows),
@@ -245,6 +273,12 @@ def main() -> None:
     print(f"golden set: {g['pairs']} pairs, {g['same']} same, labelled by {', '.join(g['labelled_by'])}")
     if not g["human_reviewed"]:
         print("  NOT human-reviewed — these are a stated baseline, not ground truth")
+        print("  review them: PYTHONPATH=. python demo/evals/review.py")
+    if g["agreement"]:
+        a = g["agreement"]
+        print(f"  reviewer vs model: {a['rate']:.0%} agreement over {a['reviewed']} reviewed"
+              f"  ({a['flipped_to_same']} flipped to same, "
+              f"{a['flipped_to_not_same']} to not_same)")
     print("\nprecision by threshold (labelled pairs only, nothing extrapolated)")
     for row in result["precision_sweep"]:
         mark = "  <- live" if row["threshold"] == result["live_threshold"] else ""

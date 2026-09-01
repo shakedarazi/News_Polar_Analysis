@@ -168,3 +168,85 @@ class TestHonestyFlag:
 
     def test_the_current_file_reports_its_labeller(self, golden):
         assert all(r.get("labelled_by") for r in golden), "a label with no source is not evidence"
+
+
+# ── the review pass ─────────────────────────────────────────────────
+
+from demo.evals import review as rv  # noqa: E402
+
+
+def _reviewable(band: str, label: str, proposed: str, by: str = "claude-opus-5") -> dict:
+    row = _pair(band, float(band.split("-")[0]) + 0.005, label)
+    row["proposed_label"] = proposed
+    row["proposed_by"] = "claude-opus-5"
+    row["labelled_by"] = by
+    return row
+
+
+class TestAgreement:
+    def test_undefined_until_a_human_has_seen_something(self):
+        rows = [_reviewable("0.94-1.01", "same", "same")]
+        assert ev.agreement(rows) is None
+
+    def test_counts_only_rows_a_human_reviewed(self):
+        rows = [
+            _reviewable("0.94-1.01", "same", "same", by="human"),
+            _reviewable("0.90-0.92", "not_same", "same", by="human"),
+            _reviewable("0.86-0.90", "same", "not_same"),  # still the model's
+        ]
+        result = ev.agreement(rows)
+        assert result["reviewed"] == 2
+        assert result["agreed"] == 1
+        assert result["rate"] == 0.5
+
+    def test_reports_which_way_the_reviewer_moved(self):
+        """Direction matters: a reviewer who only ever flips toward not_same is
+        reading the definition more strictly than the labels were written, and
+        that is a fact about the definition, not about the retriever."""
+        rows = [
+            _reviewable("0.90-0.92", "not_same", "same", by="human"),
+            _reviewable("0.86-0.90", "same", "not_same", by="human"),
+            _reviewable("0.92-0.94", "not_same", "same", by="human"),
+        ]
+        result = ev.agreement(rows)
+        assert result["flipped_to_not_same"] == 2
+        assert result["flipped_to_same"] == 1
+
+
+class TestReviewQueue:
+    def test_unreviewed_pairs_come_first(self):
+        rows = [
+            _reviewable("0.90-0.92", "same", "same", by="human"),
+            _reviewable("0.86-0.90", "same", "same"),
+        ]
+        assert rv.queue_order(rows)[0]["labelled_by"] != "human"
+
+    def test_ordered_by_what_a_label_buys(self):
+        """The bands at and above 0.90 decide precision and 0.86-0.90 decides
+        recall; the sparse ones only widen a bound. A reviewer who stops early
+        should have spent the time on the two headline numbers."""
+        rows = [_reviewable(b, "same", "same") for b in reversed(rv.BAND_ORDER)]
+        assert [r["band"] for r in rv.queue_order(rows)] == rv.BAND_ORDER
+
+    def test_every_band_in_the_file_can_be_ordered(self, golden):
+        """A band the queue cannot place raises ValueError inside the server,
+        where nobody is watching the log."""
+        assert {r["band"] for r in golden} <= set(rv.BAND_ORDER)
+
+    def test_the_model_answer_survives_the_review(self, golden):
+        """`label` is overwritten by the reviewer, so the model's answer needs
+        its own field or the agreement number cannot be computed afterwards."""
+        assert all(r.get("proposed_label") in ("same", "not_same") for r in golden)
+        assert all(r.get("proposed_by") for r in golden)
+
+    def test_a_write_replaces_the_file_whole(self, tmp_path, monkeypatch):
+        """Rewritten through a temp file and os.replace: a half-written golden
+        set would still load and still score, and be wrong in a way no check
+        here would catch."""
+        target = tmp_path / "event_pairs.jsonl"
+        target.write_text("", encoding="utf-8")
+        monkeypatch.setattr(rv, "GOLDEN_PATH", target)
+        rv.save_rows([_reviewable("0.94-1.01", "same", "same", by="human")])
+        written = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()]
+        assert len(written) == 1 and written[0]["labelled_by"] == "human"
+        assert not list(tmp_path.glob("tmp*")), "the temp file must not survive"
