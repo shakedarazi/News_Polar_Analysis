@@ -1,0 +1,11 @@
+# Article embeddings only. Deliberately NOT in requirements.txt.
+#
+# requirements.txt is installed by BOTH runtimes: Render (render.yaml
+# buildCommand) and GitHub Actions (.github/workflows/ingestion.yml). Render's
+# free web service has 512MB of RAM, which torch alone does not fit in, and it
+# has no reason to: embeddings are computed during ingestion and stored in
+# Postgres, so the API only ever reads a column.
+#
+# Install this file in the ingestion job and nowhere else.
+sentence-transformers>=3.0.0
+numpy>=1.26.0
