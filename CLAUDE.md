@@ -51,9 +51,15 @@ python pipeline/classify_articles.py [--all] [--limit N] [--dry-run]   # OpenAI 
 python pipeline/fetch_comments.py [--source X] [--min-age-hours 0] [--force]
 python pipeline/build_lexicon.py    # expands data/lexicon_base/* and data/comment_lexicon_base/* -> data/*_expanded
 python pipeline/analyze_articles.py [--limit N] [--force]              # lexicon polarity scoring
+python pipeline/analyze_articles.py --polarization-only [--limit N]   # research-lexicon (two-axis) rescore only
+python pipeline/embed_articles.py [--limit N] [--cluster-only]        # embeddings + event clustering (needs requirements-embed.txt)
 python pipeline/import_json_to_db.py  # one-time legacy JSON import
 ```
-`scripts/run_ingestion.sh` wraps crawl + comment fetch + analysis (then classify as a best-effort bonus) and is what `.github/workflows/ingestion.yml`
+`requirements-embed.txt` (sentence-transformers, torch) is installed **only** by the GitHub Actions ingestion job —
+never by Render, whose free tier has 512MB. Nothing under `src/api/` may import `src/analysis/embeddings.py`.
+
+`scripts/run_ingestion.sh` wraps crawl + comment fetch + analysis (then the research-lexicon rescore, embeddings and
+classify as best-effort bonuses) and is what `.github/workflows/ingestion.yml`
 calls on a 6-hour schedule in the cloud (see "Cloud deployment" below). `scripts/setup_cron.sh` /
 `scripts/remove_cron.sh` are an alternate local-machine OS-cron path for self-hosting outside GitHub Actions —
 not used by the deployed system.
@@ -98,10 +104,15 @@ not used by the deployed system.
    `.../bias/generate`, cached in `articles.summary_*` / `articles.bias_*` columns (`sql/migrations/004_summary.sql`,
    `005_bias.sql`) so a regenerate is opt-in, not automatic. Never let analyze/classify depend on these — they're
    enrichment, not the deterministic core.
-7. **Derived signals** — trending topics (`src/db/trending.py`), cross-article event timelines
-   (`src/analysis/event_grouping.py`), and smart alerts (`src/analysis/alerts.py`, deduped via `dedup_key` in
-   `sql/migrations/006_alerts.sql`) are computed from already-analyzed data on read (alert detection runs inside
-   `GET /api/alerts` itself), not separately crawled or scheduled.
+7. **Derived signals** — trending topics (`src/db/trending.py`) and smart alerts (`src/analysis/alerts.py`,
+   deduped via `dedup_key` in `sql/migrations/006_alerts.sql`) are computed from already-analyzed data on read
+   (alert detection runs inside `GET /api/alerts` itself), not separately crawled or scheduled.
+   **Events are the exception**: article embeddings and the `articles.event_id` derived from them are computed
+   during ingestion by `pipeline/embed_articles.py` (`src/analysis/embeddings.py` +
+   `src/analysis/semantic_events.py`, cosine ≥ 0.93 over `"{title}. {first 400 chars}"`), because the model needs
+   torch and the read path must not pull 1.4k×384 floats out of Neon on every poll. `src/analysis/event_grouping.py`
+   keeps the old title-Jaccard grouping as a *fallback*, used only when no embedding pass has run — chosen per
+   corpus, never per article. See `docs/adr/0005`.
 8. **Serve** — `src/api/app.py` (FastAPI) exposes it all read-only except the two `.../generate` AI endpoints and
    the alert-read mutations, backed by `src/db/browse.py` / `trending.py` / `events.py` / `summary.py` / `bias.py`
    / `alerts.py`. Runs schema migrations (`src/db/migrations.py` — applies every file in `sql/migrations/` in

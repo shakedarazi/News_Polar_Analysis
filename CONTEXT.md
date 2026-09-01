@@ -39,3 +39,22 @@ _Avoid_: The Simchon lexicon (fine in conversation, but the column names say `is
 **Issue / affective**:
 The two axes of the research polarization lexicon, and the only two values its component column takes. `issue` is topic-partisan vocabulary; `affective` is hostility toward the other camp. A comment can score on both, one, or neither.
 _Avoid_: Ideological/emotional polarization (the paper's axes are lexical, not psychological states)
+
+**Event**:
+A group of articles from one or more outlets covering the same story, detected by
+embedding similarity over `"{title}. {lead}"` and stored as `articles.event_id`.
+Derived, not allocated: the id is the seed article's id, so the same corpus
+reclusters to the same ids. Recomputed whole-corpus on every ingestion run, so an
+article can leave an event.
+_Avoid_: Story, cluster (both used loosely for the lexical baseline this replaced)
+
+**Passage**:
+The exact text that gets embedded: the title, then the first 400 characters of the
+body. Never the title alone — the similarity threshold is calibrated on this
+string, and titles alone collapse it. One definition, in
+`src.analysis.embeddings.passage_text`.
+
+**Lexical grouping**:
+The superseded event detection: title-token Jaccard ≥ 0.34 within a category and
+a 72-hour window. Retained only as the fallback for a database with no embeddings
+yet, chosen per corpus and never per article. See `docs/adr/0005`.
