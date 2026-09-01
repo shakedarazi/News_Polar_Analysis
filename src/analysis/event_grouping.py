@@ -86,6 +86,12 @@ class _Article:
     primary_category: str | None
     first_seen_at: object  # datetime, kept opaque here
     tokens: set[str]
+    # The stored cluster id from the embedding pass, or None where no pass has
+    # reached this article. Read here rather than in a second query: this
+    # module's cache exists because corpus reads were exhausting Neon's
+    # transfer quota, so a per-cache-miss round trip is exactly the cost it was
+    # written to avoid.
+    event_id: str | None = None
 
 
 def _fetch_candidate_articles() -> list[_Article]:
@@ -97,7 +103,8 @@ def _fetch_candidate_articles() -> list[_Article]:
                 -- Only the columns the clustering and the event summary read.
                 -- canonical_url used to be selected here and was never used;
                 -- this query runs against every article, so it is pure egress.
-                SELECT article_id, source, title, primary_category, first_seen_at
+                SELECT article_id, source, title, primary_category, first_seen_at,
+                       event_id
                 FROM articles
                 WHERE primary_category IS NOT NULL
                 ORDER BY first_seen_at
@@ -113,6 +120,7 @@ def _fetch_candidate_articles() -> list[_Article]:
             primary_category=r["primary_category"],
             first_seen_at=r["first_seen_at"],
             tokens=title_token_set(r["title"]),
+            event_id=r["event_id"],
         )
         for r in rows
     ]
@@ -177,24 +185,21 @@ def _grouped_articles() -> dict[str, list[_Article]]:
 
 
 def _stored_groups(articles: list[_Article]) -> dict[str, list[_Article]] | None:
-    """Rebuild groups from the persisted event_id, or None if there are none.
+    """Rebuild groups from the event_id already carried on each article, or None
+    if nothing is assigned.
 
     The clustering itself happened during ingestion, where the vectors are
-    local. Doing it here instead would mean pulling 1.4k x 384 floats out of
-    Neon on every cache miss, and this module's cache exists precisely because
-    egress from re-reading the corpus had already exhausted the project's
-    transfer quota.
+    local. Doing it here would mean pulling 1.4k x 384 floats out of Neon on
+    every cache miss, which is the cost this module's cache exists to avoid.
 
-    Returns None - not an empty dict - when nothing is assigned, so that the
-    caller can tell "no embedding pass has run" from "the pass ran and found no
+    Returns None - not an empty dict - when nothing is assigned, so the caller
+    can tell "no embedding pass has run" from "the pass ran and found no
     events".
     """
-    by_id = {a.article_id: a for a in articles}
     groups: dict[str, list[_Article]] = {}
-    for article_id, event_id in _fetch_event_assignments().items():
-        article = by_id.get(article_id)
-        if article is not None:
-            groups.setdefault(event_id, []).append(article)
+    for article in articles:
+        if article.event_id:
+            groups.setdefault(article.event_id, []).append(article)
     if not groups:
         return None
     for members in groups.values():
@@ -203,20 +208,6 @@ def _stored_groups(articles: list[_Article]) -> dict[str, list[_Article]] | None
     # category since the clustering ran, and a one-article event has no
     # timeline to show.
     return {k: v for k, v in groups.items() if len(v) >= MIN_EVENT_SIZE}
-
-
-def _fetch_event_assignments() -> dict[str, str]:
-    require_database_url()
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT article_id, event_id
-                FROM articles
-                WHERE event_id IS NOT NULL
-                """
-            )
-            return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def reset_events_cache() -> None:

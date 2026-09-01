@@ -164,7 +164,7 @@ def test_raising_the_threshold_never_grows_an_event(threshold):
 from src.analysis import event_grouping as eg
 
 
-def _lexical_article(article_id, title, *, source="ynet", hours=0):
+def _lexical_article(article_id, title, *, source="ynet", hours=0, event_id=None):
     return eg._Article(
         article_id=article_id,
         source=source,
@@ -172,43 +172,41 @@ def _lexical_article(article_id, title, *, source="ynet", hours=0):
         primary_category="פוליטי",
         first_seen_at=BASE + timedelta(hours=hours),
         tokens=set(title.split()),
+        event_id=event_id,
     )
 
 
-def test_stored_groups_is_none_when_nothing_is_assigned(monkeypatch):
+def test_stored_groups_is_none_when_nothing_is_assigned():
     """None, not {} - the caller must be able to tell "no pass has run" from
     "the pass ran and found nothing"."""
-    monkeypatch.setattr(eg, "_fetch_event_assignments", dict)
     assert eg._stored_groups([_lexical_article("a", "כותרת")]) is None
 
 
-def test_stored_groups_rebuilds_events_from_ids(monkeypatch):
-    monkeypatch.setattr(
-        eg, "_fetch_event_assignments", lambda: {"a": "evt", "b": "evt"}
-    )
+def test_stored_groups_rebuilds_events_from_ids():
     groups = eg._stored_groups(
-        [_lexical_article("a", "אחת"), _lexical_article("b", "שתיים", hours=1)]
+        [
+            _lexical_article("a", "אחת", event_id="evt"),
+            _lexical_article("b", "שתיים", hours=1, event_id="evt"),
+        ]
     )
     assert list(groups) == ["evt"]
     assert [m.article_id for m in groups["evt"]] == ["a", "b"]
 
 
-def test_stored_event_that_lost_a_member_is_dropped(monkeypatch):
+def test_stored_event_that_lost_a_member_is_dropped():
     """An article can lose its category after clustering ran, leaving an event
     of one. One article is not a timeline."""
-    monkeypatch.setattr(
-        eg, "_fetch_event_assignments", lambda: {"a": "evt", "gone": "evt"}
-    )
-    assert eg._stored_groups([_lexical_article("a", "אחת")]) == {}
+    assert eg._stored_groups([_lexical_article("a", "אחת", event_id="evt")]) == {}
 
 
 def test_grouping_prefers_stored_events_over_lexical(monkeypatch):
     articles = [
-        _lexical_article("a", "פיגוע בבקעה צעיר נדקר"),
-        _lexical_article("b", "פיגוע בבקעה צעיר נדקר", source="mako", hours=1),
+        _lexical_article("a", "פיגוע בבקעה צעיר נדקר", event_id="stored"),
+        _lexical_article(
+            "b", "פיגוע בבקעה צעיר נדקר", source="mako", hours=1, event_id="stored"
+        ),
     ]
     monkeypatch.setattr(eg, "_fetch_candidate_articles", lambda: articles)
-    monkeypatch.setattr(eg, "_fetch_event_assignments", lambda: {"a": "stored", "b": "stored"})
     eg.reset_events_cache()
     try:
         # Identical titles, so the lexical path would also group these - but
@@ -224,11 +222,34 @@ def test_grouping_falls_back_to_lexical_when_nothing_is_stored(monkeypatch):
         _lexical_article("b", "פיגוע בבקעה צעיר נדקר", source="mako", hours=1),
     ]
     monkeypatch.setattr(eg, "_fetch_candidate_articles", lambda: articles)
-    monkeypatch.setattr(eg, "_fetch_event_assignments", dict)
     eg.reset_events_cache()
     try:
         groups = eg._grouped_articles()
         assert groups, "identical titles must still cluster lexically"
         assert "stored" not in groups
+    finally:
+        eg.reset_events_cache()
+
+
+def test_reading_events_costs_exactly_one_query(monkeypatch):
+    """The stored event id rides along on the corpus query rather than adding a
+    second one. This module's cache exists because corpus reads were exhausting
+    Neon's transfer quota, so a per-cache-miss round trip is the cost it was
+    written to avoid."""
+    calls = []
+    articles = [
+        _lexical_article("a", "אחת", event_id="evt"),
+        _lexical_article("b", "שתיים", hours=1, event_id="evt"),
+    ]
+
+    def counted():
+        calls.append(1)
+        return articles
+
+    monkeypatch.setattr(eg, "_fetch_candidate_articles", counted)
+    eg.reset_events_cache()
+    try:
+        eg.get_events()
+        assert len(calls) == 1
     finally:
         eg.reset_events_cache()
