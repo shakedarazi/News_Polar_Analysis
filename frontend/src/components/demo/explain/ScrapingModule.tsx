@@ -80,7 +80,7 @@ function Discovery({ facts }: Props) {
         hint="src/crawling/sources/"
       >
         <div className="flex flex-col gap-4">
-          {sources.length > 0 && (
+          {sources.length > 0 ? (
             <>
               <p className="text-[16px] leading-relaxed text-[var(--dk-ink-2)]">
                 כל אתר חדשות מפרסם רשימה רשמית של מה שיצא עכשיו — הכתובת שהוא
@@ -113,6 +113,8 @@ function Discovery({ facts }: Props) {
                 </div>
               )}
             </>
+          ) : (
+            <Missing />
           )}
         </div>
       </Panel>
