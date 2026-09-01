@@ -5,8 +5,12 @@ cosine similarity instead of a vector-DB server. At ~1.2k passages a full dot
 product is <1ms, fully deterministic, and has zero moving parts. The embedding
 model is real (multilingual-e5-small, run offline at prep time).
 
-Supports appending vectors at runtime — this is the "cumulative RAG": confirmed
-classifications from earlier rounds become retrieval context for later rounds.
+The index is built once by prepare_demo and never changes at runtime. It used
+to carry `add()` and `reset_to_base()` for a "cumulative RAG" — earlier rounds'
+confirmed classifications becoming later rounds' retrieval context — which no
+caller ever used and no screen ever claimed (demo/README.md item 47). Two
+methods and a docstring promising a capability are indistinguishable from the
+capability when someone reads the file, so both are gone.
 """
 
 from __future__ import annotations
@@ -49,7 +53,6 @@ class VectorIndex:
     def __init__(self, vectors: np.ndarray, meta: list[dict[str, Any]]) -> None:
         self.vectors = vectors  # (n, d) float32, L2-normalized
         self.meta = meta        # aligned: {article_id, title, category, source}
-        self.base_size = len(meta)
 
     @classmethod
     def load(cls) -> "VectorIndex":
@@ -63,12 +66,3 @@ class VectorIndex:
         scores = self.vectors @ vec
         top = np.argsort(-scores)[:k]
         return [{**self.meta[i], "score": float(scores[i])} for i in top]
-
-    def add(self, vec: np.ndarray, meta: dict[str, Any]) -> None:
-        self.vectors = np.vstack([self.vectors, vec[None, :]])
-        self.meta.append(meta)
-
-    def reset_to_base(self) -> None:
-        """Drop runtime-added vectors so every 5-minute loop replays the same arc."""
-        self.vectors = self.vectors[: self.base_size]
-        self.meta = self.meta[: self.base_size]
