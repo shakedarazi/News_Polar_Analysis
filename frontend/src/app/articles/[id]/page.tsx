@@ -81,6 +81,9 @@ export default async function ArticlePage({
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="card p-4">
             <PolarScore value={agg.audience_mean} label={POLAR_MEAN_METRIC} large />
+            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+              רשימת המילים של המערכת
+            </p>
           </div>
           <div className="card p-4">
             <PolarScore value={agg.audience_p85} label={POLAR_PEAK_METRIC} variant="peak" large />
@@ -98,6 +101,48 @@ export default async function ArticlePage({
             <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
               {formatNumber(agg.num_comments)}
             </p>
+          </div>
+        </section>
+      )}
+
+      {/* The research lexicon's reading of the same comments. Kept in its own
+          section, and deliberately not rendered with PolarScore: that
+          component's colour scale is calibrated on the other list's
+          distribution, and reusing it here would imply the two numbers sit on
+          one axis. They do not — see docs/adr/0004. */}
+      {agg && agg.audience_issue_mean !== null && agg.audience_affective_mean !== null && (
+        <section className="card p-5">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            קריאה שנייה — מילון הקיטוב המחקרי
+          </h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+            אותן תגובות, נספרות מול מילון אחר: ההתאמה העברית ל־Simchon, Brady &amp; Van Bavel
+            (2022), שהתפצל לשני צירים. שתי הרשימות חולקות 15% מהמילים שלהן, ולכן המספרים כאן
+            אינם גרסה מדויקת יותר של הקיטוב שלמעלה — הם מדידה נפרדת, ואינם נסכמים איתו.
+          </p>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                שפת נושא — על מה הוויכוח
+              </p>
+              <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
+                {(agg.audience_issue_mean * 100).toFixed(2)}%
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                0% = אף מילה מהציר הזה · 100% = כל מילה בתגובה
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                שפת עוינות — נגד מי
+              </p>
+              <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
+                {(agg.audience_affective_mean * 100).toFixed(2)}%
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                0% = אף מילה מהציר הזה · 100% = כל מילה בתגובה
+              </p>
+            </div>
           </div>
         </section>
       )}

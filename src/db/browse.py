@@ -80,10 +80,13 @@ def list_articles(
             agg.num_comments,
             agg.audience_mean,
             agg.audience_p85,
-            agg.controversy_mean
+            agg.controversy_mean,
+            agg.audience_issue_mean,
+            agg.audience_affective_mean
         FROM articles a
         LEFT JOIN LATERAL (
-            SELECT num_comments, audience_mean, audience_p85, controversy_mean
+            SELECT num_comments, audience_mean, audience_p85, controversy_mean,
+                   audience_issue_mean, audience_affective_mean
             FROM article_comments_agg
             WHERE article_id = a.article_id
             ORDER BY analyzed_at DESC
@@ -135,7 +138,10 @@ def get_article_detail(article_id: str) -> dict | None:
             cur.execute(
                 """
                 SELECT num_comments, audience_mean, audience_p85,
-                       controversy_mean, controversy_p85, sum_engagement_weight, analyzed_at
+                       controversy_mean, controversy_p85, sum_engagement_weight, analyzed_at,
+                       audience_issue_mean, audience_affective_mean,
+                       audience_issue_p85, audience_affective_p85,
+                       polarization_lexicon_version
                 FROM article_comments_agg
                 WHERE article_id = %s
                 ORDER BY analyzed_at DESC

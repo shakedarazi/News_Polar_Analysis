@@ -13,6 +13,10 @@ export type ArticleSummary = {
   audience_mean: number | null;
   audience_p85: number | null;
   controversy_mean: number | null;
+  // The research lexicon's two axes (docs/adr/0004). A second reading of the
+  // same comments against a different word list — never summed with the above.
+  audience_issue_mean: number | null;
+  audience_affective_mean: number | null;
   bias_label: BiasLabel | null;
   bias_score: number | null;
   bias_confidence: number | null;
@@ -33,6 +37,13 @@ export type Aggregation = {
   controversy_p85: number | null;
   sum_engagement_weight: number;
   analyzed_at: string;
+  // Null until the polarization pass has run for this article — "not measured",
+  // which is not the same as measured and found to be zero.
+  audience_issue_mean: number | null;
+  audience_affective_mean: number | null;
+  audience_issue_p85: number | null;
+  audience_affective_p85: number | null;
+  polarization_lexicon_version: string | null;
 };
 
 export type WindowFeature = {
