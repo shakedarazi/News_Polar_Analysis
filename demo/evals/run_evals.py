@@ -215,6 +215,7 @@ def keyword_baseline(rows: list[dict], threshold: float = KEYWORD_JACCARD) -> di
         "threshold": threshold,
         "labelled_accepted": len(accepted),
         "true_positives": hits,
+        "positives": len(positives),
         "precision": round(hits / len(accepted), 4) if accepted else None,
         "precision_ci": [round(p_low, 4), round(p_high, 4)],
         "recall_on_sample": round(hits / len(positives), 4) if positives else None,
@@ -234,6 +235,7 @@ def embedding_on_sample(rows: list[dict], threshold: float = CLUSTER_SIM) -> dic
         "threshold": threshold,
         "labelled_accepted": len(accepted),
         "true_positives": hits,
+        "positives": len(positives),
         "precision": round(hits / len(accepted), 4) if accepted else None,
         "recall_on_sample": round(hits / len(positives), 4) if positives else None,
         "recall_ci": [round(r_low, 4), round(r_high, 4)],
@@ -299,7 +301,8 @@ def main() -> None:
     print("\nsame questions, two methods")
     print(f"  embedding >= {h['embedding']['threshold']}: "
           f"precision {h['embedding']['precision']:.0%}, "
-          f"recall {h['embedding']['recall_on_sample']:.0%} of the sample's 45 positives")
+          f"recall {h['embedding']['recall_on_sample']:.0%} "
+          f"of the sample's {h['embedding']['positives']} positives")
     print(f"  keyword   >= {h['keyword']['threshold']}: "
           f"precision {h['keyword']['precision']:.0%}, "
           f"recall {h['keyword']['recall_on_sample']:.0%}"

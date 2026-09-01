@@ -12,6 +12,7 @@ in the file.
 from __future__ import annotations
 
 import json
+import pathlib
 
 import pytest
 
@@ -250,3 +251,23 @@ class TestReviewQueue:
         written = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()]
         assert len(written) == 1 and written[0]["labelled_by"] == "human"
         assert not list(tmp_path.glob("tmp*")), "the temp file must not survive"
+
+
+class TestDenominatorsAreRead:
+    """A count restated in a format string stops tracking the labels it counts.
+
+    The head-to-head line once carried a literal `45`, correct on the day it
+    was written and silently wrong after the first review changed the labels.
+    """
+
+    def test_head_to_head_carries_its_own_denominator(self):
+        rows = ev.load_golden()
+        positives = sum(1 for r in rows if r["label"] == "same")
+        assert ev.embedding_on_sample(rows)["positives"] == positives
+        assert ev.keyword_baseline(rows)["positives"] == positives
+
+    def test_no_literal_counts_in_the_printed_summary(self):
+        src = (pathlib.Path(ev.__file__)).read_text(encoding="utf-8")
+        printed = src.split("def main()", 1)[1]
+        assert "positives)" not in printed.replace("['positives']}", "")
+        assert "45 positives" not in printed
