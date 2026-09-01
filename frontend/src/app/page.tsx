@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calendar, FileText, Flame, Globe, Tags, TrendingUp } from "lucide-react";
+import { Calendar, FileText, Flame, TrendingUp } from "lucide-react";
 import {
   getCategories,
   getEventDeviationProfile,
@@ -8,7 +8,7 @@ import {
   getSources,
   getStats,
 } from "@/lib/api";
-import { formatNumber, formatPercent, polarLevelLabel } from "@/lib/format";
+import { formatNumber, formatPercent, polarLevelLabel, sourceLabel } from "@/lib/format";
 import { HeroSection } from "@/components/HeroSection";
 import { FilterSidebar } from "@/components/FilterSidebar";
 import { StatsCard } from "@/components/StatsCard";
@@ -83,29 +83,18 @@ export default async function DashboardPage({
               <LiveIndicator />
             </div>
 
-            <section
-              className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5"
-              aria-label="מדדי סיכום"
-            >
+            {/* Only numbers that move. "מקורות חדשות" (5) and "נושאים מרכזיים"
+                (9) used to have cards of their own here, at the same weight as
+                the polarity mean — but they are the shape of the corpus, not a
+                measurement of it, and a reader who watches them watches nothing.
+                Both counts now caption the section that lists the things they
+                were counting, where they say something about what follows. */}
+            <section className="grid gap-4 sm:grid-cols-3" aria-label="מדדי סיכום">
               <StatsCard
                 icon={FileText}
                 label="סה״כ כתבות"
                 value={formatNumber(stats.total_articles)}
                 accent="indigo"
-              />
-              <StatsCard
-                icon={Globe}
-                label="מקורות חדשות"
-                value={formatNumber(stats.by_source.length)}
-                hint="אתרי חדשות מובילים בסינון הנוכחי"
-                accent="purple"
-              />
-              <StatsCard
-                icon={Tags}
-                label="נושאים מרכזיים"
-                value={formatNumber(stats.by_category.length)}
-                hint="קטגוריות תוכן מסווגות"
-                accent="navy"
               />
               <StatsCard
                 icon={TrendingUp}
@@ -121,6 +110,24 @@ export default async function DashboardPage({
                 hint="אירועים שהסיקור עליהם עדיין נמשך"
                 accent="purple"
               />
+            </section>
+
+            {/* Moved up out of the analysis run. This grid answers "what is in
+                the corpus", which is what a reader needs before any chart below
+                means anything — and it stopped earning a slot after #compare,
+                where it repeated that chart's per-outlet breakdown one card at
+                a time, n and all. */}
+            <section id="sources" className="scroll-mt-24">
+              <h2 className="text-base font-semibold text-slate-800 dark:text-slate-200">
+                מקורות חדשות
+              </h2>
+              <p className="mb-4 mt-1 text-xs text-slate-400 dark:text-slate-500">
+                {stats.by_source.length === 1
+                  ? "מקור אחד"
+                  : `${formatNumber(stats.by_source.length)} מקורות`}{" "}
+                · {formatNumber(stats.total_articles)} כתבות בסינון הנוכחי.
+              </p>
+              <SourcesGrid sources={stats.by_source} />
             </section>
 
             <section id="trend" className="card scroll-mt-24 p-5">
@@ -144,6 +151,19 @@ export default async function DashboardPage({
                   שלוש קריאות של אותם נתונים. הן לא מודדות את אותו הדבר, ואין לקרוא אחת
                   כשנייה.
                 </p>
+                {/* The source filter is deliberately not passed to these three
+                    endpoints — getPolarityBySource's type excludes it, because a
+                    comparison between outlets narrowed to one outlet has nothing
+                    left to compare. That was the right call and an invisible one:
+                    the cards and the trend above narrowed, these did not, and
+                    nothing said so. Now something does. */}
+                {filters.source && (
+                  <p className="mt-2 rounded-lg border border-[var(--border)] bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    הסינון למקור {sourceLabel(filters.source)} לא חל כאן. השוואה בין מקורות
+                    שמצומצמת למקור אחד אינה השוואה, ולכן שלושת הגרפים הבאים ממשיכים להציג
+                    את כל המקורות.
+                  </p>
+                )}
               </div>
 
               <div id="compare" className="card scroll-mt-24 p-5">
@@ -181,6 +201,11 @@ export default async function DashboardPage({
                 <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
                   הפילוח שלמעלה מודד בעיקר אילו סיפורים כל מקור בוחר לסקר. כאן הסיפור מוחזק
                   קבוע: רק אירועים שסוקרו ביותר ממקור אחד, וכל מקור מושווה לחציון של אותו אירוע.
+                  {/* /api/analytics/event-deviation takes metric and category only.
+                      Events are clustered over the whole corpus, so a date range
+                      cannot be applied to them without redefining the clusters. */}
+                  {(filters.start_date || filters.end_date) &&
+                    " טווח התאריכים לא חל על הגרף הזה — אירועים מזוהים על פני כל הקורפוס."}
                 </p>
                 {deviation ? (
                   <EventDeviationChart profile={deviation} />
@@ -203,16 +228,11 @@ export default async function DashboardPage({
               </div>
             </section>
 
-            <section id="sources" className="scroll-mt-24">
-              <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-200">מקורות חדשות</h2>
-              <SourcesGrid sources={stats.by_source} />
-            </section>
-
             <section id="topics" className="card scroll-mt-24 p-5">
               <h2 className="mb-1 text-base font-semibold text-slate-800 dark:text-slate-200">נושאים מרכזיים</h2>
               <p className="mb-2 text-xs text-slate-400 dark:text-slate-500">
-                מבוסס על קטגוריות התוכן שסווגו אוטומטית לכל כתבה. לחיצה על נושא מסננת את
-                הדשבורד לפיו.
+                {formatNumber(stats.by_category.length)} נושאים, לפי קטגוריות התוכן שסווגו
+                אוטומטית לכל כתבה. לחיצה על נושא מסננת את הדשבורד לפיו.
               </p>
               <TopicsCloud categories={stats.by_category} currentParams={sp} />
             </section>
