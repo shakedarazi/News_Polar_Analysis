@@ -56,7 +56,7 @@ def chunk_pending(limit: int | None) -> int:
     return written
 
 
-def embed_pending(limit: int | None, batch_size: int) -> int:
+def embed_pending(limit: int | None, batch_size: int, *, use_user_key: bool = False) -> int:
     pending = iter_chunks_needing_embedding(EMBED_MODEL, limit=limit)
     print(f"Chunks needing an embedding: {len(pending)}")
     if not pending:
@@ -69,6 +69,7 @@ def embed_pending(limit: int | None, batch_size: int) -> int:
         vectors = embed_passages(
             [embedded_text(row["title"], row["text"]) for row in batch],
             batch_size=batch_size,
+            use_user_key=use_user_key,
         )
         written += save_chunk_embeddings(
             [(row["chunk_id"], to_literal(vector)) for row, vector in zip(batch, vectors)],
@@ -88,6 +89,15 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument("--chunk-only", action="store_true", help="Skip the paid pass")
     parser.add_argument("--embed-only", action="store_true", help="Embed existing chunks")
+    parser.add_argument(
+        "--user-key",
+        action="store_true",
+        help=(
+            "Embed on OPENAI_API_KEY instead of the ingestion key, for a machine "
+            "that only has the OpenAI one. Never pass this in CI: it takes the "
+            "corpus off the gateway production embeds it on."
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -100,7 +110,9 @@ def main() -> int:
         chunk_pending(args.limit or None)
     if not args.chunk_only:
         try:
-            embed_pending(args.embed_limit or None, args.batch_size)
+            embed_pending(
+                args.embed_limit or None, args.batch_size, use_user_key=args.user_key
+            )
         except Exception as exc:  # noqa: BLE001 - provider errors are not ours to type
             # Non-fatal by design, and this is the same call ingestion makes for
             # the event embeddings: chunks are written and searchable

@@ -80,6 +80,20 @@ class TestTheTwoGatewaysStayInOneSpace:
         assert EMBED_MODEL == "text-embedding-3-small"
         assert "/" not in EMBED_MODEL
 
+    def test_chunks_can_be_sent_to_the_user_key_on_request(self, stubs):
+        """For a laptop that only has the OpenAI key. Opt-in, never a fallback:
+        defaulting this the wrong way in CI would take the corpus off the
+        gateway production embeds it on, and nothing would raise."""
+        user, ingestion = stubs
+        embed_passages(["קטע"], use_user_key=True)
+        assert user.calls and not ingestion.calls
+        assert user.calls[0]["model"] == USER_REQUEST_MODEL
+
+    def test_the_ingestion_key_is_what_you_get_without_asking(self, stubs):
+        user, ingestion = stubs
+        embed_passages(["קטע"])
+        assert ingestion.calls and not user.calls
+
     def test_neither_side_asks_the_provider_to_truncate(self, stubs):
         """OpenRouter documents no `dimensions` parameter. Sending it would
         risk 512 floats from one host and 1536 from the other in one column."""

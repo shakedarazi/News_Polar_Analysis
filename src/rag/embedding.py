@@ -129,7 +129,10 @@ def embed_query(text: str) -> list[float]:
 
 
 def embed_passages(
-    texts: list[str], *, batch_size: int = DEFAULT_BATCH_SIZE
+    texts: list[str],
+    *,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    use_user_key: bool = False,
 ) -> list[list[float]]:
     """Embed chunk texts during ingestion, on the ingestion key.
 
@@ -138,14 +141,24 @@ def embed_passages(
     true, the vectors stop being comparable and search quality degrades with no
     error anywhere, which is why the model ids are constants in this file
     rather than environment variables.
+
+    `use_user_key` sends the batch to api.openai.com instead, for a run from a
+    machine that only has the OpenAI key. It is a deliberate opt-in with an
+    awkward name rather than a silent fallback, because it is exactly the
+    switch that would go unnoticed if it ever defaulted the wrong way in CI.
+    Note what it costs as a check: a corpus embedded this way and questions
+    embedded on Render are both api.openai.com, so retrieval is *more*
+    consistent than production — it therefore proves the pipeline works and
+    proves nothing about the cross-gateway assumption.
     """
     if not texts:
         return []
-    client = get_ingestion_openai_client()
+    client = get_openai_client() if use_user_key else get_ingestion_openai_client()
+    request_model = USER_REQUEST_MODEL if use_user_key else INGESTION_REQUEST_MODEL
     vectors: list[list[float]] = []
     for start in range(0, len(texts), batch_size):
         batch = [t[:MAX_INPUT_CHARS] for t in texts[start : start + batch_size]]
-        vectors.extend(_embed(client, INGESTION_REQUEST_MODEL, batch))
+        vectors.extend(_embed(client, request_model, batch))
     return vectors
 
 
