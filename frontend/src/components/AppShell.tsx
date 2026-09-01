@@ -7,13 +7,17 @@ import { BarChart3, Menu, X } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { NotificationBell } from "./NotificationBell";
 
+// Destinations only. Three of these used to be hash links into sections of the
+// home page ("סקירת מגמות", "השוואת אתרים", "מקורות"), which read as separate
+// areas of the site but were not: from /articles they threw the reader back to
+// the dashboard, and `active` below could never match them, so the nav claimed
+// you were on the home page while the content came from a section of it. The
+// home page carries its own ordering; wayfinding inside one page belongs to
+// that page.
 const links = [
   { href: "/", label: "דף הבית" },
   { href: "/articles", label: "כתבות" },
   { href: "/events", label: "ציר זמן אירועים" },
-  { href: "/#trend", label: "סקירת מגמות" },
-  { href: "/#compare", label: "השוואת אתרים" },
-  { href: "/#sources", label: "מקורות" },
   { href: "/assistant", label: "עוזר AI" },
   { href: "/about", label: "אודות" },
 ];

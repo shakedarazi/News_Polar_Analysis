@@ -130,60 +130,77 @@ export default async function DashboardPage({
               <PolarityTrendChart data={trend} />
             </section>
 
-            <section id="compare" className="card scroll-mt-24 p-5">
-              <h2 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-200">
-                פילוח קיטוב לפי אתרי חדשות
-              </h2>
-              <SourcePolarityChart data={sourceBreakdown} />
-            </section>
-
-            <section id="within-event" className="card scroll-mt-24 p-5">
-              <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-base font-semibold text-slate-800 dark:text-slate-200">
-                  אותו אירוע, מקורות שונים
+            {/* One group, not three sibling cards of equal weight. All three read
+                the same corpus per outlet and are easy to mistake for one
+                another — which the caveat under "אותו אירוע" already had to
+                spell out in prose. The ids stay: they were linked from the main
+                nav until it was reduced to destinations, and old links land. */}
+            <section id="by-source" className="scroll-mt-24 space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
+                  השוואה בין מקורות
                 </h2>
-                <div className="flex gap-1 text-xs">
-                  {[
-                    { key: "audience_mean", label: "תגובות הקהל" },
-                    { key: "dominance", label: "טקסט הכתבה" },
-                  ].map((option) => (
-                    <Link
-                      key={option.key}
-                      href={{ query: { ...sp, metric: option.key } }}
-                      scroll={false}
-                      className={
-                        deviationMetric === option.key
-                          ? "rounded-md bg-[var(--purple)] px-2 py-0.5 font-semibold text-white"
-                          : "rounded-md px-2 py-0.5 text-slate-500 hover:bg-[var(--border)] dark:text-slate-400"
-                      }
-                    >
-                      {option.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
-                הפילוח שלמעלה מודד בעיקר אילו סיפורים כל מקור בוחר לסקר. כאן הסיפור מוחזק
-                קבוע: רק אירועים שסוקרו ביותר ממקור אחד, וכל מקור מושווה לחציון של אותו אירוע.
-              </p>
-              {deviation ? (
-                <EventDeviationChart profile={deviation} />
-              ) : (
-                <p className="text-sm text-slate-400 dark:text-slate-500">
-                  ההשוואה בתוך אירועים אינה זמינה כרגע.
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  שלוש קריאות של אותם נתונים. הן לא מודדות את אותו הדבר, ואין לקרוא אחת
+                  כשנייה.
                 </p>
-              )}
-            </section>
+              </div>
 
-            <section id="axes" className="card scroll-mt-24 p-5">
-              <h2 className="mb-1 text-base font-semibold text-slate-800 dark:text-slate-200">
-                קריאה שנייה — שפת נושא מול שפת עוינות
-              </h2>
-              <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
-                מקור שבו שני הטורים דומים מנהל ויכוח על העניין עצמו באותה מידה שהוא מנהל
-                אותו נגד הצד השני. פער לטובת שפת עוינות מצביע על ההפך.
-              </p>
-              <SourceAxesChart data={sourceBreakdown} />
+              <div id="compare" className="card scroll-mt-24 p-5">
+                <h3 className="mb-4 text-base font-semibold text-slate-800 dark:text-slate-200">
+                  פילוח קיטוב לפי אתרי חדשות
+                </h3>
+                <SourcePolarityChart data={sourceBreakdown} />
+              </div>
+
+              <div id="within-event" className="card scroll-mt-24 p-5">
+                <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-slate-200">
+                    אותו אירוע, מקורות שונים
+                  </h3>
+                  <div className="flex gap-1 text-xs">
+                    {[
+                      { key: "audience_mean", label: "תגובות הקהל" },
+                      { key: "dominance", label: "טקסט הכתבה" },
+                    ].map((option) => (
+                      <Link
+                        key={option.key}
+                        href={{ query: { ...sp, metric: option.key } }}
+                        scroll={false}
+                        className={
+                          deviationMetric === option.key
+                            ? "rounded-md bg-[var(--purple)] px-2 py-0.5 font-semibold text-white"
+                            : "rounded-md px-2 py-0.5 text-slate-500 hover:bg-[var(--border)] dark:text-slate-400"
+                        }
+                      >
+                        {option.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+                <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                  הפילוח שלמעלה מודד בעיקר אילו סיפורים כל מקור בוחר לסקר. כאן הסיפור מוחזק
+                  קבוע: רק אירועים שסוקרו ביותר ממקור אחד, וכל מקור מושווה לחציון של אותו אירוע.
+                </p>
+                {deviation ? (
+                  <EventDeviationChart profile={deviation} />
+                ) : (
+                  <p className="text-sm text-slate-400 dark:text-slate-500">
+                    ההשוואה בתוך אירועים אינה זמינה כרגע.
+                  </p>
+                )}
+              </div>
+
+              <div id="axes" className="card scroll-mt-24 p-5">
+                <h3 className="mb-1 text-base font-semibold text-slate-800 dark:text-slate-200">
+                  קריאה שנייה — שפת נושא מול שפת עוינות
+                </h3>
+                <p className="mb-4 text-xs text-slate-400 dark:text-slate-500">
+                  מקור שבו שני הטורים דומים מנהל ויכוח על העניין עצמו באותה מידה שהוא מנהל
+                  אותו נגד הצד השני. פער לטובת שפת עוינות מצביע על ההפך.
+                </p>
+                <SourceAxesChart data={sourceBreakdown} />
+              </div>
             </section>
 
             <section id="sources" className="scroll-mt-24">
