@@ -290,7 +290,11 @@ function IndexAndCut({ facts }: Props) {
   const haaretz = r?.corpus.per_source.find((s) => s.source === "haaretz");
 
   const chosen = r?.sweep.find((s) => s.chosen);
-  const loose = r?.sweep.reduce((a, b) => (b.events > a.events ? b : a));
+  // seeded with the first row rather than left seedless: a sweep that came
+  // back empty is a thin facts file, not a reason to throw on the wall.
+  const loose = r?.sweep.length
+    ? r.sweep.reduce((a, b) => (b.events > a.events ? b : a))
+    : undefined;
   const tight = r?.sweep.find((s) => chosen && s.threshold > chosen.threshold);
   const atCut = sim?.above.find((a) => a.threshold === r?.cluster_sim);
 
