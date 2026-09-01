@@ -268,6 +268,8 @@ export interface EconomyEvent {
   corpus_articles: number;
   allllm_tokens_est: number;
   allllm_cost_est: number;
+  /** optional: a backend from before the strawman was measured omits it */
+  allllm_calls?: number;
   note_he: string;
 }
 

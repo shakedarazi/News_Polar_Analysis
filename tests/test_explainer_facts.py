@@ -759,3 +759,26 @@ def test_the_recall_floor_is_carried_not_restated():
     assert r["floor"] == MEASURED_FLOOR
     assert str(MEASURED_FLOOR) in r["region"]
     assert r["below_region"]["same_found"] == 0 or r["below_region"]["rate_upper_95"] > 0
+
+
+@pytest.mark.skipif(not FACTS_PATH.exists(), reason="facts not built yet")
+def test_the_narrated_run_costs_the_strawman_the_same_way_the_module_does():
+    """One quantity, one number on the wall.
+
+    The economy scene used to compute its own "everything through an LLM"
+    estimate over the indexed articles, landing far below the measured one
+    over every article and comment. Both were labelled estimates, and they
+    were still two different answers to the same question in one room.
+    """
+    from demo.runner import DemoLoop
+
+    straw = json.loads(FACTS_PATH.read_text(encoding="utf-8"))["economy"]["strawman"]
+    # unbound: the measured path reads the facts file and never touches
+    # self, and the skipif above guarantees that file is there
+    emitted = DemoLoop._strawman(object())
+
+    assert emitted["allllm_cost_est"] == straw["usd"]
+    assert emitted["allllm_calls"] == straw["calls"]
+    assert emitted["allllm_tokens_est"] == (
+        straw["prompt_tokens"] + straw["completion_tokens"])
+

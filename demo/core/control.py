@@ -7,6 +7,13 @@ Two modes:
 - DEMO_AUTOPLAY=1 — every gate also auto-clears after AUTOPLAY_GATE_S
   (scaled by DEMO_SPEED), so an unattended kiosk loop / CI benchmark never
   stalls. advance() still works and skips the wait.
+
+The same keypress also works *inside* a scene. Gates sit between scenes, but a
+scene is itself a sequence of timed steps — the architecture scene alone holds
+~50 seconds of deliberate pauses — and a presenter who has finished talking
+about the step on screen had no way to move on. So every theatrical pause in
+the demo goes through `sleep()` here, and an advance with no gate open cuts the
+current pause short instead of doing nothing.
 """
 
 from __future__ import annotations
@@ -22,17 +29,58 @@ class DemoController:
         self.autoplay = config.DEMO_AUTOPLAY
         self._event: asyncio.Event = asyncio.Event()
         self.current_gate: str | None = None
+        # Mid-scene skips are counted, not flagged: three taps during one long
+        # pause mean three steps on, and a tap that lands in the gap between
+        # two pauses has to survive until the next one starts rather than
+        # being cleared unnoticed.
+        self._skips = 0
+        self._skip_event: asyncio.Event = asyncio.Event()
 
     def advance(self) -> bool:
-        """Called from the /control/advance endpoint. Returns True if a gate
-        was actually open (False = nothing to advance, e.g. mid-scene)."""
-        if self.current_gate is None:
+        """Called from the /control/advance endpoint.
+
+        Returns True if a gate was actually open. False means the demo was
+        mid-scene — which is no longer a no-op: it banks a skip that shortens
+        the current (or next) pause. The two are still reported separately,
+        because "the scene moved on" and "a pause got cut" are different
+        things to see in a log.
+        """
+        if self.current_gate is not None:
+            self._event.set()
+            return True
+        self._skips += 1
+        self._skip_event.set()
+        return False
+
+    async def sleep(self, seconds: float) -> None:
+        """A theatrical pause the presenter can cut short.
+
+        Every pause in the demo goes through here (demo.core.agent.nap), so
+        one skip advances exactly one step — the pacing stays authored, and
+        the presenter only chooses when to leave each step.
+        """
+        if self._take_skip():
+            return
+        try:
+            await asyncio.wait_for(self._skip_event.wait(), seconds)
+        except asyncio.TimeoutError:
+            return
+        self._take_skip()
+
+    def _take_skip(self) -> bool:
+        if self._skips <= 0:
             return False
-        self._event.set()
+        self._skips -= 1
+        if self._skips == 0:
+            self._skip_event.clear()
         return True
 
     async def gate(self, gate_id: str, hint_he: str = "") -> None:
         """Pause here until the presenter advances (or autoplay times out)."""
+        # A tap aimed at the last step of a scene must not silently skip the
+        # first step of the next one: banked skips do not cross a gate.
+        self._skips = 0
+        self._skip_event.clear()
         self._event = asyncio.Event()
         self.current_gate = gate_id
         timeout_s = (config.AUTOPLAY_GATE_S * config.DEMO_SPEED

@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
-import asyncio
-
 from demo import config
+from demo.core.control import CONTROLLER
 from demo.core.events import BROKER
 
 
 async def nap(seconds: float) -> None:
-    """Demo pacing sleep, scaled by DEMO_SPEED (set 0.15 in dev)."""
-    await asyncio.sleep(seconds * config.DEMO_SPEED)
+    """Demo pacing sleep, scaled by DEMO_SPEED (set 0.15 in dev).
+
+    Routed through the controller rather than asyncio.sleep directly, so the
+    presenter's spacebar cuts it short: a pause is how long a step stays on
+    screen, and that is a call the person talking should be able to make.
+    See DemoController.sleep.
+    """
+    await CONTROLLER.sleep(seconds * config.DEMO_SPEED)
 
 
 class Agent:

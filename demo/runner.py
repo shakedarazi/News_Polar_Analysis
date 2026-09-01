@@ -182,8 +182,13 @@ class DemoLoop:
         if vec is not None:
             await librarian.map_event(seed, vec, event)
             await nap(12)
-        librarian.say("מכאן הכול נמדד על אותו אירוע בדיוק — וזה מה שמאפשר "
-                      "להשוות מערכות בלי להשוות אילו סיפורים הן בחרו לסקר",
+        # "exactly the same event" is what this step is FOR, not what it
+        # achieves: the golden set puts precision at the live 0.90 cut at 66%.
+        # The screen carries the measured number; the line stops claiming a
+        # certainty the measurement does not support.
+        librarian.say("מכאן ההשוואה רצה על אותו אירוע — וזה מה שמאפשר להשוות "
+                      "מערכות בלי להשוות אילו סיפורים הן בחרו לסקר. כמה "
+                      "מהחיבורים האלה באמת נכונים נמדד בנפרד, מול ערכת זהב",
                       "decision")
         await self._gate(3, "איך כל אחת מספרת את זה? — מסגור")
 
@@ -275,17 +280,49 @@ class DemoLoop:
 
     # ── scene 8: token economy ───────────────────────────────────────────
 
+    def _strawman(self) -> dict[str, Any]:
+        """What this architecture would have cost as one model call per item.
+
+        Read from explainer_facts.json, which measures it over every article
+        AND every comment in the snapshot at their real character counts. The
+        scene used to estimate it itself, at 900+150 tokens over the 752
+        indexed articles — a self-consistent number that landed ~24x below the
+        measured one and made the same argument the economy module makes, only
+        much weaker. Two numbers for one quantity is the thing to avoid on a
+        wall, so the scene now reads the module's.
+
+        Falls back to the old estimate if the facts file is absent: the kiosk
+        does not stop for a missing enrichment file.
+        """
+        try:
+            facts = json.loads(
+                (config.DATA_DIR / "explainer_facts.json").read_text(encoding="utf-8"))
+            straw = facts["economy"]["strawman"]
+            return {
+                "corpus_articles": straw["articles"],
+                "allllm_tokens_est": straw["prompt_tokens"] + straw["completion_tokens"],
+                "allllm_cost_est": straw["usd"],
+                "allllm_calls": straw["calls"],
+                "note_he": (f"נמדד: כל כתבה וכל תגובה כקריאת מודל נפרדת — "
+                            f"{straw['calls']:,} קריאות, פי {straw['ratio']:g} "
+                            "מהחשבון שמשמאל"),
+            }
+        except (OSError, KeyError, ValueError):
+            n_articles = len(self.index.meta)
+            prompt, completion = n_articles * 900, n_articles * 150
+            cost = (prompt * config.PRICE_PROMPT_PER_M
+                    + completion * config.PRICE_COMPLETION_PER_M) / 1_000_000
+            return {
+                "corpus_articles": n_articles,
+                "allllm_tokens_est": prompt + completion,
+                "allllm_cost_est": round(cost, 4),
+                "allllm_calls": n_articles,
+                "note_he": "אומדן: אותן כתבות אילו כל שלב היה קריאת מודל על הטקסט המלא",
+            }
+
     async def _scene_economy(self, amit: Amit) -> None:
         self._scene(7)
         usage = self.usage
-        # The strawman this architecture avoids: sending every article in the
-        # snapshot through a model in full instead of scoring it with a
-        # dictionary. Estimate, and labeled as one.
-        n_articles = len(self.index.meta)
-        allllm_prompt = n_articles * 900
-        allllm_completion = n_articles * 150
-        allllm_cost = (allllm_prompt * config.PRICE_PROMPT_PER_M
-                       + allllm_completion * config.PRICE_COMPLETION_PER_M) / 1_000_000
         BROKER.emit(
             "economy",
             model_calls=usage.get("calls", 0),
@@ -293,10 +330,7 @@ class DemoLoop:
             total_tokens=usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0),
             total_cost_usd=usage.get("usd", 0.0),
             showtime_calls=0,
-            corpus_articles=n_articles,
-            allllm_tokens_est=allllm_prompt + allllm_completion,
-            allllm_cost_est=round(allllm_cost, 4),
-            note_he="אומדן: אותן כתבות אילו כל שלב היה קריאת מודל על הטקסט המלא",
+            **self._strawman(),
         )
         await nap(8)
         amit.say(f"כל שכבת ה־AI של המערכת הזאת עלתה "

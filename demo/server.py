@@ -97,11 +97,17 @@ async def state() -> dict:
 
 @app.post("/control/advance")
 async def advance() -> dict:
-    """HITL: presenter's spacebar/click — clears the currently open gate."""
+    """HITL: presenter's spacebar/click.
+
+    At a gate it clears the gate. Mid-scene it cuts the current pause short
+    and moves to the next step — same key, so the presenter never has to know
+    which of the two the demo is currently doing.
+    """
     gate = CONTROLLER.current_gate
     advanced = CONTROLLER.advance()
     print(f"[control] advance gate={gate} advanced={advanced}", flush=True)
-    return {"ok": True, "advanced": advanced, "gate_id": gate}
+    return {"ok": True, "advanced": advanced, "skipped_pause": not advanced,
+            "gate_id": gate}
 
 
 @app.post("/control/restart")

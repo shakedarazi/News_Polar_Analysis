@@ -1,5 +1,6 @@
 "use client";
 
+import type { Facts } from "./explain/facts";
 import type { RunSummaryEvent } from "./types";
 
 interface StatTileProps {
@@ -21,11 +22,21 @@ function StatTile({ label, value, dir = "rtl" }: StatTileProps) {
 
 interface SummaryOverlayProps {
   summary: RunSummaryEvent;
+  facts: Facts | null;
 }
 
-/** Stays on screen until the presenter advances (reset clears it). */
-export function SummaryOverlay({ summary }: SummaryOverlayProps) {
+/**
+ * Stays on screen until the presenter advances (reset clears it).
+ *
+ * The retrieval tile reports the snapshot, not the story just shown. The
+ * closing screen is the one the audience writes down, and the story the loop
+ * picked is a story picked to be striking — on it, keyword search finds 0 of 2
+ * versions, against 17 of 77 across the corpus. Every other tile here is
+ * already a snapshot number; this one was the outlier.
+ */
+export function SummaryOverlay({ summary, facts }: SummaryOverlayProps) {
   const significant = (summary.outlets ?? []).filter((o) => o.significant);
+  const keyword = facts?.retrieval?.keyword;
 
   return (
     <div className="dk-dim-in absolute inset-0 z-40 flex flex-col items-center justify-center gap-7 bg-[#05080f]/88 px-10">
@@ -43,8 +54,16 @@ export function SummaryOverlay({ summary }: SummaryOverlayProps) {
 
       <div className="dk-fade-up flex flex-wrap items-stretch justify-center gap-4">
         <StatTile
-          label="אחזור סמנטי מול חיפוש מילים"
-          value={`${summary.keyword_total - summary.keyword_found}:${summary.keyword_found}`}
+          label={
+            keyword
+              ? "גרסאות שחיפוש מילולי מוצא בסנאפשוט"
+              : "אחזור סמנטי מול חיפוש מילים — בסיפור הזה"
+          }
+          value={
+            keyword
+              ? `${keyword.found}/${keyword.total}`
+              : `${summary.keyword_total - summary.keyword_found}:${summary.keyword_found}`
+          }
           dir="ltr"
         />
         <StatTile

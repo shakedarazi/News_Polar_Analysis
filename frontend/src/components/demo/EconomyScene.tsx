@@ -13,6 +13,10 @@ interface EconomySceneProps {
  * The honest number here is the PREPARE cost, not the run cost: showtime
  * replays a cache and therefore spends nothing, and reporting $0 would be true
  * but meaningless. What the model actually cost is what it cost to build.
+ *
+ * Both sides come from the backend, and the strawman side is the one the
+ * economy module measures (every article and every comment as its own call)
+ * rather than a rounder estimate computed here — one quantity, one number.
  */
 export function EconomyScene({ economy }: EconomySceneProps) {
   return (
@@ -52,7 +56,10 @@ export function EconomyScene({ economy }: EconomySceneProps) {
           </div>
           <div className="text-base text-[var(--dk-ink-2)]" dir="rtl">
             ‎~{(economy?.allllm_tokens_est ?? 0).toLocaleString("he-IL")} טוקנים
-            · {(economy?.corpus_articles ?? 0).toLocaleString("he-IL")} כתבות
+            ·{" "}
+            {economy?.allllm_calls
+              ? `${economy.allllm_calls.toLocaleString("he-IL")} קריאות`
+              : `${(economy?.corpus_articles ?? 0).toLocaleString("he-IL")} כתבות`}
           </div>
           <div className="mt-1 text-center text-[14px] leading-snug text-[var(--dk-ink-3)]">
             {economy?.note_he ?? "אומדן — כל שלב כקריאת מודל על הטקסט המלא"}

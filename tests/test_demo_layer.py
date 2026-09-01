@@ -1,6 +1,7 @@
 """Unit tests for the demo agent layer's pure logic (no network, no data files)."""
 
 import asyncio
+import pathlib
 
 from demo import config
 from demo.core.control import DemoController
@@ -70,6 +71,85 @@ def test_controller_gate_waits_for_advance():
         assert ctrl.current_gate is None
 
     asyncio.run(scenario())
+
+
+def test_a_press_mid_scene_cuts_the_current_pause_short():
+    """The gap the presenter actually hits: gates sit between scenes, but the
+    architecture scene alone holds ~50s of pauses inside one gate."""
+
+    async def scenario():
+        ctrl = DemoController()
+        ctrl.autoplay = False
+        task = asyncio.create_task(ctrl.sleep(30))
+        await asyncio.sleep(0)
+        assert ctrl.advance() is False  # no gate — but not a no-op
+        await asyncio.wait_for(task, timeout=1)
+
+    asyncio.run(scenario())
+
+
+def test_a_press_between_two_pauses_is_not_swallowed():
+    """A tap that lands while the runner is emitting, rather than sleeping,
+    has to shorten the next pause instead of disappearing."""
+
+    async def scenario():
+        ctrl = DemoController()
+        ctrl.autoplay = False
+        assert ctrl.advance() is False  # banked while nothing is sleeping
+        await asyncio.wait_for(ctrl.sleep(30), timeout=1)
+
+    asyncio.run(scenario())
+
+
+def test_one_press_skips_one_step_and_three_skip_three():
+    """Pacing stays authored: a skip buys the next step, not the rest of the
+    scene, so the presenter chooses when to leave each one."""
+
+    async def scenario():
+        ctrl = DemoController()
+        ctrl.autoplay = False
+        for _ in range(3):
+            ctrl.advance()
+        for _ in range(3):
+            await asyncio.wait_for(ctrl.sleep(30), timeout=1)
+        # the fourth pause is a real pause again
+        slow = asyncio.create_task(ctrl.sleep(30))
+        await asyncio.sleep(0.05)
+        assert not slow.done()
+        slow.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_a_banked_skip_does_not_cross_a_gate():
+    """Otherwise a tap aimed at the last step of a scene silently eats the
+    first step of the next one."""
+
+    async def scenario():
+        ctrl = DemoController()
+        ctrl.autoplay = False
+        assert ctrl.advance() is False  # banked mid-scene
+        gate = asyncio.create_task(ctrl.gate("g1", ""))
+        await asyncio.sleep(0)
+        assert ctrl.advance() is True
+        await asyncio.wait_for(gate, timeout=1)
+        slow = asyncio.create_task(ctrl.sleep(30))
+        await asyncio.sleep(0.05)
+        assert not slow.done(), "the banked skip leaked past the gate"
+        slow.cancel()
+
+    asyncio.run(scenario())
+
+
+def test_every_theatrical_pause_goes_through_the_controller():
+    """One place to interrupt. A bare asyncio.sleep in a scene would be a
+    stretch of the show the spacebar cannot reach."""
+    import re
+
+    for path in pathlib.Path("demo").rglob("*.py"):
+        source = path.read_text(encoding="utf-8")
+        assert not re.search(r"\basyncio\.sleep\(", source), (
+            f"{path} sleeps directly instead of via nap()/CONTROLLER.sleep")
 
 
 def test_source_labels_fall_back_to_the_raw_id():

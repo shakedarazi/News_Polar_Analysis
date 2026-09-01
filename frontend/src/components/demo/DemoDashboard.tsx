@@ -113,6 +113,8 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
     </div>
   );
 
+  const factsOrNull = facts.status === "ready" ? facts.facts : null;
+
   let runStage: React.ReactNode;
   switch (scene) {
     case "arch":
@@ -129,7 +131,9 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
       runStage = withFeed(<ShowcaseScene showcase={state.showcase} />);
       break;
     case "event_map":
-      runStage = withFeed(<EventMapScene eventMap={state.eventMap} />);
+      runStage = withFeed(
+        <EventMapScene eventMap={state.eventMap} facts={factsOrNull} />,
+      );
       break;
     case "framing":
       runStage = withFeed(
@@ -153,8 +157,6 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
       // summary and the waiting screen live on the swarm stage
       runStage = swarmStage;
   }
-
-  const factsOrNull = facts.status === "ready" ? facts.facts : null;
 
   return (
     <div className="demo-kiosk grid grid-rows-[10%_1fr] gap-3 p-3 pb-4">
@@ -211,8 +213,14 @@ export function DemoDashboard({ forceMock }: DemoDashboardProps) {
             {state.insight && (
               <InsightToast insight={state.insight} onDone={dismissInsight} />
             )}
-            {state.summary && <SummaryOverlay summary={state.summary} />}
-            <GateBar gate={state.gate} onAdvance={advance} />
+            {state.summary && (
+              <SummaryOverlay summary={state.summary} facts={factsOrNull} />
+            )}
+            <GateBar
+              gate={state.gate}
+              running={scene !== null}
+              onAdvance={advance}
+            />
           </>
         )}
       </main>

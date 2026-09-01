@@ -1,20 +1,29 @@
 "use client";
 
+import type { Facts } from "./explain/facts";
 import type { EventMapEvent } from "./types";
 
 interface EventMapSceneProps {
   eventMap: EventMapEvent | null;
+  facts: Facts | null;
 }
 
 /**
  * Scene 4 — the one place the AI is load-bearing.
  *
  * Two outlets covering the same event in Hebrew share almost no headline
- * words, so a keyword search finds nothing while the embedding finds every
- * version. Both numbers are computed live by the backend, and the headlines
+ * words, so a keyword search finds nothing while the embedding finds the other
+ * versions. Both numbers are computed live by the backend, and the headlines
  * are on screen so the audience can check the claim themselves.
+ *
+ * One story is an anecdote, and a story chosen for the demo is a chosen
+ * anecdote. The strip along the bottom carries the two corpus-wide numbers the
+ * retrieval module measures — how often keyword search finds a version at all,
+ * and how often an accepted pair really is the same event — so what the
+ * audience sees is a worked example of a measured claim rather than the claim
+ * itself. Missing facts drop the strip, never the scene.
  */
-export function EventMapScene({ eventMap }: EventMapSceneProps) {
+export function EventMapScene({ eventMap, facts }: EventMapSceneProps) {
   if (!eventMap) {
     return (
       <section className="dk-card flex h-full items-center justify-center">
@@ -111,6 +120,48 @@ export function EventMapScene({ eventMap }: EventMapSceneProps) {
           </div>
         ))}
       </div>
+
+      <Measured facts={facts} />
     </section>
+  );
+}
+
+/** The corpus behind the one story on screen — or nothing, if facts are out. */
+function Measured({ facts }: { facts: Facts | null }) {
+  const keyword = facts?.retrieval?.keyword;
+  const evals = facts?.evals;
+  if (!keyword && !evals) return null;
+
+  // precision is null when no labelled pair reaches the threshold; a band with
+  // nothing in it has no rate, and inventing one is the failure this measures.
+  const live = evals?.precision_sweep.find(
+    (row) => row.threshold === evals.live_threshold && row.precision !== null,
+  );
+
+  return (
+    <div className="flex shrink-0 flex-wrap items-baseline gap-x-5 gap-y-1 border-t border-[var(--dk-border)] pt-3 text-[13px] leading-snug text-[var(--dk-ink-3)]">
+      <span className="font-semibold text-[var(--dk-ink-2)]">
+        לא רק הסיפור הזה:
+      </span>
+      {keyword && (
+        <span>
+          על כל הסנאפשוט חיפוש מילולי מוצא{" "}
+          <b className="text-[var(--dk-ink-2)]" dir="ltr">
+            {keyword.found}/{keyword.total}
+          </b>{" "}
+          מהגרסאות
+        </span>
+      )}
+      {live && evals && (
+        <span>
+          ומתוך מה שהאחזור מקבל בסף{" "}
+          <b dir="ltr">{evals.live_threshold}</b>,{" "}
+          <b className="text-[var(--dk-ink-2)]" dir="ltr">
+            {Math.round((live.precision ?? 0) * 100)}%
+          </b>{" "}
+          באמת אותו אירוע — נמדד מול {evals.golden_set.pairs} זוגות מתויגים
+        </span>
+      )}
+    </div>
   );
 }
